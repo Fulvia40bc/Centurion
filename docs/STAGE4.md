@@ -148,3 +148,10 @@ table to locate the image loader instead of grepping the linear sweep.
 - `disasm/OVL_RUNTIME.asm`: recursive disasm of the runtime image (70 funcs
   from entry seeds). VRAM segment is passed in from the EXE (global), not
   hardcoded in the overlay.
+
+## Stage 11: runtime overlay analyzed
+- `disasm/OVL_RUNTIME.BIN` = authoritative overlay image (from DOSBox-X dump).
+- `disasm/OVL_RUNTIME.funcs.asm` (recursive disasm from the 5 AH entries,
+  70 functions) and `disasm/OVL_RUNTIME.linear.asm` (full linear sweep).
+- AH=0 handler at 0x4A9 is a byte-command interpreter (reads script via es:si);
+  image display is one of its commands -> the CBM blit is reached through it.
