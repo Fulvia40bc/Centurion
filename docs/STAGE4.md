@@ -172,3 +172,13 @@ table to locate the image loader instead of grepping the linear sweep.
 - => Image/game logic is NOT reached via int 0x64 AH dispatch; it is called
   from the EXE through other far pointers. Next: find the image blit by
   watching VRAM (es: writes) at runtime, or follow EXE->overlay calls.
+
+## Stage 14: EXE overlay far-call sites enumerated
+- EXE calls into the overlay via far-pointer globals (lcall [disp16]):
+  [0xC4] (int 0x64 sound dispatch), plus [0xB6] @0x07FC, [0xB8] @0x0800,
+  [0x684] @0x1C5A/0x1D00, [0x1E06] @0x1D04, [0xF46] @0x2057, [0xF40] @0x2123,
+  [0xF3E] @0x2151, [0x15DA] @0x33EB, [0xA06] @0x3F40, [0x8EC] @0x6332.
+- Each global is set to an overlay far pointer at load; the image-display
+  entry is one of these. EXE regions around these sites misalign in linear
+  sweeps, so mapping global->overlay function is fastest at runtime
+  (break at each lcall, read the pointer, subtract overlay base segment).
