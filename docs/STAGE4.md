@@ -124,6 +124,15 @@ table to locate the image loader instead of grepping the linear sweep.
 - `bpint 64` caught the game at an `int 0x64`; with DS=1686, the dispatch far
   pointer `[0xC4]` = **3682:0000** (bytes `00 00 82 36` at 1686:00C4).
 - => OVL0.OVL is loaded at a runtime segment (0x3682 in that session) with
-  entry offset 0x0000: **file offset == memory offset (load base 0)**,
-  and the int 0x64 handler enters the overlay at OVL offset 0 with AH =
-  function index. Confirms the entry dispatcher at OVL 0x0000.
+  entry offset 0x0000, and the int 0x64 handler enters the overlay at OVL
+  offset 0 with AH = function index.
+
+## Stage 9: runtime overlay structure (DOSBox-X)
+- At the entry breakpoint, CS=3682; the dispatcher at 3682:03E8 does
+  `mov bl,ah; shl bl,1; call near [bx+03DE]` -> AH indexes a word table
+  at overlay offset 0x03DE (near-call offsets). Jump stubs (E9 rel16) at
+  3682:0003+ (jmp 0403/0470...).
+- Runtime bytes at 3682:0003 (E9 FD 03...) do NOT appear in OVL0.OVL on
+  disk -> the in-memory overlay image differs from the file (transformed or
+  relocated at load). Static analysis must use a runtime memory dump.
+- Next: MEMDUMPBIN 3682:0 <len> ovl.bin in DOSBox-X, analyze that image.
