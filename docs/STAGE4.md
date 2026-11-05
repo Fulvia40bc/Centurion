@@ -62,3 +62,14 @@ table to locate the image loader instead of grepping the linear sweep.
   load-base offset vs. memory, or that call site is misaligned. Next: read the
   EXE's overlay manager (string "OVL0.OVL" in EXE) to get the true load base,
   then re-align and read the image loader.
+
+## Stage 5c: EXE disassembly from true entry (CS:IP 0x0A78:0x0322 -> linear 0xAAC2)
+- `disasm/CENTURIO.funcs3.asm`: 121 functions recovered by recursive descent
+  from the real entry point (vs 44 from call-target seeding).
+- Located: filename buffer at 0xB060 ("CENTURIO.EXE"/"OVL0.OVL" strings at
+  0xB059/0xB065), file-read via int 0x21 AH=3Fh around 0x02C5, LZSS unpacker
+  at 0x01DE-0x0287, overlay-manager strings at 0xAEE5 ("Overlay Loader...").
+- Load-base question still open: no constant file->memory shift fits the OVL
+  dispatch table; needs the overlay manager's header parse read directly.
+  Next: find the code referencing 0xAEE5 (misaligned in current listing) and
+  read the OVL header handling.
