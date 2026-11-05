@@ -51,3 +51,14 @@ table to locate the image loader instead of grepping the linear sweep.
 - The 0xe37c region currently disassembles as garbage under linear-sweep
   alignment — needs real function-boundary recovery seeded from the EXE's
   overlay dispatch table (next step).
+
+## Stage 5b: overlay entry seeds + refined disassembly
+- Extracted ~3,094 candidate entry offsets from the overlay's dispatch/jump
+  table region (0xee00-0x10800) -> `disasm/OVL0.entry_seeds.txt`
+- `tools/rdisasm.py` now accepts a seed file (argv[3]); re-ran:
+  `disasm/OVL0.funcs2.asm` = 4,503 functions (up from 3,318)
+- Open question: a `call 0xe37c` from the asset-load func (0x93c0) lands in a
+  data-looking region at file 0xe370+, so either the overlay file has a
+  load-base offset vs. memory, or that call site is misaligned. Next: read the
+  EXE's overlay manager (string "OVL0.OVL" in EXE) to get the true load base,
+  then re-align and read the image loader.

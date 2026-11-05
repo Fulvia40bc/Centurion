@@ -66,6 +66,8 @@ def disasm_function(code, start, max_len=0x8000):
 def main():
     code = open(sys.argv[1], 'rb').read()
     seeds = {0} | collect_call_targets(code)
+    if len(sys.argv) > 3:
+        seeds |= {int(l, 16) for l in open(sys.argv[3]) if l.strip()}
     seeds = {s for s in seeds if 0 <= s < len(code)}
     print(f'{len(seeds)} seed addresses', file=sys.stderr)
     functions = {}
