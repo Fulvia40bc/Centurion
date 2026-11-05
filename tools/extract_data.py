@@ -21,60 +21,44 @@ def parse_dir(path):
         off += 20
     return entries
 
-def lzw_decompress(data, bits_msb=True, clear_code=256, first=9, maxbits=12):
-    """Generic LZW. Tries to auto-detect bit order."""
+def lzss_decompress(data, winit=0xFEE, prefill=0x20):
+    """LZSS as used by the game's 'unlzss' (despite the .LZW extension).
+
+    Reverse-engineered from the unpacker at 0x01DE-0x0287 in the unpacked
+    CENTURIO.EXE: 4096-byte circular window prefilled with 0x20, write position
+    starts at 0xFEE. Stream = flag byte (8 flags, LSB first; 1 = literal byte,
+    0 = match) followed by items; match = 2 bytes: low 8 bits of window
+    position in byte 1, high 4 bits in byte 2's high nibble, length =
+    byte 2's low nibble + 3.
+    """
+    window = bytearray([prefill] * 4096)
+    wpos = winit
     out = bytearray()
-    table = None
-    bitpos = 0
-    nbits = first
-    prev = None
-
-    def read_code():
-        nonlocal bitpos, nbits
-        if bitpos + nbits > len(data) * 8:
-            return None
-        if bits_msb:
-            byte = bitpos // 8
-            bit = bitpos % 8
-            val = 0
-            for i in range(nbits):
-                b = (data[(bitpos + i) // 8] >> (7 - (bitpos + i) % 8)) & 1
-                val = (val << 1) | b
-            bitpos += nbits
-            return val
-        else:
-            val = 0
-            for i in range(nbits):
-                b = (data[(bitpos + i) // 8] >> ((bitpos + i) % 8)) & 1
-                val |= b << i
-            bitpos += nbits
-            return val
-
-    table = {i: bytes([i]) for i in range(256)}
-    next_code = clear_code + 2 if clear_code else 258
-    while True:
-        code = read_code()
-        if code is None:
-            break
-        if clear_code and code == clear_code:
-            table = {i: bytes([i]) for i in range(256)}
-            next_code = clear_code + 2
-            nbits = first
-            prev = None
-            continue
-        if code in table:
-            entry = table[code]
-        elif prev is not None and code == next_code:
-            entry = prev + prev[:1]
-        else:
-            break
-        out += entry
-        if prev is not None:
-            table[next_code] = prev + entry[:1]
-            next_code += 1
-            if next_code == (1 << nbits) + 1 and nbits < maxbits:
-                nbits += 1
-        prev = entry
+    i = 0
+    while i < len(data):
+        flags = data[i]
+        i += 1
+        for bit in range(8):
+            if i >= len(data):
+                break
+            if flags & (1 << bit):
+                b = data[i]
+                i += 1
+                out.append(b)
+                window[wpos] = b
+                wpos = (wpos + 1) & 0xFFF
+            else:
+                if i + 1 >= len(data):
+                    break
+                b1, b2 = data[i], data[i + 1]
+                i += 2
+                pos = (b1 | ((b2 & 0xF0) << 4)) & 0xFFF
+                ln = (b2 & 0x0F) + 3
+                for k in range(ln):
+                    b = window[(pos + k) & 0xFFF]
+                    out.append(b)
+                    window[wpos] = b
+                    wpos = (wpos + 1) & 0xFFF
     return bytes(out)
 
 def main(src_dir, out_dir):
@@ -91,15 +75,7 @@ def main(src_dir, out_dir):
         for name, offset, length, fmt in entries:
             raw = blob[4+offset:4+offset+length]
             if fmt == 0x80:
-                for msb in (True, False):
-                    dec = lzw_decompress(raw, bits_msb=msb)
-                    if len(dec) > len(raw) and all(32 <= b < 127 or b in (9,10,13,0) for b in dec[:200]):
-                        raw = dec
-                        break
-                else:
-                    dec = lzw_decompress(raw, bits_msb=True)
-                    if len(dec) > 0:
-                        raw = dec
+                raw = lzss_decompress(raw)
             out = os.path.join(out_dir, base + '__' + name.lower())
             open(out, 'wb').write(raw)
             print(f'  {name:14s} fmt=0x{fmt:02x} {length:6d} -> {len(raw):6d} bytes')
