@@ -108,3 +108,14 @@ table to locate the image loader instead of grepping the linear sweep.
   fixes them -> the callers' apparent alignment is coincidental; true overlay
   function boundaries still unresolved. Next: read the EXE's AH=3D open caller
   (overlay manager) to get the real OVL entry offset.
+
+## Stage 7: Ghidra analysis pass for the [0xC4] writer (result: inconclusive)
+- Full Ghidra 12.2 headless analysis (JDK 25) on a reconstructed MZ of the
+  unpacked EXE, entry marked at 0xAAC2. Scripts in tools/ghidra/.
+- Ghidra's x86-16 real-mode analyzer does NOT create data references for the
+  DS-relative accesses (`lcall [0xC4]` with DS=0xE63, string refs), so
+  reference search found nothing. Byte-level scans of the EXE found no direct
+  store to [0xC4]/[0xC6] -> the overlay manager writes the dispatch far pointer
+  via a register-indirect store in a region that misaligns linear sweeps.
+- Dispatch mechanism is nonetheless confirmed: int 0x64 handler does
+  `lcall [0xC4]` with AH = overlay function index (0=idle, 3/4 from timer).
