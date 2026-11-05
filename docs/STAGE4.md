@@ -96,3 +96,15 @@ table to locate the image loader instead of grepping the linear sweep.
 - Ghidra 12.2 headless (JDK 25) was set up for 16-bit real-mode decompilation;
   its segmented x86-16 output is usable but the capstone recursive disasm
   (121 EXE / 4503 OVL functions) remains the primary reference.
+
+## Stage 6b: overlay alignment investigation
+- Prologue-seeded (55 8b ec) recursive disasm: `disasm/OVL0.prologue.asm`
+  (3,324 funcs), `disasm/CENTURIO.prologue.asm` (123 funcs, EXE is PLINK-linked).
+- EXE func 0x01EA confirmed as the LZSS unpacker (window 0xB060, prefill 0x2020,
+  wpos 0xFEE, mask 0xFFF) — matches the Python/C decoders.
+- Overlay image-load call sites: func_0x05B4 -> call 0x5E2C and func_0x93C0 ->
+  call 0xE37C, both passing VRAM seg [0xC1DE]=0xA000 when [0x9B26]==2.
+  Both targets disassemble as garbage at H=0 and no constant header shift H
+  fixes them -> the callers' apparent alignment is coincidental; true overlay
+  function boundaries still unresolved. Next: read the EXE's AH=3D open caller
+  (overlay manager) to get the real OVL entry offset.
