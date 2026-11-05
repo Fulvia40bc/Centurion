@@ -86,3 +86,13 @@ table to locate the image loader instead of grepping the linear sweep.
 - Asset-load chain in overlay: func_0x93c0 opens a member, and when global
   [0x9b26]==2 passes VRAM seg [0xc1de]=0xA000 to the decode/blit at 0xe37c.
   Next: disassemble 0xe37c from a properly aligned seed to read the CBM decoder.
+
+## Stage 6: runtime asset pipeline in the port (C)
+- `port/src/assets.c` + `assets.h`: C implementation of the .DIR/.DAT container
+  parse and the LZSS decoder, wired into `game_init` as a smoke test.
+- Verified: C decoder output byte-identical to the Python reference decoder
+  (`cmp` clean on newgame.lzw, 1791 bytes). Whole port syntax-checks with
+  `gcc -Wall -Wextra`.
+- Ghidra 12.2 headless (JDK 25) was set up for 16-bit real-mode decompilation;
+  its segmented x86-16 output is usable but the capstone recursive disasm
+  (121 EXE / 4503 OVL functions) remains the primary reference.

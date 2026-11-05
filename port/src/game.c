@@ -1,5 +1,8 @@
 #include "platform.h"
+#include "assets.h"
 #include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 static uint8_t g_fb[SCREEN_W * SCREEN_H];
 static rgb_t g_palette[256];
@@ -11,6 +14,17 @@ void game_init(void) {
         g_palette[i].b = i;
     }
     memset(g_fb, 0, sizeof(g_fb));
+    if (assets_load("CENT.DIR", "CENT.DAT") == 0) {
+        int idx = assets_find("newgame.lzw");
+        if (idx >= 0) {
+            size_t n;
+            uint8_t *d = assets_decode(idx, &n);
+            printf("asset pipeline OK: newgame.lzw -> %zu bytes\n", n);
+            free(d);
+        }
+    } else {
+        printf("assets not found (run from the game data directory)\n");
+    }
 }
 
 void game_frame(void) {
