@@ -31,3 +31,11 @@ Despite the `.LZW` extension, the game's compression is **LZSS**, matching the
 same 4 KB window scheme; decodes to ~W*H pixels but pixel-exact layout not yet
 confirmed (best smoothness 0.40 over parameter sweep — likely an additional
 transform). Rigorous next step: read the actual CBM loader in `disasm/OVL0.asm`.
+
+## CBM follow-up (sweep results)
+Exhaustive parameter sweep (header offset 0-8, flag polarity, bit order, window
+init 0xFEE/0, prefill 0x20/0x00, length base 2/3, absolute/relative position,
+delta/XOR/bit transforms) never exceeds ~0.42 neighbor-smoothness on decoded
+pixels -> the .CBM payload is NOT the EXE's LZSS. The overlay contains its own
+image decoder. Next step: recursive-descent disassembly of OVL0.OVL from its entry
+table to locate the image loader instead of grepping the linear sweep.
