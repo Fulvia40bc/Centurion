@@ -25,3 +25,9 @@ Despite the `.LZW` extension, the game's compression is **LZSS**, matching the
   LZSS decode (`0x80`) / passthrough (`0x00`, `0xC0`)
 - `tools/cbm2png.py` — best-effort `.CBM` → PNG renderer (RLE scheme still
   being confirmed; see STAGE3)
+
+## CBM images — status update
+`.CBM` = 4-byte header (`00 00 W H`, e.g. 160x200) + an LZSS-like stream using the
+same 4 KB window scheme; decodes to ~W*H pixels but pixel-exact layout not yet
+confirmed (best smoothness 0.40 over parameter sweep — likely an additional
+transform). Rigorous next step: read the actual CBM loader in `disasm/OVL0.asm`.
