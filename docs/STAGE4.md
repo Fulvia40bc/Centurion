@@ -119,3 +119,11 @@ table to locate the image loader instead of grepping the linear sweep.
   via a register-indirect store in a region that misaligns linear sweeps.
 - Dispatch mechanism is nonetheless confirmed: int 0x64 handler does
   `lcall [0xC4]` with AH = overlay function index (0=idle, 3/4 from timer).
+
+## Stage 8: runtime ground truth (DOSBox-X debugger)
+- `bpint 64` caught the game at an `int 0x64`; with DS=1686, the dispatch far
+  pointer `[0xC4]` = **3682:0000** (bytes `00 00 82 36` at 1686:00C4).
+- => OVL0.OVL is loaded at a runtime segment (0x3682 in that session) with
+  entry offset 0x0000: **file offset == memory offset (load base 0)**,
+  and the int 0x64 handler enters the overlay at OVL offset 0 with AH =
+  function index. Confirms the entry dispatcher at OVL 0x0000.
