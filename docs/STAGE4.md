@@ -39,3 +39,15 @@ delta/XOR/bit transforms) never exceeds ~0.42 neighbor-smoothness on decoded
 pixels -> the .CBM payload is NOT the EXE's LZSS. The overlay contains its own
 image decoder. Next step: recursive-descent disassembly of OVL0.OVL from its entry
 table to locate the image loader instead of grepping the linear sweep.
+
+## Stage 5 tooling: recursive-descent disassembler
+- `tools/rdisasm.py` (Capstone, 16-bit mode): seeds from offset 0 + all direct
+  call/jump targets, follows control flow recursively.
+  - `disasm/OVL0.funcs.asm`: 3,318 recovered functions in the overlay
+  - `disasm/CENTURIO.funcs.asm`: 44 functions in the main EXE
+- Located the asset-load path: `func_0x93c0` in the overlay opens a file
+  (via 0xe3eb) and, when global [0x9b26]==2, passes the VRAM segment
+  (global [0xc1de] = 0xa000) to the decode/blit routine at 0xe37c.
+- The 0xe37c region currently disassembles as garbage under linear-sweep
+  alignment — needs real function-boundary recovery seeded from the EXE's
+  overlay dispatch table (next step).
