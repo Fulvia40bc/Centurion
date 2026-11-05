@@ -73,3 +73,16 @@ table to locate the image loader instead of grepping the linear sweep.
   dispatch table; needs the overlay manager's header parse read directly.
   Next: find the code referencing 0xAEE5 (misaligned in current listing) and
   read the OVL header handling.
+
+## Stage 5d: overlay dispatch mechanism pinned
+- EXE hooks **int 0x64** as the overlay-call primitive: handler at ~0x0000/0xAD8D
+  does `lcall [0xc4]` (far pointer = overlay segment:entry, set at load time).
+  EXE code calls overlays via `int 0x64` with AH = function index.
+- **Load base = 0 (file offset == memory offset)**: OVL0.OVL offset 0 is a clean
+  `push bp; mov bp,sp` prologue, and dispatch-table values are all < file size.
+  No constant shift fits the table in either direction (<=9/600 prologue hits).
+  The earlier "call 0xe37c lands in data" anomaly is a disassembly-alignment
+  artifact, not a base offset.
+- Asset-load chain in overlay: func_0x93c0 opens a member, and when global
+  [0x9b26]==2 passes VRAM seg [0xc1de]=0xA000 to the decode/blit at 0xe37c.
+  Next: disassemble 0xe37c from a properly aligned seed to read the CBM decoder.
