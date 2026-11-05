@@ -155,3 +155,12 @@ table to locate the image loader instead of grepping the linear sweep.
   70 functions) and `disasm/OVL_RUNTIME.linear.asm` (full linear sweep).
 - AH=0 handler at 0x4A9 is a byte-command interpreter (reads script via es:si);
   image display is one of its commands -> the CBM blit is reached through it.
+
+## Stage 12: overlay command interpreter (runtime image, AH=0 handler at 0x4A9)
+- Reads a byte stream via es:si; command = high nibble of byte (al & 0xF0):
+  - 0xE0 -> reads 16-bit resource id into [0x3D5], calls 0x7A3 per matching
+    slot (0x7A3 programs AdLib regs via ports 0x388/0x389 -> music command)
+  - 0x90 -> 0x5E2 (slot activate), 0x80 -> 0x6AB (slot deactivate),
+    0xC0 -> end, 0xFC -> 0x5CC (return/reset), else skip 2 bytes
+  - 9-slot state table at 0x35C (slot id at +0x35C, active flag +0x365, ...)
+- Image display is one of the command handlers calling into the blit routine.
