@@ -164,3 +164,11 @@ table to locate the image loader instead of grepping the linear sweep.
     0xC0 -> end, 0xFC -> 0x5CC (return/reset), else skip 2 bytes
   - 9-slot state table at 0x35C (slot id at +0x35C, active flag +0x365, ...)
 - Image display is one of the command handlers calling into the blit routine.
+
+## Stage 13: AH dispatch table fully enumerated - all 5 entries are the AdLib sound engine
+- AH=0 -> 0x4A9 (music command interpreter), AH=1 -> 0x403 (init script),
+  AH=2 -> 0x470 (stop), AH=3 -> 0x483 (silence 9 channels, ports 0x388/0x389),
+  AH=4 -> 0x47B (enable). Table entries beyond AH=4 are code bytes, not entries.
+- => Image/game logic is NOT reached via int 0x64 AH dispatch; it is called
+  from the EXE through other far pointers. Next: find the image blit by
+  watching VRAM (es: writes) at runtime, or follow EXE->overlay calls.
