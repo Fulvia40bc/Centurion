@@ -136,3 +136,15 @@ table to locate the image loader instead of grepping the linear sweep.
   disk -> the in-memory overlay image differs from the file (transformed or
   relocated at load). Static analysis must use a runtime memory dump.
 - Next: MEMDUMPBIN 3682:0 <len> ovl.bin in DOSBox-X, analyze that image.
+
+## Stage 10: runtime overlay image captured and disassembled
+- `disasm/OVL_RUNTIME.BIN` (98,304 bytes, from DOSBox-X MEMDUMPBIN 3682:0):
+  starts with the jmp-stub table (E9 E5 03 -> 03E8, E9 FD 03 -> 0403, ...),
+  matching the debugger exactly. The on-disk OVL0.OVL is a packed/encoded
+  form of this; all further analysis uses the runtime image.
+- Dispatcher at 0x03E8: `mov bl,ah; shl bl,1; call near [bx+0x03DE]; retf`.
+  AH table at 0x03DE: AH0->0x4A9 (command-stream interpreter), AH1->0x403,
+  AH2->0x470, AH3->0x483, AH4->0x47B.
+- `disasm/OVL_RUNTIME.asm`: recursive disasm of the runtime image (70 funcs
+  from entry seeds). VRAM segment is passed in from the EXE (global), not
+  hardcoded in the overlay.
