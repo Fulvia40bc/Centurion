@@ -246,3 +246,13 @@ table to locate the image loader instead of grepping the linear sweep.
 - LZSS-with-known-window simulation against this plaintext: no match -> CBM
   codec is custom (not the EXE LZSS). Next: analyze payload vs plaintext
   structure directly (payload head 06 0a 00 7d 00 00 f9 88... vs 73x0x6f...).
+
+## Stage 22: CBM codec known-plaintext analysis
+- Known plaintext: map_decoded_160x200.raw (32000 px) vs map.cbm payload
+  (23046 bytes). Tried: LZSS 8/16-bit flags x all polarities x window inits,
+  XOR-key sweeps on payload and output, RLE pair parses. Literals never match
+  raw plaintext (24/12828) -> values are transformed or the format is
+  bit-packed/custom. No 0xfff window mask in the overlay's AH-reachable code.
+- Conclusion: CBM codec is a custom bit-level scheme; fastest resolution is
+  dumping the decoder's output buffer at runtime (break in overlay 3682 at
+  the decode call, MEMDUMPBIN es:di after ret, use 0xFA00 length).
