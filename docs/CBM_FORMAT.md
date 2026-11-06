@@ -18,8 +18,9 @@ off size  field
  4  s16   y offset / hotspot       (-19 for NEGBG*, -10 for TITLE)
  6  u8    bytes per row            (= width/2 rounded up: 160, 48, 157)
  7  u8    rows                     (200, 66, 51, ...)
- 8  u8    transparent nibble (probably; 08 for leader portraits, 0F for NEGFG*) - unconfirmed
- 9  u8    colour lookup table index
+ 8  u8    unknown. NOT a transparent nibble: MAP.CBM has 06 and the game draws all 6,172 nibble-6
+          pixels (VERIFIED vs RAM). Values seen: 00 02 06 07 08 09 0D 0F.
+ 9  u8    colour lookup table index; 0 = keep the current table (see below)
 10  u16   unpacked size            (= bytes_per_row * rows)
 12  u16   0
 14  ...   LZSS stream (same codec as the .LZW members: 4 KB window prefilled 0x20,
@@ -33,6 +34,13 @@ lookup table**; it is *not* `nibble + 0x68`. That rule happens to be close for M
 - LUT table: `OVL0.OVL` file offset `0x114C0`, 16 bytes per entry; at runtime `DS:60C0` (DS = 1686).
 - Entry 0 is the identity (`00 01 … 0F`). MAP uses entry 10 (`00 6C 10 6D 6E 00 68 6A 6F 70 71 72 73 74 75 69`).
 - Palette: CMAP.BIN in CENT.DAT, 250 entries × 3 bytes of 6-bit VGA DAC values (`v << 2`).
+- **Table index 0** (only GALLERY2, BB1, BB2): with the identity table these come out as noise in EGA colours. Using the table of
+  the nearest earlier image in the same DAT (GALLERY2 → 3 like GALLERY1/RACEEST; BB1/BB2 → 23 like BATTLENW) gives natural
+  images (the race-arena strip; battlefield variants). Rule: **0 = keep the current table**. UNVERIFIED against the game:
+  confirm with a screen capture of a chariot race and a battle.
+- **Row stride:** each row is `bytes_per_row` bytes (2 nibbles each); for odd widths (TITLE.CBM: 313 px, 157 bytes) the last
+  nibble of each row is padding. Crop to `width`.
+- All 82 CBMs checked visually on a contact sheet with these rules (2026-11-06).
 
 ## Runtime notes (from the debugger captures)
 

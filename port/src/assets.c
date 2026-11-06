@@ -308,6 +308,23 @@ uint8_t *assets_decode_cbm_file(const char *dat_path, const img_entry_t *e,
     return px;
 }
 
+static int cbm_lut_byte(const img_entry_t *e) {
+    FILE *f = fopen(e->dat, "rb");
+    if (!f) return -1;
+    int v = -1;
+    if (fseek(f, (long)e->offset + 9, SEEK_SET) == 0) v = fgetc(f);
+    fclose(f);
+    return v;
+}
+
+int assets_effective_lut(const img_entry_t *imgs, int i) {
+    for (int j = i; j >= 0 && strcmp(imgs[j].dat, imgs[i].dat) == 0; j--) {
+        int v = cbm_lut_byte(&imgs[j]);
+        if (v > 0 && v < 64) return v;
+    }
+    return 0;
+}
+
 const uint8_t *assets_lut(int idx) {
     if (!g_luts_loaded || idx < 0 || idx >= 64) return NULL;
     return g_luts + 16 * idx;

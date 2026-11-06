@@ -44,7 +44,8 @@ static void blit_cbm(const img_entry_t *e) {
     int w, h, xo, yo, trans, lut = 0;
     uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans, &lut);
     if (!px) return;
-    const uint8_t *table = assets_lut(lut);
+    (void)lut;
+    const uint8_t *table = assets_lut(assets_effective_lut(g_imgs, (int)(e - g_imgs)));
     if (!table) table = assets_lut(0);
     memset(g_work, 0, sizeof(g_work));
     for (int y = 0; y < h; y++) {
@@ -96,7 +97,7 @@ int game_dump_screen(const char *name, const char *outpath) {
             int w, h, xo, yo, tr, lut = 0;
             uint8_t *px = assets_decode_cbm_file(imgs[i].dat, &imgs[i], &w, &h, &xo, &yo, &tr, &lut);
             if (!px) return 1;
-            const uint8_t *t = assets_lut(lut); if (!t) t = assets_lut(0);
+            const uint8_t *t = assets_lut(assets_effective_lut(imgs, i)); if (!t) t = assets_lut(0);
             uint8_t fb[SCREEN_W * SCREEN_H];
             memset(fb, 0, sizeof(fb));
             for (int y = 0; y < h && yo + y < SCREEN_H; y++)

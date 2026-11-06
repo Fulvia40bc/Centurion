@@ -34,6 +34,10 @@ int assets_scan_images(const char *dir, img_entry_t *out, int max);
 /* Decode a CBM from an explicit dat file; also returns x/y hotspot and transparent nibble. */
 uint8_t *assets_decode_cbm_file(const char *dat_path, const img_entry_t *e,
                                 int *out_w, int *out_h, int *out_x, int *out_y, int *out_trans, int *out_lut);
+/* Colour table for imgs[i]. Header LUT index 0 means "keep the current table": use the nearest earlier
+   image in the same DAT with a non-zero index (GALLERY2 -> 3, BB1/BB2 -> 23). UNVERIFIED vs the game,
+   but it is the only rule that makes these three images look right. */
+int assets_effective_lut(const img_entry_t *imgs, int i);
 
 /* Font (from OVL0.OVL file offset 0x1509C; see docs/FONT_FORMAT.md):
    width[96], yoff[96], glyph[96][8]; chars 0x20..0x7F, 8 rows, bit7 = leftmost. */

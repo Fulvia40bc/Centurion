@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Reference decoder for Centurion .CBM images (verified against game RAM).
 
-usage: cbm_decode.py GAME_DIR NAME.CBM out.png
+usage: cbm_decode.py GAME_DIR NAME.CBM out.png [CURRENT_LUT]
 
 Format (see docs/CBM_FORMAT.md):
   14-byte header, little-endian:
@@ -31,9 +31,14 @@ def find_member(game_dir, name):
     raise KeyError(name)
 
 
-def decode_cbm(raw, ovl0):
-    """Return (width, height, x_off, y_off, transparent, palette_indices)."""
+def decode_cbm(raw, ovl0, current_lut=None):
+    """Return (width, height, x_off, y_off, header_byte8, palette_indices).
+
+    LUT index 0 means "keep the current table" (UNVERIFIED, see docs/CBM_FORMAT.md): pass the
+    table of the image drawn before it as current_lut (GALLERY2 -> 3, BB1/BB2 -> 23)."""
     w, xo, yo, bpr, rows, trans, lut, size = struct.unpack_from('<HhhBBBBH', raw, 0)
+    if lut == 0 and current_lut:
+        lut = current_lut
     packed = ex.lzss_decompress(raw[14:])[:size]
     table = ovl0[LUT_TABLE_OFFSET + 16 * lut: LUT_TABLE_OFFSET + 16 * lut + 16]
     px = bytearray()
@@ -55,7 +60,8 @@ def write_png(path, w, h, px, cmap):
 
 if __name__ == '__main__':
     game, name, out = sys.argv[1:4]
+    current = int(sys.argv[4]) if len(sys.argv) > 4 else None   # table to use if the header says 0
     ovl0 = open(os.path.join(game, 'OVL0.OVL'), 'rb').read()
-    w, h, xo, yo, trans, px = decode_cbm(find_member(game, name), ovl0)
+    w, h, xo, yo, trans, px = decode_cbm(find_member(game, name), ovl0, current)
     write_png(out, w, h, px, find_member(game, 'CMAP.BIN'))
     print(f'{name}: {w}x{h} offset ({xo},{yo}) -> {out}')
