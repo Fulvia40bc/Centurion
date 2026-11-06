@@ -2,8 +2,9 @@
 
 ## Architecture
 - EXE owns the frame loop, video (int 0x10 palette / direct VRAM blit), DOS I/O,
-  and the int 0x08/0x09 ISRs. The overlay (OVL_RUNTIME.BIN) owns game logic +
-  sound, entered via far pointer [0xC4] dispatched on AH (table at ovl 0x03DE),
+  and the int 0x08/0x09 ISRs. The overlay (OVL_RUNTIME.BIN) is the ADLIB SOUND DRIVER
+  (VERIFIED: seg 3682 = ADLIB.LZW unpacked; [0xC4] = 3682:0000, its AH table is
+  sound functions). Game logic is elsewhere - see Known facts in HANDOFF.md.
   and receives keyboard events via far pointer [0x9E] from the int 0x09 ISR
   (func 0x042F in EXE: scancode in, arrows 0x47-0x51 mapped, lcall [0x9E]).
 

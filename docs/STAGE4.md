@@ -195,7 +195,7 @@ table to locate the image loader instead of grepping the linear sweep.
   entries (558 functions). 300 functions write via es:[di] (VRAM blits among
   them). Next: identify which AH entry is the image-display blit.
 
-## Stage 16 (CORRECTED): graphics ARE direct VRAM writes
+## Stage 16 (SUPERSEDED by Stage 16-corrected note above; see below): graphics ARE direct VRAM writes
 - CORRECTION: the earlier note claimed no 0xA000 exists in either binary.
   Wrong — the DOSBox-X register dumps show ES=A000 while the game draws, and
   the screen dump (screen_map.bin) is a coherent mode-13h framebuffer. The
@@ -377,3 +377,10 @@ table to locate the image loader instead of grepping the linear sweep.
 ## Stage 37: UI primitives in the port
 - port/src/ui.c: ui_rect (0x7E74), ui_window (0x8E62), ui_text (font+0x8BE4),
   ui_blit (0x0494). Viewer draws a top bar + image-name label per image.
+
+## Stage 38: handoff review corrections (Claude)
+- SUPERSEDED: Stage 16's original "all video via BIOS int 0x10" claim and
+  Stage 19/22 "nibble + 0x68" claim - see corrected Stage 16 note and
+  docs/CBM_FORMAT.md (LUT via header byte 9).
+- [0xC4] = 3682:0000 is the ADLIB SOUND DRIVER, not game logic (VERIFIED).
+  MAINLOOP.md corrected.

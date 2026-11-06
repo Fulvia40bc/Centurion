@@ -1,7 +1,30 @@
 #include "assets.h"
+#include "compat.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _MSC_VER
+#include <dirent.h>
+#else
+#include <windows.h>
+typedef struct { HANDLE h; WIN32_FIND_DATAA d; int first; } DIR;
+typedef struct { char d_name[260]; } dirent_compat;
+#define dirent dirent_compat
+static DIR *opendir(const char *p) {
+    DIR *d = malloc(sizeof(DIR));
+    d->h = FindFirstFileA(p, &d->d);
+    d->first = (d->h != INVALID_HANDLE_VALUE);
+    return d->h == INVALID_HANDLE_VALUE ? NULL : d;
+}
+static struct dirent *readdir(DIR *d) {
+    static dirent_compat e;
+    if (!d->first && !FindNextFileA(d->h, &d->d)) return NULL;
+    strncpy(e.d_name, d->d.cFileName, 259); e.d_name[259] = 0;
+    d->first = 0;
+    return &e;
+}
+static void closedir(DIR *d) { if (d->h != INVALID_HANDLE_VALUE) FindClose(d->h); free(d); }
+#endif
 
 static uint8_t *g_dat;
 static long g_dat_len;
@@ -98,13 +121,13 @@ uint8_t *assets_decode(int idx, size_t *out_len) {
 }
 
 
-static uint8_t g_luts[256];   /* 16 tables x 16 bytes, from OVL0.OVL offset 0x114C0 */
+static uint8_t g_luts[64 * 16];   /* up to 64 tables x 16 bytes, from OVL0.OVL offset 0x114C0 */
 static int g_luts_loaded;
 
 int assets_load_luts(const char *ovl0_path) {
     FILE *f = fopen(ovl0_path, "rb");
     if (!f) return -1;
-    if (fseek(f, 0x114C0, SEEK_SET) != 0 || fread(g_luts, 1, 256, f) != 256) {
+    if (fseek(f, 0x114C0, SEEK_SET) != 0 || fread(g_luts, 1, sizeof(g_luts), f) != sizeof(g_luts)) {
         fclose(f);
         return -1;
     }
@@ -117,15 +140,15 @@ int assets_load_luts(const char *ovl0_path) {
    header: u16 width_px, s16 x, s16 y, u8 bytes_per_row, u8 rows, u8 transparent,
    u8 lut_index, u16 unpacked_size, u16 pad. Payload = LZSS -> 4-bit packed pixels
    (hi nibble first); each nibble maps through the 16-entry LUT at header byte 9. */
-uint8_t *assets_decode_cbm(int idx, int *out_w, int *out_h) {
+uint8_t *assets_decode_cbm(int idx, int *out_w, int *out_h, int *out_lut) {
     if (idx < 0 || g_entries[idx].format != 0xC0 || !g_luts_loaded) return NULL;
     dir_entry_t *e = &g_entries[idx];
     const uint8_t *src = g_dat + e->offset;
     uint16_t w = (uint16_t)(src[0] | (src[1] << 8));
     uint8_t rows = src[7];
     uint8_t lut = src[9];
+    if (lut >= 64) lut = 0;   /* bounds-check: CBMs use LUT indices up to 29 */
     uint16_t usize = (uint16_t)(src[10] | (src[11] << 8));
-    const uint8_t *table = g_luts + 16 * lut;
     size_t cap = usize + 16;
     uint8_t *packed = malloc(cap);
     uint8_t window[4096];
@@ -159,13 +182,14 @@ uint8_t *assets_decode_cbm(int idx, int *out_w, int *out_h) {
     size_t npx = 0;
     for (size_t k = 0; k < olen && npx < (size_t)w * rows; k++) {
         uint8_t b = packed[k];
-        px[npx++] = table[(b >> 4) & 0xF];
+        px[npx++] = (b >> 4) & 0xF;          /* raw nibbles; caller maps via LUT */
         if (npx < (size_t)w * rows)
-            px[npx++] = table[b & 0xF];
+            px[npx++] = b & 0xF;
     }
     free(packed);
     *out_w = (int)w;
     *out_h = (int)rows;
+    if (out_lut) *out_lut = lut;
     return px;
 }
 
@@ -201,8 +225,6 @@ static size_t lzss_run(const uint8_t *src, size_t srclen, size_t start,
     }
     return olen;
 }
-
-#include <dirent.h>
 
 int assets_scan_images(const char *dir, img_entry_t *out, int max) {
     DIR *d = opendir(dir);
@@ -242,7 +264,7 @@ int assets_scan_images(const char *dir, img_entry_t *out, int max) {
 }
 
 uint8_t *assets_decode_cbm_file(const char *dat_path, const img_entry_t *e,
-                                int *out_w, int *out_h, int *out_x, int *out_y, int *out_trans) {
+                                int *out_w, int *out_h, int *out_x, int *out_y, int *out_trans, int *out_lut) {
     FILE *f = fopen(dat_path, "rb");
     if (!f || !g_luts_loaded) return NULL;
     fseek(f, 0, SEEK_END);
@@ -258,8 +280,8 @@ uint8_t *assets_decode_cbm_file(const char *dat_path, const img_entry_t *e,
     uint8_t rows = src[7];
     uint8_t trans = src[8];
     uint8_t lut = src[9];
+    if (lut >= 64) lut = 0;   /* bounds-check: CBMs use LUT indices up to 29 */
     uint16_t usize = (uint16_t)(src[10] | (src[11] << 8));
-    const uint8_t *table = g_luts + 16 * lut;
     uint8_t *packed = malloc(usize + 16);
     size_t olen = lzss_run(src, e->length, 14, packed, usize + 16);
     if (olen > usize) olen = usize;
@@ -267,14 +289,20 @@ uint8_t *assets_decode_cbm_file(const char *dat_path, const img_entry_t *e,
     size_t npx = 0;
     for (size_t k = 0; k < olen && npx < (size_t)w * rows; k++) {
         uint8_t b = packed[k];
-        px[npx++] = table[(b >> 4) & 0xF];
+        px[npx++] = (b >> 4) & 0xF;          /* raw nibbles; caller maps via LUT */
         if (npx < (size_t)w * rows)
-            px[npx++] = table[b & 0xF];
+            px[npx++] = b & 0xF;
     }
     free(packed);
     free(dat);
     *out_w = w; *out_h = (int)rows; *out_x = xo; *out_y = yo; *out_trans = trans;
+    if (out_lut) *out_lut = lut;
     return px;
+}
+
+const uint8_t *assets_lut(int idx) {
+    if (!g_luts_loaded || idx < 0 || idx >= 64) return NULL;
+    return g_luts + 16 * idx;
 }
 
 /* ---- font ---- */

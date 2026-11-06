@@ -40,9 +40,11 @@ static void load_palette(const char *path) {
 }
 
 static void blit_cbm(const img_entry_t *e) {
-    int w, h, xo, yo, trans;
-    uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans);
+    int w, h, xo, yo, trans, lut = 0;
+    uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans, &lut);
     if (!px) return;
+    const uint8_t *table = assets_lut(lut);
+    if (!table) table = assets_lut(0);
     memset(g_work, 0, sizeof(g_work));
     for (int y = 0; y < h; y++) {
         int dy = yo + y;
@@ -50,9 +52,9 @@ static void blit_cbm(const img_entry_t *e) {
         for (int x = 0; x < w; x++) {
             int dx = xo + x;
             if (dx < 0 || dx >= SCREEN_W) continue;
-            uint8_t p = px[y * w + x];
-            if (p == (uint8_t)trans) continue;   /* transparent nibble */
-            g_work[dy * SCREEN_W + dx] = p;
+            uint8_t nib = px[y * w + x];          /* raw nibble */
+            if (nib == (uint8_t)trans) continue;  /* transparency = raw nibble (UNVERIFIED) */
+            g_work[dy * SCREEN_W + dx] = table[nib];   /* map via LUT at draw time */
         }
     }
     free(px);
@@ -77,6 +79,40 @@ void game_init(void) {
 
 void game_frame(void) {
     /* viewer mode: static image, input handled in game_run */
+}
+
+/* Headless: render one CBM to a raw 320x200 palette-index file and exit
+   (for screen-diffing against the real game; see HANDOFF.md). */
+int game_dump_screen(const char *name, const char *outpath) {
+    if (assets_load_luts("OVL0.OVL") != 0) return 1;
+    img_entry_t imgs[256];
+    int n = assets_scan_images(".", imgs, 256);
+    for (int i = 0; i < n; i++) {
+        if (strcasecmp(imgs[i].name, name) == 0) {
+            int w, h, xo, yo, tr, lut = 0;
+            uint8_t *px = assets_decode_cbm_file(imgs[i].dat, &imgs[i], &w, &h, &xo, &yo, &tr, &lut);
+            if (!px) return 1;
+            const uint8_t *t = assets_lut(lut); if (!t) t = assets_lut(0);
+            uint8_t fb[SCREEN_W * SCREEN_H];
+            memset(fb, 0, sizeof(fb));
+            for (int y = 0; y < h && yo + y < SCREEN_H; y++)
+                for (int x = 0; x < w && xo + x < SCREEN_W; x++) {
+                    uint8_t nib = px[y * w + x];
+                    if (nib == (uint8_t)tr) continue;
+                    if (yo + y >= 0 && xo + x >= 0)
+                        fb[(yo + y) * SCREEN_W + (xo + x)] = t[nib];
+                }
+            FILE *f = fopen(outpath, "wb");
+            if (!f) return 1;
+            fwrite(fb, 1, sizeof(fb), f);
+            fclose(f);
+            free(px);
+            printf("dumped %s -> %s (%dx%d lut %d)\n", name, outpath, w, h, lut);
+            return 0;
+        }
+    }
+    printf("image not found: %s\n", name);
+    return 1;
 }
 
 void game_run(void) {

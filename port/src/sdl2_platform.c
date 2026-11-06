@@ -37,7 +37,7 @@ int platform_init(void) {
     g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
     if (!g_ren) return -1;
-    g_tex = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGB24,
+    g_tex = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGB888,
                               SDL_TEXTUREACCESS_STREAMING, SCREEN_W, SCREEN_H);
     if (!g_tex) return -1;
     SDL_AudioSpec want = {0};
@@ -60,12 +60,12 @@ void platform_shutdown(void) {
 }
 
 void platform_present(const uint8_t *fb, const rgb_t palette[256]) {
-    uint32_t pixels[SCREEN_W * SCREEN_H];
+    static uint32_t pixels[SCREEN_W * SCREEN_H];   /* static: 256 KB, too big for stack */
     for (int i = 0; i < SCREEN_W * SCREEN_H; i++) {
         rgb_t c = palette[fb[i]];
-        pixels[i] = (c.r << 16) | (c.g << 8) | c.b;
+        pixels[i] = 0xFF000000u | ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | c.b;
     }
-    SDL_UpdateTexture(g_tex, NULL, pixels, SCREEN_W * 3);
+    SDL_UpdateTexture(g_tex, NULL, pixels, SCREEN_W * 4);
     SDL_RenderClear(g_ren);
     SDL_RenderCopy(g_ren, g_tex, NULL, NULL);
     SDL_RenderPresent(g_ren);
