@@ -350,3 +350,12 @@ table to locate the image loader instead of grepping the linear sweep.
   keyboard callback [0x9E].
 - Next: decompile func_0x62C2 and func_0x49CE region as the EXE main loop;
   the overlay game state machine is reached via AH dispatch table 0x03DE.
+
+## Stage 33: frame blit + main-loop callees mapped (clean EXE)
+- VRAM segment stored in global [0x9ABA] (=0xA000); blit helper func_0x689F
+  (rep movsw 9 words, then call 0x494 with [0xC1DE] and [0x9ABA]).
+- Screen-build func_0x62C2 (68 insns): sequence of UI calls (0x5AC2, 0x7CB2,
+  0x5D29 overlay, 0x8E62 window, 0x7E74 rect, 0x5AE4) - a menu screen builder.
+- Menu item loop func_0x49CE: iterates table si/di (di to 0x55C5), calls
+  0x22EA per item, then 0x22E2/0x4A24/0x4AA6/0x2AF8/0x423A/0x53BC/0x680F/0x6973.
+- Main loop: EXE-driven, overlay does game logic via AH dispatch.
