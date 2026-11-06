@@ -359,3 +359,10 @@ table to locate the image loader instead of grepping the linear sweep.
 - Menu item loop func_0x49CE: iterates table si/di (di to 0x55C5), calls
   0x22EA per item, then 0x22E2/0x4A24/0x4AA6/0x2AF8/0x423A/0x53BC/0x680F/0x6973.
 - Main loop: EXE-driven, overlay does game logic via AH dispatch.
+
+## Stage 35: menu screen builder identified
+- func_0x6589 (188 insns) = full menu screen builder: rect 0x7E74, window
+  0x8E62, item list 0x950E, text 0x8BE4, buttons 0x6973/0x32E2, overlay call
+  via 0x5D29. UI primitives: 0x7E74=rect fill, 0x8E62=window, 0x5AC2=begin,
+  0x7CB2=panel, 0x5AE4=list, blit 0x0494/0x689F.
+- Port now renders via offscreen work buffer -> blit (matches original).
