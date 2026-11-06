@@ -20,3 +20,16 @@ uint8_t *assets_decode_cbm(int idx, int *out_w, int *out_h);
 int assets_load_luts(const char *ovl0_path);
 
 #endif
+
+/* Image viewer support: scan all DIR/DAT pairs in a directory for CBM members */
+typedef struct {
+    char name[14];
+    char dat[260];
+    uint32_t offset;
+    uint16_t length;
+} img_entry_t;
+
+int assets_scan_images(const char *dir, img_entry_t *out, int max);
+/* Decode a CBM from an explicit dat file; also returns x/y hotspot and transparent nibble. */
+uint8_t *assets_decode_cbm_file(const char *dat_path, const img_entry_t *e,
+                                int *out_w, int *out_h, int *out_x, int *out_y, int *out_trans);

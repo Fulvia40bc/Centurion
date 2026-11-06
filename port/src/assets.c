@@ -168,3 +168,111 @@ uint8_t *assets_decode_cbm(int idx, int *out_w, int *out_h) {
     *out_h = (int)rows;
     return px;
 }
+
+/* ---- image viewer support ---- */
+
+static size_t lzss_run(const uint8_t *src, size_t srclen, size_t start,
+                       uint8_t *out, size_t cap) {
+    uint8_t window[4096];
+    memset(window, 0x20, sizeof(window));
+    size_t wpos = 0xFEE, olen = 0, i = start;
+    while (i < srclen && olen < cap) {
+        uint8_t flags = src[i++];
+        for (int bit = 0; bit < 8 && i < srclen; bit++) {
+            if (flags & (1 << bit)) {
+                uint8_t b = src[i++];
+                out[olen++] = b;
+                window[wpos] = b;
+                wpos = (wpos + 1) & 0xFFF;
+            } else {
+                if (i + 1 >= srclen) break;
+                uint8_t b1 = src[i], b2 = src[i+1];
+                i += 2;
+                size_t pos = (b1 | ((b2 & 0xF0) << 4)) & 0xFFF;
+                int ln = (b2 & 0x0F) + 3;
+                for (int k = 0; k < ln && olen < cap; k++) {
+                    uint8_t b = window[(pos + k) & 0xFFF];
+                    out[olen++] = b;
+                    window[wpos] = b;
+                    wpos = (wpos + 1) & 0xFFF;
+                }
+            }
+        }
+    }
+    return olen;
+}
+
+#include <dirent.h>
+
+int assets_scan_images(const char *dir, img_entry_t *out, int max) {
+    DIR *d = opendir(dir);
+    if (!d) return -1;
+    int n = 0;
+    struct dirent *de;
+    while ((de = readdir(d)) && n < max) {
+        size_t l = strlen(de->d_name);
+        if (l < 5 || strcasecmp(de->d_name + l - 4, ".dir") != 0) continue;
+        char dirpath[512], datpath[512];
+        snprintf(dirpath, sizeof(dirpath), "%s/%s", dir, de->d_name);
+        snprintf(datpath, sizeof(datpath), "%s/%.*s.DAT", dir, (int)(l - 4), de->d_name);
+        FILE *f = fopen(dirpath, "rb");
+        if (!f) continue;
+        fseek(f, 0, SEEK_END);
+        long dl = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        uint8_t *buf = malloc(dl);
+        if (fread(buf, 1, dl, f) != (size_t)dl) { fclose(f); free(buf); continue; }
+        fclose(f);
+        for (long off = 0; off + 20 <= dl; off += 20) {
+            if (buf[off + 19] != 0xC0) continue;
+            if (n >= max) break;
+            img_entry_t *e = &out[n++];
+            e->offset = (uint32_t)buf[off] | ((uint32_t)buf[off+1] << 8) |
+                        ((uint32_t)buf[off+2] << 16) | ((uint32_t)buf[off+3] << 24);
+            e->length = (uint16_t)(buf[off+4] | (buf[off+5] << 8));
+            memcpy(e->name, buf + off + 6, 13);
+            e->name[13] = 0;
+            for (int i = 0; i < 13; i++) if (e->name[i] == 0) break;
+            snprintf(e->dat, sizeof(e->dat), "%s", datpath);
+        }
+        free(buf);
+    }
+    closedir(d);
+    return n;
+}
+
+uint8_t *assets_decode_cbm_file(const char *dat_path, const img_entry_t *e,
+                                int *out_w, int *out_h, int *out_x, int *out_y, int *out_trans) {
+    FILE *f = fopen(dat_path, "rb");
+    if (!f || !g_luts_loaded) return NULL;
+    fseek(f, 0, SEEK_END);
+    long len = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    uint8_t *dat = malloc(len);
+    if (fread(dat, 1, len, f) != (size_t)len) { fclose(f); free(dat); return NULL; }
+    fclose(f);
+    const uint8_t *src = dat + e->offset;
+    int w = src[0] | (src[1] << 8);
+    int xo = (int16_t)(src[2] | (src[3] << 8));
+    int yo = (int16_t)(src[4] | (src[5] << 8));
+    uint8_t rows = src[7];
+    uint8_t trans = src[8];
+    uint8_t lut = src[9];
+    uint16_t usize = (uint16_t)(src[10] | (src[11] << 8));
+    const uint8_t *table = g_luts + 16 * lut;
+    uint8_t *packed = malloc(usize + 16);
+    size_t olen = lzss_run(src, e->length, 14, packed, usize + 16);
+    if (olen > usize) olen = usize;
+    uint8_t *px = malloc((size_t)w * rows + 1);
+    size_t npx = 0;
+    for (size_t k = 0; k < olen && npx < (size_t)w * rows; k++) {
+        uint8_t b = packed[k];
+        px[npx++] = table[(b >> 4) & 0xF];
+        if (npx < (size_t)w * rows)
+            px[npx++] = table[b & 0xF];
+    }
+    free(packed);
+    free(dat);
+    *out_w = w; *out_h = (int)rows; *out_x = xo; *out_y = yo; *out_trans = trans;
+    return px;
+}

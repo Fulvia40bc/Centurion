@@ -6,7 +6,11 @@
 
 static uint8_t g_fb[SCREEN_W * SCREEN_H];
 static rgb_t g_palette[256];
-static int g_static_image;
+
+static img_entry_t g_imgs[256];
+static int g_nimg;
+static int g_cur;
+static int g_viewer;
 
 static int load_file(const char *path, uint8_t *buf, size_t want) {
     FILE *f = fopen(path, "rb");
@@ -33,47 +37,40 @@ static void load_palette(const char *path) {
     }
 }
 
+static void blit_cbm(const img_entry_t *e) {
+    int w, h, xo, yo, trans;
+    uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans);
+    if (!px) return;
+    memset(g_fb, 0, sizeof(g_fb));
+    for (int y = 0; y < h; y++) {
+        int dy = yo + y;
+        if (dy < 0 || dy >= SCREEN_H) continue;
+        for (int x = 0; x < w; x++) {
+            int dx = xo + x;
+            if (dx < 0 || dx >= SCREEN_W) continue;
+            uint8_t p = px[y * w + x];
+            if (p == (uint8_t)trans) continue;   /* transparent nibble */
+            g_fb[dy * SCREEN_W + dx] = p;
+        }
+    }
+    free(px);
+    printf("showing %s (%dx%d at %d,%d, trans %d)\n", e->name, w, h, xo, yo, trans);
+}
+
 void game_init(void) {
     memset(g_fb, 0, sizeof(g_fb));
     load_palette("cmap.bin");
-    if (assets_load("CENT.DIR", "CENT.DAT") == 0) {
-        int idx = assets_find("newgame.lzw");
-        if (idx >= 0) {
-            size_t n;
-            uint8_t *d = assets_decode(idx, &n);
-            printf("asset pipeline OK: newgame.lzw -> %zu bytes\n", n);
-            free(d);
-        }
-    } else {
-        printf("assets not found (run from the game data directory)\n");
-    }
-    /* First visible milestone: live-decode MAP.CBM (320x200, LUT 10) from
-       MMAP.DAT into the framebuffer. */
-    assets_load_luts("OVL0.OVL");
-    if (assets_load("MMAP.DIR", "MMAP.DAT") == 0) {
-        int idx = assets_find("map.cbm");
-        if (idx >= 0) {
-            int w, h;
-            uint8_t *px = assets_decode_cbm(idx, &w, &h);
-            if (px && w == SCREEN_W && h == SCREEN_H) {
-                memcpy(g_fb, px, sizeof(g_fb));
-                g_static_image = 1;
-                printf("decoded map.cbm live: %dx%d\n", w, h);
-            }
-            free(px);
-        }
-    }
-    if (!g_static_image)
-        printf("no map source found, using test pattern\n");
+    if (assets_load_luts("OVL0.OVL") == 0)
+        printf("CBM LUTs loaded from OVL0.OVL\n");
+    g_nimg = assets_scan_images(".", g_imgs, 256);
+    printf("found %d CBM images\n", g_nimg);
+    g_cur = 0;
+    g_viewer = g_nimg > 0;
+    if (g_viewer) blit_cbm(&g_imgs[g_cur]);
 }
 
 void game_frame(void) {
-    if (g_static_image) return; /* static map frame */
-    static int x = 0;
-    memset(g_fb, 0, sizeof(g_fb));
-    for (int i = 0; i < 40; i++)
-        g_fb[(80 + i) * SCREEN_W + x] = 0x0f;
-    x = (x + 1) % SCREEN_W;
+    /* viewer mode: static image, input handled in game_run */
 }
 
 void game_run(void) {
@@ -81,9 +78,19 @@ void game_run(void) {
     input_t in;
     const uint32_t frame_ms = 1000 / FPS;
     uint32_t next = platform_ticks_ms();
+    int last_key = -1;
     while (1) {
         platform_poll_input(&in);
         if (in.quit_requested) break;
+        if (g_viewer && in.key_special[KEY_RIGHT] && last_key != KEY_RIGHT) {
+            g_cur = (g_cur + 1) % g_nimg;
+            blit_cbm(&g_imgs[g_cur]);
+        }
+        if (g_viewer && in.key_special[KEY_LEFT] && last_key != KEY_LEFT) {
+            g_cur = (g_cur - 1 + g_nimg) % g_nimg;
+            blit_cbm(&g_imgs[g_cur]);
+        }
+        last_key = in.key_special[KEY_RIGHT] ? KEY_RIGHT : (in.key_special[KEY_LEFT] ? KEY_LEFT : -1);
         game_frame();
         platform_present(g_fb, g_palette);
         next += frame_ms;

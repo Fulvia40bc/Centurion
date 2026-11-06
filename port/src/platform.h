@@ -10,8 +10,12 @@ typedef struct {
     uint8_t r, g, b;
 } rgb_t;
 
+#define KEY_LEFT  1
+#define KEY_RIGHT 2
+
 typedef struct {
     int key_down[256];
+    int key_special[8];   /* KEY_LEFT / KEY_RIGHT etc. */
     int mouse_x, mouse_y;
     uint8_t mouse_buttons;
     int quit_requested;

@@ -78,6 +78,10 @@ void platform_poll_input(input_t *in) {
         if (e.type == SDL_QUIT) in->quit_requested = 1;
         else if (e.type == SDL_KEYDOWN && e.key.keysym.sym < 256)
             in->key_down[e.key.keysym.sym] = 1;
+        else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RIGHT)
+            in->key_special[KEY_RIGHT] = 1;
+        else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_LEFT)
+            in->key_special[KEY_LEFT] = 1;
         else if (e.type == SDL_MOUSEMOTION) {
             in->mouse_x = e.motion.x / 2;
             in->mouse_y = e.motion.y / 2;
