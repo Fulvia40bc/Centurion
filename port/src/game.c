@@ -1,6 +1,7 @@
 #include "platform.h"
 #include "assets.h"
 #include "ui.h"
+#include "compat.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
