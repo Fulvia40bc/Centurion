@@ -219,3 +219,11 @@ table to locate the image loader instead of grepping the linear sweep.
   .CBM is loaded and dump the decoded buffer (MEMDUMPBIN), which gives the
   exact decoded image bytes -> then match against the extracted .CBM to
   derive the pixel format directly.
+
+## Stage 19: CBM pixel-format sweep exhausted
+- Full LZSS parameter sweep on map.cbm (header 0-8, winit 0xFEE/0, prefill
+  0x20/0, flag polarity, bit order, length base): best run-metric 0.42
+  (real images >0.6) -> the .CBM payload is NOT the EXE LZSS; the overlay has
+  its own image decoder. Definitive fix: dump the DECODED buffer at runtime
+  (break at unpacker ret 0x0287 while a .CBM loads, MEMDUMPBIN the output),
+  then diff against the raw .CBM to derive the format.
