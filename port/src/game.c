@@ -1,5 +1,6 @@
 #include "platform.h"
 #include "assets.h"
+#include "ui.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,27 +39,6 @@ static void load_palette(const char *path) {
     }
 }
 
-static void draw_text(uint8_t *fb, int x, int y, const char *text, uint8_t color) {
-    for (const char *p = text; *p; p++) {
-        int w, yoff;
-        const uint8_t *g = font_glyph((unsigned char)*p, &w, &yoff);
-        if (!g) continue;
-        for (int r = 0; r < 8; r++) {
-            uint8_t bits = g[r];
-            int dy = y + yoff + r;
-            if (dy < 0 || dy >= SCREEN_H) continue;
-            for (int i = 0; i < 8; i++) {
-                if (bits & (0x80 >> i)) {
-                    int dx = x + i;
-                    if (dx >= 0 && dx < SCREEN_W)
-                        fb[dy * SCREEN_W + dx] = color;
-                }
-            }
-        }
-        x += w + 1;
-    }
-}
-
 static void blit_cbm(const img_entry_t *e) {
     int w, h, xo, yo, trans;
     uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans);
@@ -77,7 +57,8 @@ static void blit_cbm(const img_entry_t *e) {
     }
     free(px);
     printf("showing %s (%dx%d at %d,%d, trans %d)\n", e->name, w, h, xo, yo, trans);
-    draw_text(g_fb, 4, 4, e->name, 0x0F);   /* label: white text on the image */
+    ui_rect(g_work, 0, 0, SCREEN_W, 12, 0x1F);          /* top bar */
+    ui_text(g_work, 4, 2, e->name, 0x0F);               /* image name label */
 }
 
 void game_init(void) {

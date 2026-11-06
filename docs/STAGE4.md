@@ -373,3 +373,7 @@ table to locate the image loader instead of grepping the linear sweep.
   0x950E list, 0x6973 button, 0x0494 blit, 0x6589 menu screen, 0x62C2, 0x49CE).
 - Overlay game-logic entry AH still needs one runtime read ([0xC4] call at
   game start) - handoff request filed previously.
+
+## Stage 37: UI primitives in the port
+- port/src/ui.c: ui_rect (0x7E74), ui_window (0x8E62), ui_text (font+0x8BE4),
+  ui_blit (0x0494). Viewer draws a top bar + image-name label per image.
