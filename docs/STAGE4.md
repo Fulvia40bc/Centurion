@@ -201,3 +201,13 @@ table to locate the image loader instead of grepping the linear sweep.
   writes; the game uses BIOS int 0x10 (we found 7 sites in the EXE: mode set,
   palette, pixel write AH=0x0C, cursor). Port strategy: drive the SDL2
   framebuffer from the int 0x10 emulation layer, not from port/VRAM writes.
+
+## Stage 17: EXE int 0x10 handler map
+- 0x8102: AH=0x12 BL=0x10 AL=0x82 (set DAC palette block)
+- 0x8496: AH=0 AL=9 then AH=0 AL=3 (mode set: mode 9 -> text mode 3)
+- 0x84a6: AH=0x0F (get video mode)
+- 0x84b5: AH=0 mode set + vsync via port 0x3DA
+- 0x970a: pixel/cursor write via AH from args (function misaligns in linear
+  sweep; needs entry-seeded disasm)
+- 0x9723: AH=0x10 AL=2 (set cursor shape/position)
+- Conclusion: all video via BIOS int 0x10; port emulates int 0x10 into SDL2.
