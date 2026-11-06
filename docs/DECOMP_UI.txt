@@ -1,0 +1,48 @@
+func_0x7e74: 34 insns, 0 calls, 0 back-edges
+  calls: 
+  globals: 0x9ace 0x9b24 0xc0dc 0xc0e0
+func_0x8e62: 14 insns, 0 calls, 0 back-edges
+  calls: 
+  globals: 
+func_0x8be4: 6 insns, 0 calls, 0 back-edges
+  calls: 
+  globals: 
+func_0x950e: 45 insns, 0 calls, 0 back-edges
+  calls: 
+  globals: 0x9b26
+func_0x6973: 24 insns, 2 calls, 0 back-edges
+  calls: 1d55 9632
+  globals: 0x9b26
+func_0x0494: 22 insns, 0 calls, 0 back-edges
+  calls: 
+  globals: 
+func_0x6589: 188 insns, 19 calls, 1 back-edges
+  calls: 11a9 11c4 1273 163b 32e2 66a 67e4 680f 6973 6e4 709 70ba 71bb 7b56 7e74 86a0 8be4 8e62 950e
+  globals: 0x4ee8 0x4ef4 0x6344 0x6346 0x9afa 0x9b69 0xc10e 0xc1ec 0xc1ee
+  loops at: 0x66d2: jl 0x66bb
+func_0x62c2: 68 insns, 6 calls, 0 back-edges
+  calls: 5ac2 5ae4 5d29 7cb2 7e74 8e62
+  globals: 0x6344 0x9afa 0xc1ec
+func_0x49ce: 36 insns, 11 calls, 1 back-edges
+  calls: 1d8a 22e2 22ea 2af8 423a 4a24 4aa6 53bc 5d29 680f 6973
+  globals: 0x634c
+  loops at: 0x49e9: jbe 0x49ce
+func_0x5ac2: 5 insns, 0 calls, 0 back-edges
+  calls: 
+  globals: 
+func_0x7cb2: 17 insns, 2 calls, 0 back-edges
+  calls: 35f9 8be4
+  globals: 0x3e40 0x6348 0x9b69
+func_0x5ae4: 37 insns, 2 calls, 0 back-edges
+  calls: 9df2 9eee
+  globals: 0x3e72 0x3e76 0x9b5c 0x9b5d 0x9b69
+func_0x5d29: 25 insns, 2 calls, 1 back-edges
+  calls: 5d73 72e
+  globals: 0x3eee
+  loops at: 0x5d6b: jmp 0x5d43
+func_0x072e: 14 insns, 0 calls, 0 back-edges
+  calls: 
+  globals: 0x3eec 0xc4
+func_0x8e62: 14 insns, 0 calls, 0 back-edges
+  calls: 
+  globals: 
