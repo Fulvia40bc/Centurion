@@ -340,3 +340,13 @@ table to locate the image loader instead of grepping the linear sweep.
 - Video: int 0x10 AH=0x12 (palette, funcs 0x80D6/0x80F3), AH=0x0F (get mode).
 - Overlay game calls from EXE: wrapper func_0x072E (lcall [0xC4] AH=1),
   called from 0x5D29/0x5D43.
+
+## Stage 32: game-loop region located in EXE
+- EXE main game code region ~0x49xx-0x62xx: func_0x49CE (menu/item loop:
+  iterates si/di over a table, calls 0x22EA per item), func_0x62C2 (68 insns)
+  calls the overlay wrapper 0x5D29, which dispatches overlay AH=1 via 0x072E.
+- Architecture: EXE owns main loop + video/IO hooks (int 08/09 ISRs,
+  int 0x10/0x21), overlay owns game logic/sound, entered via [0xC4] and
+  keyboard callback [0x9E].
+- Next: decompile func_0x62C2 and func_0x49CE region as the EXE main loop;
+  the overlay game state machine is reached via AH dispatch table 0x03DE.
