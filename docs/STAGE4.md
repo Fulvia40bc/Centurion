@@ -238,3 +238,11 @@ table to locate the image loader instead of grepping the linear sweep.
   raw pixels for diffing against the raw .CBM payload.
 - Waiting on: tools/dosbox/results/screen_map.bin (+ .txt mode note) pushed
   via collect.bat, then run align_screen.py to line pixels up with map.cbm.
+
+## Stage 21: ground-truth map pixels captured
+- screen_map.bin (320x200 mode 13h) rendered: left 160x200 region (0,0) IS the
+  map image (verified visually). Saved as tools/dosbox/results/map_decoded_160x200.raw
+  = the exact decoded map.cbm pixels (known plaintext for the CBM codec).
+- LZSS-with-known-window simulation against this plaintext: no match -> CBM
+  codec is custom (not the EXE LZSS). Next: analyze payload vs plaintext
+  structure directly (payload head 06 0a 00 7d 00 00 f9 88... vs 73x0x6f...).
