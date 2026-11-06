@@ -37,6 +37,27 @@ static void load_palette(const char *path) {
     }
 }
 
+static void draw_text(uint8_t *fb, int x, int y, const char *text, uint8_t color) {
+    for (const char *p = text; *p; p++) {
+        int w, yoff;
+        const uint8_t *g = font_glyph((unsigned char)*p, &w, &yoff);
+        if (!g) continue;
+        for (int r = 0; r < 8; r++) {
+            uint8_t bits = g[r];
+            int dy = y + yoff + r;
+            if (dy < 0 || dy >= SCREEN_H) continue;
+            for (int i = 0; i < 8; i++) {
+                if (bits & (0x80 >> i)) {
+                    int dx = x + i;
+                    if (dx >= 0 && dx < SCREEN_W)
+                        fb[dy * SCREEN_W + dx] = color;
+                }
+            }
+        }
+        x += w + 1;
+    }
+}
+
 static void blit_cbm(const img_entry_t *e) {
     int w, h, xo, yo, trans;
     uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans);
@@ -55,6 +76,7 @@ static void blit_cbm(const img_entry_t *e) {
     }
     free(px);
     printf("showing %s (%dx%d at %d,%d, trans %d)\n", e->name, w, h, xo, yo, trans);
+    draw_text(g_fb, 4, 4, e->name, 0x0F);   /* label: white text on the image */
 }
 
 void game_init(void) {
@@ -62,6 +84,8 @@ void game_init(void) {
     load_palette("cmap.bin");
     if (assets_load_luts("OVL0.OVL") == 0)
         printf("CBM LUTs loaded from OVL0.OVL\n");
+    if (assets_load_font("OVL0.OVL") == 0)
+        printf("font loaded from OVL0.OVL (96 glyphs)\n");
     g_nimg = assets_scan_images(".", g_imgs, 256);
     printf("found %d CBM images\n", g_nimg);
     g_cur = 0;

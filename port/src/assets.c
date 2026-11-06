@@ -276,3 +276,27 @@ uint8_t *assets_decode_cbm_file(const char *dat_path, const img_entry_t *e,
     *out_w = w; *out_h = (int)rows; *out_x = xo; *out_y = yo; *out_trans = trans;
     return px;
 }
+
+/* ---- font ---- */
+static uint8_t g_font[96 + 96 + 96 * 8];
+static int g_font_loaded;
+
+int assets_load_font(const char *ovl0_path) {
+    FILE *f = fopen(ovl0_path, "rb");
+    if (!f) return -1;
+    if (fseek(f, 0x1509C, SEEK_SET) != 0 || fread(g_font, 1, sizeof(g_font), f) != sizeof(g_font)) {
+        fclose(f);
+        return -1;
+    }
+    fclose(f);
+    g_font_loaded = 1;
+    return 0;
+}
+
+const uint8_t *font_glyph(int ch, int *w, int *yoff) {
+    if (!g_font_loaded || ch < 0x20 || ch > 0x7F) return NULL;
+    int c = ch - 0x20;
+    *w = g_font[c];
+    *yoff = g_font[96 + c];
+    return g_font + 192 + c * 8;
+}

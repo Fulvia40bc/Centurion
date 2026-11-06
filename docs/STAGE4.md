@@ -303,3 +303,9 @@ table to locate the image loader instead of grepping the linear sweep.
   RAM-verified tools/cbm_decode.py (64000/64000). port/screen_map.bin removed;
   the port now live-decodes MAP.CBM from MMAP.DAT.
 - Next: text rendering (glyph blit in overlay), then an any-image viewer.
+
+## Stage 28: text rendering implemented in the port
+- Font per docs/FONT_FORMAT.md (VERIFIED by Claude vs game RAM): OVL0.OVL file
+  offset 0x1509C = width[96], yoff[96], glyph[96][8]; chars 0x20-0x7F, 8 rows,
+  bit7 = leftmost, 1px spacing, ink-only. port: assets_load_font + draw_text;
+  verified rendering "The people are Rebellious"; C glyph bytes match file.
