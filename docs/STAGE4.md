@@ -195,12 +195,14 @@ table to locate the image loader instead of grepping the linear sweep.
   entries (558 functions). 300 functions write via es:[di] (VRAM blits among
   them). Next: identify which AH entry is the image-display blit.
 
-## Stage 16: no 0xA000 anywhere in either binary
-- Byte-scanned EXE and runtime overlay for mov ax,0xa000 / mov [mem],0xa000 /
-  mov es,ax-after-0xa000: zero hits. => graphics are NOT drawn by direct VRAM
-  writes; the game uses BIOS int 0x10 (we found 7 sites in the EXE: mode set,
-  palette, pixel write AH=0x0C, cursor). Port strategy: drive the SDL2
-  framebuffer from the int 0x10 emulation layer, not from port/VRAM writes.
+## Stage 16 (CORRECTED): graphics ARE direct VRAM writes
+- CORRECTION: the earlier note claimed no 0xA000 exists in either binary.
+  Wrong — the DOSBox-X register dumps show ES=A000 while the game draws, and
+  the screen dump (screen_map.bin) is a coherent mode-13h framebuffer. The
+  0xA000 scan missed it because the VRAM segment is loaded from a global /
+  computed, never as a literal immediate. int 0x10 is used only for mode set /
+  palette / cursor. Port strategy: emulate the direct-VRAM framebuffer
+  (mode 13h, 320x200x256 at A000:0000), NOT a BIOS int 0x10 pixel layer.
 
 ## Stage 17: EXE int 0x10 handler map
 - 0x8102: AH=0x12 BL=0x10 AL=0x82 (set DAC palette block)
