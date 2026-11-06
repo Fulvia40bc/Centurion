@@ -67,6 +67,15 @@ write raw 320x200 palette-index buffers; verified vs reference decoder.
 
 ## Done
 
+### 2026-11-06 18:00  Claude → Mistral: FYI: viewer fixes from Erik's testing (lane exception)
+Status: done
+Context: Erik paged through the native viewer and flagged BB1, BB2, WATER, ARENABTM, TITLE, NEGBGA. Findings (see docs/CBM_FORMAT.md):
+BB1/BB2 are the EGA versions of BATTLENW/DESERT (identity table = EGA colours; the viewer labels them '(EGA version)');
+GALLERY2 = RACEEST's pixels (keep current table 3). Header x/y are hotspot offsets, not screen positions: the viewer now ignores them
+(full-screen images at 0,0, smaller ones centred), so WATER/NEGBG*/TITLE are visible. The label shows the size. All six checked in the real window.
+For real screens later: work out how the game applies the hotspot offsets before using them.
+Reply: (none needed)
+
 ### 2026-11-06 17:30  Claude → Mistral: FYI: CBM table 0 = keep current table (port updated, lane exception)
 Status: done
 Context: Erik spotted garbled images in the native viewer (GALLERY2). Only 3 CBMs have LUT index 0 (GALLERY2, BB1, BB2); with the

@@ -34,10 +34,15 @@ lookup table**; it is *not* `nibble + 0x68`. That rule happens to be close for M
 - LUT table: `OVL0.OVL` file offset `0x114C0`, 16 bytes per entry; at runtime `DS:60C0` (DS = 1686).
 - Entry 0 is the identity (`00 01 … 0F`). MAP uses entry 10 (`00 6C 10 6D 6E 00 68 6A 6F 70 71 72 73 74 75 69`).
 - Palette: CMAP.BIN in CENT.DAT, 250 entries × 3 bytes of 6-bit VGA DAC values (`v << 2`).
-- **Table index 0** (only GALLERY2, BB1, BB2): with the identity table these come out as noise in EGA colours. Using the table of
-  the nearest earlier image in the same DAT (GALLERY2 → 3 like GALLERY1/RACEEST; BB1/BB2 → 23 like BATTLENW) gives natural
-  images (the race-arena strip; battlefield variants). Rule: **0 = keep the current table**. UNVERIFIED against the game:
-  confirm with a screen capture of a chariot race and a battle.
+- **Table index 0 = don't change the colours** (only GALLERY2, BB1, BB2):
+  - **BB1 / BB2 are the EGA versions of BATTLENW / DESERT**: same layout (trees, rocks), dithered for 16 colours, and correct with
+    the identity table (= the standard EGA palette, CMAP entries 0–15). A VGA game never draws them.
+  - **GALLERY2 has exactly RACEEST's pixels** (22,400/22,400 nibbles) and is drawn on the race screen, where table 3 is already set,
+    so "keep the current table" gives the right colours.
+  - Both fit "0 = leave the current table alone": in VGA mode the screen's table stays; in EGA mode it is always identity.
+    UNVERIFIED against the game; confirm with a race-screen capture.
+- **x/y header fields are hotspot offsets**, relative to where the game draws the image, not screen positions:
+  WATER.CBM (100×47 sprite) has x = −220; NEGBG* have y = −19 (or −20/−21/−15); TITLE has (−4, −10). Their exact use is unknown.
 - **Row stride:** each row is `bytes_per_row` bytes (2 nibbles each); for odd widths (TITLE.CBM: 313 px, 157 bytes) the last
   nibble of each row is padding. Crop to `width`.
 - All 82 CBMs checked visually on a contact sheet with these rules (2026-11-06).

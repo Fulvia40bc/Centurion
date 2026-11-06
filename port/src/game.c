@@ -45,14 +45,22 @@ static void blit_cbm(const img_entry_t *e) {
     uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans, &lut);
     if (!px) return;
     (void)lut;
-    const uint8_t *table = assets_lut(assets_effective_lut(g_imgs, (int)(e - g_imgs)));
+    /* BB1/BB2 are the EGA versions of BATTLENW/DESERT (same layout, dithered for 16 colours); a VGA game
+       never shows them, so the viewer draws them with the identity table = the standard EGA colours. */
+    int ega = strcasecmp(e->name, "BB1.CBM") == 0 || strcasecmp(e->name, "BB2.CBM") == 0;
+    const uint8_t *table = assets_lut(ega ? 0 : assets_effective_lut(g_imgs, (int)(e - g_imgs)));
     if (!table) table = assets_lut(0);
     memset(g_work, 0, sizeof(g_work));
+    /* Header x/y are hotspot offsets relative to where the game draws the image (WATER: -220,0;
+       NEGBG*: 0,-19; TITLE: -4,-10), not screen positions. The viewer ignores them: full-screen
+       images go at 0,0 (under the label bar); smaller ones are centred below it. */
+    int px0 = w < SCREEN_W ? (SCREEN_W - w) / 2 : 0;
+    int py0 = h <= SCREEN_H - 12 ? 12 + (SCREEN_H - 12 - h) / 2 : 0;
     for (int y = 0; y < h; y++) {
-        int dy = yo + y;
+        int dy = py0 + y;
         if (dy < 0 || dy >= SCREEN_H) continue;
         for (int x = 0; x < w; x++) {
-            int dx = xo + x;
+            int dx = px0 + x;
             if (dx < 0 || dx >= SCREEN_W) continue;
             uint8_t nib = px[y * w + x];          /* raw nibble */
             /* Header byte 8 is NOT a transparent nibble for full-screen images: MAP.CBM has 8=0x06
@@ -65,7 +73,9 @@ static void blit_cbm(const img_entry_t *e) {
     free(px);
     printf("showing %s (%dx%d at %d,%d, trans %d)\n", e->name, w, h, xo, yo, trans);
     ui_rect(g_work, 0, 0, SCREEN_W, 12, 0x1F);          /* top bar */
-    ui_text(g_work, 4, 2, e->name, 0x0F);               /* image name label */
+    char label[64];
+    snprintf(label, sizeof(label), "%s  %dx%d%s", e->name, w, h, ega ? "  (EGA version)" : "");
+    ui_text(g_work, 4, 2, label, 0x0F);                 /* image name label */
 }
 
 void game_init(void) {
