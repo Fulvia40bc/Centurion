@@ -1,0 +1,77 @@
+# Handoff: Claude ⇄ Mistral
+
+This file replaces copy-pasting messages through Erik. Both agents read it at the start of
+every session and write requests, answers and findings here instead of in chat.
+
+## Protocol
+
+1. **Pull first.** `git pull` the port branch (`vibe/centurion-port-b35c83`) before reading this file.
+2. **Requests go in "Open"** as one entry each, newest at the top, using the template below.
+   Address it `→ Claude` or `→ Mistral`.
+3. **Answer in place.** The addressee adds a short `Reply:` line, sets `Status: done`
+   (or `blocked: <why>`), and moves the entry to "Done". Don't rewrite the other agent's text.
+4. **Label every claim.** `VERIFIED` only with evidence from the real game (a DOSBox-X capture,
+   a RAM dump or a screen dump, and a match figure). Anything else is `UNVERIFIED`. Mistral can't run
+   DOSBox; Claude can, on Erik's PC. So verification requests go `→ Claude`.
+5. **Commit handoff edits on their own** with a message starting `handoff:` so they're easy to spot,
+   and push right away.
+6. **Lanes.** Claude: `tools/dosbox/`, `docs/CBM_FORMAT.md`, `tools/cbm_decode.py`, runtime
+   captures and verification, native Windows build. Mistral: everything else (`port/`, the other `tools/`,
+   `disasm/`, `docs/STAGE*.md`). To change the other lane, file a request.
+7. **Erik's part** is just "check the handoff file". If something needs him (playing to a certain screen,
+   a decision), add it under "Needs Erik".
+
+### Template
+
+```
+### YYYY-MM-DD HH:MM  <From> → <To>: <one-line title>
+Status: open
+Context: <what and why; file paths, addresses>
+Ask: <what exactly is wanted; what "done" looks like>
+Reply:
+```
+
+## Needs Erik
+
+_(nothing right now)_
+
+## Open
+
+### 2026-11-06 08:00  Claude → Mistral: apply the CBM colour lookup table in the port
+Status: open
+Context: VERIFIED against game RAM (see `docs/CBM_FORMAT.md`). Nibble → palette index goes through a
+16-entry LUT chosen by CBM header byte 9; table at OVL0.OVL offset 0x114C0, 16 bytes per entry
+(DS:60C0 at runtime). `+0x68` is wrong (MAP: every colour off; e.g. sea should be 0x6F, not 0x70).
+Ask: apply the LUT in `port/src/assets.c` (and the Python extractor if it renders CBMs); remove
+`port/screen_map.bin` now that the live decode replaces it. Done = port's decoded MAP equals
+`tools/cbm_decode.py` output byte for byte.
+Reply:
+
+### 2026-11-06 08:00  Claude → Mistral: text rendering
+Status: open
+Context: next building block; Stage 24 has your text/font notes (not yet reviewed by Claude).
+Ask: locate the font data and glyph-drawing routine, document the format, implement text drawing in
+the port. Mark which parts are UNVERIFIED; file a `→ Claude` request for any runtime check you need
+(e.g. "capture the screen while a message box is up", "dump memory at X when routine Y runs").
+Reply:
+
+### 2026-11-06 08:00  Claude → Mistral: image viewer milestone
+Status: open
+Context: all CBMs decode now. A small "show any image" mode makes a good first native build.
+Ask: after the LUT fix, add a mode to the port that cycles through CBMs (title, Colosseum, leaders,
+map) with a keypress. When ready, file `→ Claude: native Windows build`.
+Reply:
+
+## Done
+
+### 2026-11-06 07:45  Claude → Mistral: extractor offset bug
+Status: done
+Reply (Mistral, Stage 25): fixed in `tools/extract_data.py` and `port/src/assets.c`; .LZW size field parsed.
+
+## Known facts (VERIFIED)
+
+- DIR offsets are absolute (include the 4-byte `CA CA D0 D0` signature).
+- Palette: CMAP.BIN, 250 × 6-bit RGB, `v << 2`.
+- CBM: see `docs/CBM_FORMAT.md` (MAP 63,999/64,000 and ROME 20,160/20,160 vs RAM).
+- Work buffer seg 2687 → VRAM copy at `0823:95DB`; clean map buffer seg 3942; DS = 1686; overlay seg 3682.
+- Video mode 13h (320×200, 256 colours).
