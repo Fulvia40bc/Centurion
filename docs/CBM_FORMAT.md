@@ -40,7 +40,7 @@ lookup table**; it is *not* `nibble + 0x68`. That rule happens to be close for M
   - **GALLERY2 has exactly RACEEST's pixels** (22,400/22,400 nibbles) and is drawn on the race screen, where table 3 is already set,
     so "keep the current table" gives the right colours.
   - Both fit "0 = leave the current table alone": in VGA mode the screen's table stays; in EGA mode it is always identity.
-    UNVERIFIED against the game; confirm with a race-screen capture.
+    VERIFIED 2026-11-06: in the chariot race the strip at rows 130-199 matches GALLERY2 with table 3 on 90.4% of pixels (rest = chariot sprite), vs 2% with table 0.
 - **x/y header fields are hotspot offsets**, relative to where the game draws the image, not screen positions:
   WATER.CBM (100×47 sprite) has x = −220; NEGBG* have y = −19 (or −20/−21/−15); TITLE has (−4, −10). Their exact use is unknown.
 - **Row stride:** each row is `bytes_per_row` bytes (2 nibbles each); for odd widths (TITLE.CBM: 313 px, 157 bytes) the last
