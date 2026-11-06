@@ -295,3 +295,11 @@ table to locate the image loader instead of grepping the linear sweep.
 - port/src/game.c now live-decodes map.cbm from MMAP.DAT into the framebuffer.
 - Runtime note from DOSBox-X: full screens are composed in an off-screen
   buffer at segment 2687 and copied to VRAM by the loop at 0823:95DB.
+
+## Stage 26: CBM LUT applied in the C port
+- assets.c: assets_decode_cbm now parses the 14-byte header properly and maps
+  nibbles through the 16-entry LUT (header byte 9) loaded from OVL0.OVL
+  offset 0x114C0 via assets_load_luts(). Verified byte-identical to the
+  RAM-verified tools/cbm_decode.py (64000/64000). port/screen_map.bin removed;
+  the port now live-decodes MAP.CBM from MMAP.DAT.
+- Next: text rendering (glyph blit in overlay), then an any-image viewer.

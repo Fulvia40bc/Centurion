@@ -98,17 +98,34 @@ uint8_t *assets_decode(int idx, size_t *out_len) {
 }
 
 
+static uint8_t g_luts[256];   /* 16 tables x 16 bytes, from OVL0.OVL offset 0x114C0 */
+static int g_luts_loaded;
+
+int assets_load_luts(const char *ovl0_path) {
+    FILE *f = fopen(ovl0_path, "rb");
+    if (!f) return -1;
+    if (fseek(f, 0x114C0, SEEK_SET) != 0 || fread(g_luts, 1, 256, f) != 256) {
+        fclose(f);
+        return -1;
+    }
+    fclose(f);
+    g_luts_loaded = 1;
+    return 0;
+}
+
 /* CBM image member (format 0xC0): 14-byte header then an LZSS stream.
-   header: u32 width, u16 pad, u8 bytes_per_row, u8 rows, u16 ?, u32 unpacked_size
-   payload decodes to bytes_per_row*rows bytes = 4-bit packed pixels (hi nibble
-   first); screen palette index = nibble + 0x68 (16 colors, 0x68..0x77). */
+   header: u16 width_px, s16 x, s16 y, u8 bytes_per_row, u8 rows, u8 transparent,
+   u8 lut_index, u16 unpacked_size, u16 pad. Payload = LZSS -> 4-bit packed pixels
+   (hi nibble first); each nibble maps through the 16-entry LUT at header byte 9. */
 uint8_t *assets_decode_cbm(int idx, int *out_w, int *out_h) {
-    if (idx < 0 || g_entries[idx].format != 0xC0) return NULL;
+    if (idx < 0 || g_entries[idx].format != 0xC0 || !g_luts_loaded) return NULL;
     dir_entry_t *e = &g_entries[idx];
     const uint8_t *src = g_dat + e->offset;
-    uint32_t w = (uint32_t)src[0] | ((uint32_t)src[1] << 8) | ((uint32_t)src[2] << 16) | ((uint32_t)src[3] << 24);
+    uint16_t w = (uint16_t)(src[0] | (src[1] << 8));
     uint8_t rows = src[7];
-    uint32_t usize = (uint32_t)src[10] | ((uint32_t)src[11] << 8) | ((uint32_t)src[12] << 16) | ((uint32_t)src[13] << 24);
+    uint8_t lut = src[9];
+    uint16_t usize = (uint16_t)(src[10] | (src[11] << 8));
+    const uint8_t *table = g_luts + 16 * lut;
     size_t cap = usize + 16;
     uint8_t *packed = malloc(cap);
     uint8_t window[4096];
@@ -142,9 +159,9 @@ uint8_t *assets_decode_cbm(int idx, int *out_w, int *out_h) {
     size_t npx = 0;
     for (size_t k = 0; k < olen && npx < (size_t)w * rows; k++) {
         uint8_t b = packed[k];
-        px[npx++] = (uint8_t)(((b >> 4) & 0xF) + 0x68);
+        px[npx++] = table[(b >> 4) & 0xF];
         if (npx < (size_t)w * rows)
-            px[npx++] = (uint8_t)((b & 0xF) + 0x68);
+            px[npx++] = table[b & 0xF];
     }
     free(packed);
     *out_w = (int)w;

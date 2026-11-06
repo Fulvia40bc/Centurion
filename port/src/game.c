@@ -47,8 +47,9 @@ void game_init(void) {
     } else {
         printf("assets not found (run from the game data directory)\n");
     }
-    /* First visible milestone: live-decode MAP.CBM (320x200, 16 colors) from
-       MMAP.DAT; fall back to the captured screen dump. */
+    /* First visible milestone: live-decode MAP.CBM (320x200, LUT 10) from
+       MMAP.DAT into the framebuffer. */
+    assets_load_luts("OVL0.OVL");
     if (assets_load("MMAP.DIR", "MMAP.DAT") == 0) {
         int idx = assets_find("map.cbm");
         if (idx >= 0) {
@@ -58,15 +59,9 @@ void game_init(void) {
                 memcpy(g_fb, px, sizeof(g_fb));
                 g_static_image = 1;
                 printf("decoded map.cbm live: %dx%d\n", w, h);
-                free(px);
-            } else {
-                free(px);
             }
+            free(px);
         }
-    }
-    if (!g_static_image && load_file("screen_map.bin", g_fb, sizeof(g_fb)) == 0) {
-        g_static_image = 1;
-        printf("loaded screen_map.bin (320x200 framebuffer)\n");
     }
     if (!g_static_image)
         printf("no map source found, using test pattern\n");
