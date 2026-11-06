@@ -4,7 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static uint8_t g_fb[SCREEN_W * SCREEN_H];
+static uint8_t g_fb[SCREEN_W * SCREEN_H];      /* what SDL shows */
+static uint8_t g_work[SCREEN_W * SCREEN_H];    /* off-screen work buffer, like the original */
 static rgb_t g_palette[256];
 
 static img_entry_t g_imgs[256];
@@ -62,7 +63,7 @@ static void blit_cbm(const img_entry_t *e) {
     int w, h, xo, yo, trans;
     uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans);
     if (!px) return;
-    memset(g_fb, 0, sizeof(g_fb));
+    memset(g_work, 0, sizeof(g_work));
     for (int y = 0; y < h; y++) {
         int dy = yo + y;
         if (dy < 0 || dy >= SCREEN_H) continue;
@@ -71,7 +72,7 @@ static void blit_cbm(const img_entry_t *e) {
             if (dx < 0 || dx >= SCREEN_W) continue;
             uint8_t p = px[y * w + x];
             if (p == (uint8_t)trans) continue;   /* transparent nibble */
-            g_fb[dy * SCREEN_W + dx] = p;
+            g_work[dy * SCREEN_W + dx] = p;
         }
     }
     free(px);
@@ -116,6 +117,7 @@ void game_run(void) {
         }
         last_key = in.key_special[KEY_RIGHT] ? KEY_RIGHT : (in.key_special[KEY_LEFT] ? KEY_LEFT : -1);
         game_frame();
+        memcpy(g_fb, g_work, sizeof(g_fb));   /* blit work buffer -> screen */
         platform_present(g_fb, g_palette);
         next += frame_ms;
         uint32_t now = platform_ticks_ms();
