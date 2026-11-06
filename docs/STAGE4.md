@@ -321,3 +321,22 @@ table to locate the image loader instead of grepping the linear sweep.
   cursor draw 0823:1BE6, mouse pos at DS:00B6/00B8.
 - Remaining: identify the game-logic AH entry (the EXE main loop's int 0x64
   argument) and decompile that function from the runtime overlay.
+
+## Stage 30: EXE ground truth = runtime image (corrects corrupt unpacker)
+- tools/CENTURIO.unpacked.bin (unlz09.py) is CORRUPT (5.2% chunk match vs
+  runtime; wrong LZ back-reference model). Stages 5c/14/29 derived from it are
+  UNVERIFIED/invalid. Ground truth: tools/dosbox/results/exe_runtime_0823.bin
+  (origin 0823:0000, fixups applied). NOTE: the .LZW asset decoder is a
+  different (8-bit-flag) LZSS variant and IS correct (RAM-verified).
+- EXE re-analysis now runs from exe_runtime_0823.bin.
+
+## Stage 31: EXE re-analyzed from runtime image; main-loop architecture
+- disasm/EXE_RUNTIME.bin/.asm = clean EXE (1,596 funcs from entry 0x322).
+  Old CENTURIO.unpacked.bin + CENTURIO.asm removed (corrupt).
+- int 0x64 appears ONLY in the timer ISR at 0x0000 (sound tick every 4th tick,
+  AH=0..4 + lcall [0xC4]). The game loop lives in the OVERLAY, entered via
+  [0xC4]; EXE hooks: int 0x08 timer (0x0000), int 0x09 keyboard ISR at 0x042F
+  (scancodes, arrows 47h-51h, then lcall [0x9E] = overlay key callback).
+- Video: int 0x10 AH=0x12 (palette, funcs 0x80D6/0x80F3), AH=0x0F (get mode).
+- Overlay game calls from EXE: wrapper func_0x072E (lcall [0xC4] AH=1),
+  called from 0x5D29/0x5D43.
