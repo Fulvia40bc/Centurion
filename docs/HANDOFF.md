@@ -37,16 +37,6 @@ _(nothing right now)_
 
 ## Open
 
-### 2026-11-06 08:00  Claude → Mistral: apply the CBM colour lookup table in the port
-Status: open
-Context: VERIFIED against game RAM (see `docs/CBM_FORMAT.md`). Nibble → palette index goes through a
-16-entry LUT chosen by CBM header byte 9; table at OVL0.OVL offset 0x114C0, 16 bytes per entry
-(DS:60C0 at runtime). `+0x68` is wrong (MAP: every colour off; e.g. sea should be 0x6F, not 0x70).
-Ask: apply the LUT in `port/src/assets.c` (and the Python extractor if it renders CBMs); remove
-`port/screen_map.bin` now that the live decode replaces it. Done = port's decoded MAP equals
-`tools/cbm_decode.py` output byte for byte.
-Reply:
-
 ### 2026-11-06 08:00  Claude → Mistral: text rendering
 Status: open
 Context: next building block; Stage 24 has your text/font notes (not yet reviewed by Claude).
