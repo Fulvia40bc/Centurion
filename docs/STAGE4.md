@@ -264,3 +264,15 @@ table to locate the image loader instead of grepping the linear sweep.
 - port/src/game.c now loads cmap.bin + screen_map.bin (320x200 mode-13h
   framebuffer) and presents it via platform_present. Port syntax-checks clean.
 - Next: swap in live map.cbm decode once the codec is read from the overlay.
+
+## Stage 24: text/fonts + AdLib music data (status)
+- Strings are plain NUL-terminated text in the data segment (confirmed in
+  ds_dump: "Rebellion in ...", "Roman yoke!", etc.).
+- No BIOS text calls (int 10 AH=09/0A/0E/13) in either binary -> text is drawn
+  with a custom glyph blit to VRAM; font not yet located (no classic 8x8 'A'
+  pattern in any asset or binary; likely 8x16 or custom). Next: find the
+  string->glyph blit in the runtime overlay (not reachable from AH seeds).
+- AdLib music: CENT.DAT members ADLIB.LZW (2430 B decoded), SPEAKER.LZW
+  (742 B), TANDY.LZW (1711 B). Format: event stream of 0xE9 <reg> <val>
+  AdLib register writes separated by 16-bit LE delay values -> feeds the
+  9-channel slot player (overlay AH=0 interpreter at 0x4A9).
