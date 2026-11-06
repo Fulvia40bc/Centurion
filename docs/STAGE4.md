@@ -276,3 +276,22 @@ table to locate the image loader instead of grepping the linear sweep.
   (742 B), TANDY.LZW (1711 B). Format: event stream of 0xE9 <reg> <val>
   AdLib register writes separated by 16-bit LE delay values -> feeds the
   9-channel slot player (overlay AH=0 interpreter at 0x4A9).
+
+## Stage 25: extractor alignment bug fixed - CBM codec CRACKED
+- BUG (fixed in tools/extract_data.py and port/src/assets.c): DIR offsets are
+  ABSOLUTE file offsets (they include the 4-byte CA CA D0 D0 signature); the
+  extractors wrongly added 4. All earlier CBM/codec analysis (Stages 19/22)
+  used data shifted by 4 bytes and is invalid.
+- .LZW members start with a uint32 uncompressed size, then the LZSS stream;
+  decode from member+4 and truncate to the declared size (old code read 4
+  bytes of the next member at the end).
+- CMAP.BIN correctly starts 00 00 00 00 00 2A 00 2A... (standard EGA colors);
+  250 clean 6-bit entries; map as (v << 2), no mask.
+- CBM format (0xC0): 14-byte header [u32 width=320, u16 pad, u8 bytes_per_row=160,
+  u8 rows=200, u16 ?, u32 unpacked_size=0x7D00] + LZSS stream -> 4-bit packed
+  pixels (hi nibble first); screen palette index = nibble + 0x68 (16 colors).
+  Verified: decoded map renders as a coherent map; C and Python decoders
+  byte-identical (64000 bytes).
+- port/src/game.c now live-decodes map.cbm from MMAP.DAT into the framebuffer.
+- Runtime note from DOSBox-X: full screens are composed in an off-screen
+  buffer at segment 2687 and copied to VRAM by the loop at 0823:95DB.

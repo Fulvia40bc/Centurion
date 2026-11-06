@@ -70,12 +70,17 @@ def main(src_dir, out_dir):
             continue
         blob = open(dat, 'rb').read()
         assert blob[:4] == DAT_SIG, f'{dat}: bad signature {blob[:4].hex()}'
+        # DIR offsets are absolute file offsets (they include the 4-byte
+        # signature): the first entry starts at offset 4 == right after sig.
         entries = parse_dir(os.path.join(src_dir, dirfile))
         print(f'{dirfile}: {len(entries)} entries')
         for name, offset, length, fmt in entries:
-            raw = blob[4+offset:4+offset+length]
+            raw = blob[offset:offset+length]
             if fmt == 0x80:
-                raw = lzss_decompress(raw)
+                # .LZW members start with a uint32 uncompressed size, then the
+                # LZSS stream; decode and truncate to the declared size.
+                usize = struct.unpack_from('<I', raw, 0)[0]
+                raw = lzss_decompress(raw[4:])[:usize]
             out = os.path.join(out_dir, base + '__' + name.lower())
             open(out, 'wb').write(raw)
             print(f'  {name:14s} fmt=0x{fmt:02x} {length:6d} -> {len(raw):6d} bytes')

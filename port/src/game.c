@@ -23,9 +23,9 @@ static void load_palette(const char *path) {
     if (load_file(path, cmap, sizeof(cmap)) == 0) {
         /* CMAP.BIN: 750 bytes = 250 entries x 3 bytes of 6-bit VGA DAC values */
         for (int i = 0; i < 250; i++) {
-            g_palette[i].r = (uint8_t)((cmap[i * 3] & 0x3F) << 2);
-            g_palette[i].g = (uint8_t)((cmap[i * 3 + 1] & 0x3F) << 2);
-            g_palette[i].b = (uint8_t)((cmap[i * 3 + 2] & 0x3F) << 2);
+            g_palette[i].r = (uint8_t)(cmap[i * 3] << 2);
+            g_palette[i].g = (uint8_t)(cmap[i * 3 + 1] << 2);
+            g_palette[i].b = (uint8_t)(cmap[i * 3 + 2] << 2);
         }
         printf("palette: %s (250 x 6-bit RGB)\n", path);
     } else {
@@ -47,14 +47,29 @@ void game_init(void) {
     } else {
         printf("assets not found (run from the game data directory)\n");
     }
-    /* First visible milestone: show the captured map screen (320x200, mode 13h) */
-    if (load_file("screen_map.bin", g_fb, sizeof(g_fb)) == 0) {
+    /* First visible milestone: live-decode MAP.CBM (320x200, 16 colors) from
+       MMAP.DAT; fall back to the captured screen dump. */
+    if (assets_load("MMAP.DIR", "MMAP.DAT") == 0) {
+        int idx = assets_find("map.cbm");
+        if (idx >= 0) {
+            int w, h;
+            uint8_t *px = assets_decode_cbm(idx, &w, &h);
+            if (px && w == SCREEN_W && h == SCREEN_H) {
+                memcpy(g_fb, px, sizeof(g_fb));
+                g_static_image = 1;
+                printf("decoded map.cbm live: %dx%d\n", w, h);
+                free(px);
+            } else {
+                free(px);
+            }
+        }
+    }
+    if (!g_static_image && load_file("screen_map.bin", g_fb, sizeof(g_fb)) == 0) {
         g_static_image = 1;
         printf("loaded screen_map.bin (320x200 framebuffer)\n");
-    } else {
-        g_static_image = 0;
-        printf("screen_map.bin not found, using test pattern\n");
     }
+    if (!g_static_image)
+        printf("no map source found, using test pattern\n");
 }
 
 void game_frame(void) {
