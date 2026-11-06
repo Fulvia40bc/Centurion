@@ -115,6 +115,18 @@ int game_dump_screen(const char *name, const char *outpath) {
     return 1;
 }
 
+/* Headless: render the current frame (work buffer) to a raw index file. */
+int game_dump_frame(const char *outpath) {
+    game_init();
+    game_frame();
+    FILE *f = fopen(outpath, "wb");
+    if (!f) return 1;
+    fwrite(g_work, 1, sizeof(g_work), f);
+    fclose(f);
+    printf("dumped frame -> %s\n", outpath);
+    return 0;
+}
+
 void game_run(void) {
     game_init();
     input_t in;
