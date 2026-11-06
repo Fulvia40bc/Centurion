@@ -256,3 +256,11 @@ table to locate the image loader instead of grepping the linear sweep.
 - Conclusion: CBM codec is a custom bit-level scheme; fastest resolution is
   dumping the decoder's output buffer at runtime (break in overlay 3682 at
   the decode call, MEMDUMPBIN es:di after ret, use 0xFA00 length).
+
+## Stage 23: first visible milestone - map on screen in SDL2 port
+- CMAP.BIN = 750 bytes = 250 entries x 3 bytes of 6-bit VGA DAC values
+  (only 1 byte >63); map to 8-bit with (v & 0x3F) << 2. Verified visually:
+  blue sea, colored provinces, UI at top.
+- port/src/game.c now loads cmap.bin + screen_map.bin (320x200 mode-13h
+  framebuffer) and presents it via platform_present. Port syntax-checks clean.
+- Next: swap in live map.cbm decode once the codec is read from the overlay.
