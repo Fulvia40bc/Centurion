@@ -309,3 +309,15 @@ table to locate the image loader instead of grepping the linear sweep.
   offset 0x1509C = width[96], yoff[96], glyph[96][8]; chars 0x20-0x7F, 8 rows,
   bit7 = leftmost, 1px spacing, ink-only. port: assets_load_font + draw_text;
   verified rendering "The people are Rebellious"; C glyph bytes match file.
+
+## Stage 29: main-loop mapping (status)
+- EXE entry CS:IP 0x0A78:0x0322 (linear 0xAAC2; clean code from 0xAAC3:
+  mov ax,0x8EDA; neg ax; call 0xACFD = C startup).
+- EXE int 0x64 call sites: 0x0024 (timer hook), 0x1C40, 0xADCC. Overlay
+  dispatch = AH table at runtime-ovl 0x03DE; AH 0-4 = AdLib sound engine.
+- Input (int 0x33 mouse) functions cluster at runtime-ovl 0x88F4-0x8A00.
+- Frame path (VERIFIED by Claude): compose in work buffer seg 2687,
+  blit to VRAM A000 by loop at EXE 0823:95DB. Rect fill 0823:7F96-80D4,
+  cursor draw 0823:1BE6, mouse pos at DS:00B6/00B8.
+- Remaining: identify the game-logic AH entry (the EXE main loop's int 0x64
+  argument) and decompile that function from the runtime overlay.
