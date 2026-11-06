@@ -227,3 +227,12 @@ table to locate the image loader instead of grepping the linear sweep.
   its own image decoder. Definitive fix: dump the DECODED buffer at runtime
   (break at unpacker ret 0x0287 while a .CBM loads, MEMDUMPBIN the output),
   then diff against the raw .CBM to derive the format.
+
+## Stage 20: screen-dump alignment tooling ready
+- No 768-byte 6-bit palette run inside any .CBM -> palette is the shared
+  CMAP.BIN (750 bytes), not embedded per image.
+- `tools/align_screen.py`: renders a 0xFA00 VGA screen dump (320x200 mode 13h)
+  to PNG and extracts image-sized regions (y offsets 0/20/40 to skip UI) as
+  raw pixels for diffing against the raw .CBM payload.
+- Waiting on: tools/dosbox/results/screen_map.bin (+ .txt mode note) pushed
+  via collect.bat, then run align_screen.py to line pixels up with map.cbm.
