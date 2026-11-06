@@ -44,12 +44,12 @@ def collect(code, verified):
     for ins in md.disasm(code, 0):
         if ins.mnemonic in ('call', 'jmp'):
             for op in ins.operands:
-                if op.type == X86_OP_IMM and 0x20 <= op.imm < len(code):
+                if op.type == X86_OP_IMM and 0 <= op.imm < len(code):
                     primary.add(op.imm & 0xFFFF)
         # push imm16 followed shortly by ret / pop+jmp = thunk
         if ins.mnemonic == 'push':
             for op in ins.operands:
-                if op.type == X86_OP_IMM and 0x20 <= (op.imm & 0xFFFF) < len(code):
+                if op.type == X86_OP_IMM and 0 <= (op.imm & 0xFFFF) < len(code):
                     spec.add(op.imm & 0xFFFF)
     return primary, spec
 
@@ -60,7 +60,7 @@ def run(code, seeds):
     covered = set()
     while work:
         s = work.pop()
-        if s in funcs or not (0x20 <= s < len(code)):
+        if s in funcs or not (0 <= s < len(code)):
             continue
         lines, end = disasm_at(code, s)
         # conflict check: any instruction start inside an existing function?
@@ -77,7 +77,7 @@ def run(code, seeds):
             m = re.match(r'(?:call|jmp|j\w+|loop\w*) 0x([0-9a-f]+)', text)
             if m:
                 t = int(m.group(1), 16)
-                if 0x20 <= t < len(code) and t not in funcs:
+                if 0 <= t < len(code) and t not in funcs:
                     work.append(t)
     return funcs, covered, conflicts
 

@@ -384,3 +384,13 @@ table to locate the image loader instead of grepping the linear sweep.
   docs/CBM_FORMAT.md (LUT via header byte 9).
 - [0xC4] = 3682:0000 is the ADLIB SOUND DRIVER, not game logic (VERIFIED).
   MAINLOOP.md corrected.
+
+## Stage 39: game-session captures consumed
+- Clean EXE disasm now covers ALL 432 traced 0823 addresses < 0xB0E0 as instruction
+  starts (timer ISR at 0x0000 included; rdisasm2 seed-range bug fixed).
+- OVL0 is a section-loaded overlay: swap area 1331:0000 (= 0823:B0E0); race
+  section = OVL0 file 0x051A0-0x08540 -> disasm/OVL_RACE.clean.asm (621 funcs,
+  93.8% of section). Resident part OVL0 0x0000-0x09A0 -> disasm/OVL_RESIDENT.clean.asm;
+  its func_0x03BC is the section loader (20-byte section entries, type nibble at
+  entry+1 dispatches via table at 0x642E).
+- CBM table-0 = keep-current-table now VERIFIED (GALLERY2 with table 3: 90.4%).
