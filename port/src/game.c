@@ -54,7 +54,10 @@ static void blit_cbm(const img_entry_t *e) {
             int dx = xo + x;
             if (dx < 0 || dx >= SCREEN_W) continue;
             uint8_t nib = px[y * w + x];          /* raw nibble */
-            if (nib == (uint8_t)trans) continue;  /* transparency = raw nibble (UNVERIFIED) */
+            /* Header byte 8 is NOT a transparent nibble for full-screen images: MAP.CBM has 8=0x06
+               and the game draws its 6172 nibble-6 pixels (VERIFIED vs RAM). Draw opaque until its
+               meaning is known. (void)trans keeps the value for later. */
+            (void)trans;
             g_work[dy * SCREEN_W + dx] = table[nib];   /* map via LUT at draw time */
         }
     }
@@ -99,7 +102,7 @@ int game_dump_screen(const char *name, const char *outpath) {
             for (int y = 0; y < h && yo + y < SCREEN_H; y++)
                 for (int x = 0; x < w && xo + x < SCREEN_W; x++) {
                     uint8_t nib = px[y * w + x];
-                    if (nib == (uint8_t)tr) continue;
+                    (void)tr;   /* opaque: header byte 8 is not transparency (see blit_cbm) */
                     if (yo + y >= 0 && xo + x >= 0)
                         fb[(yo + y) * SCREEN_W + (xo + x)] = t[nib];
                 }
