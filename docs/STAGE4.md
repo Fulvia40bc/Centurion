@@ -211,3 +211,11 @@ table to locate the image loader instead of grepping the linear sweep.
   sweep; needs entry-seeded disasm)
 - 0x9723: AH=0x10 AL=2 (set cursor shape/position)
 - Conclusion: all video via BIOS int 0x10; port emulates int 0x10 into SDL2.
+
+## Stage 18: decode-routine hunt status
+- Static call-chasing into the LZSS unpacker (EXE 0x01DE-0x0287) fails: EXE
+  regions misalign in linear sweeps, byte-scan call targets are false positives.
+- Efficient path is runtime: in DOSBox-X, break at the unpacker return when a
+  .CBM is loaded and dump the decoded buffer (MEMDUMPBIN), which gives the
+  exact decoded image bytes -> then match against the extracted .CBM to
+  derive the pixel format directly.
