@@ -366,3 +366,10 @@ table to locate the image loader instead of grepping the linear sweep.
   via 0x5D29. UI primitives: 0x7E74=rect fill, 0x8E62=window, 0x5AC2=begin,
   0x7CB2=panel, 0x5AE4=list, blit 0x0494/0x689F.
 - Port now renders via offscreen work buffer -> blit (matches original).
+
+## Stage 36: decompile tooling + UI map
+- tools/pseudo.py + docs/DECOMP_UI.txt: per-function call/global maps for the
+  UI primitives and screen builders (0x7E74 rect, 0x8E62 window, 0x8BE4 text,
+  0x950E list, 0x6973 button, 0x0494 blit, 0x6589 menu screen, 0x62C2, 0x49CE).
+- Overlay game-logic entry AH still needs one runtime read ([0xC4] call at
+  game start) - handoff request filed previously.
