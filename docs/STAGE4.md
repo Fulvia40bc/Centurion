@@ -182,3 +182,15 @@ table to locate the image loader instead of grepping the linear sweep.
   entry is one of these. EXE regions around these sites misalign in linear
   sweeps, so mapping global->overlay function is fastest at runtime
   (break at each lcall, read the pointer, subtract overlay base segment).
+
+## Stage 15: runtime data-segment dump analysis (ds_dump.bin)
+- Only ONE overlay far pointer exists in the EXE data segment: ds:0xC4 =
+  3682:0000. The other scanned "lcall [disp]" byte hits were mid-instruction
+  false positives (stricter scan with segment-override prefixes confirms only
+  [ds:0xC4] and one [ds:0xA06] are real, and 0xA06 is text).
+- => ALL EXE->overlay calls go through [0xC4] (int 0x64). The AH table at
+  overlay 0x03DE has 256 entries (0x3DE..0x5DE); AH 0-4 are AdLib sound, the
+  rest are game functions (176 point at non-text code).
+- `disasm/OVL_RUNTIME.ah.asm`: recursive disasm seeded from all 256 AH
+  entries (558 functions). 300 functions write via es:[di] (VRAM blits among
+  them). Next: identify which AH entry is the image-display blit.
