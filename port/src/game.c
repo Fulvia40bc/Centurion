@@ -166,6 +166,7 @@ static void box(int x, int y, int w, int h) {
     ui_rect(g_work, x, y + h - 5, w, 3, 28);
     ui_rect(g_work, x, y + h - 2, w, 1, 0);
     ui_rect(g_work, x, y + h - 1, w, 1, 28);
+    ui_rect(g_work, x, y + h, w, 1, 26);   /* shadow row under the box */
 }
 
 static void draw_province_rome(void) {
@@ -177,7 +178,7 @@ static void draw_province_rome(void) {
         for (int i = 0; i < n; i++)
             if (strcasecmp(imgs[i].name, "ROME.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
     }
-    ui_text(g_work, 140, 45, "ROME", 0);
+    ui_text(g_work, 123, 47, "ROME", 25);
     /* command menu box, 7 items */
     box(6, 63, 151, 134);
     ui_text(g_work, 27, 85, "What is your command?", 15);
