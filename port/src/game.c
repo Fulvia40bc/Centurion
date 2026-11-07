@@ -71,7 +71,9 @@ static void blit_cbm_at_trans(const img_entry_t *e, int px0, int py0, int trans_
             int dx = px0 + x;
             if (dx < 0 || dx >= SCREEN_W) continue;
             uint8_t nib = px[y * w + x] & 0xF;
-            if (nib == (uint8_t)trans_nibble) continue;   /* byte8 IS transparent for overlays (VERIFIED) */
+            /* each image's own header byte8 is its transparent nibble (NEGBG: 8, NEGFG: 15), VERIFIED Narbonensis
+               20160/20160. trans_nibble < 0 = use the header value; NEGFGX has nibble-8 pixels that must be drawn. */
+            if (nib == (uint8_t)(trans_nibble < 0 ? trans : trans_nibble)) continue;
             g_work[dy * SCREEN_W + dx] = table[nib];
         }
     }
@@ -222,9 +224,9 @@ static void draw_province(const province_t *p) {
             ui_rect(g_work, 0, 0, SCREEN_W, 31, p->sky);
             for (int i = 0; i < n; i++) {
                 if (p->bg && strcasecmp(imgs[i].name, p->bg) == 0)
-                    blit_cbm_at_trans(&imgs[i], 0, 19, 8);
+                    blit_cbm_at_trans(&imgs[i], 0, 19, -1);
                 if (p->fg && strcasecmp(imgs[i].name, p->fg) == 0)
-                    blit_cbm_at_trans(&imgs[i], 0, 31, 8);
+                    blit_cbm_at_trans(&imgs[i], 0, 31, -1);
             }
         }
     }
