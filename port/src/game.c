@@ -457,7 +457,7 @@ void game_play(void) {
         if (click && !g_last_click) {
             if (g_screen == 0) {
                 for (size_t i = 0; i < sizeof(g_regions)/sizeof(g_regions[0]); i++) {
-                    const typeof(g_regions[0]) *r = &g_regions[i];
+                    const __typeof__(g_regions[0]) *r = &g_regions[i];   /* typeof is GNU-only; breaks the -std=c99 Windows build */
                     if (in.mouse_x >= r->x0 && in.mouse_x <= r->x1 &&
                         in.mouse_y >= r->y0 && in.mouse_y <= r->y1) {
                         g_province = r->prov;
