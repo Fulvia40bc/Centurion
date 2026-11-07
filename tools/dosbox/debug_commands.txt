@@ -1,0 +1,35 @@
+REM DOSBox-X debugger command script for the Centurion port investigation.
+REM Usage: start the game (run_game.bat), press Alt+Pause, click the Debugger
+REM window, then type these one per line at the I-> prompt (or paste them).
+REM Values in hex. Overlay base segment was 3682 in our session; if it differs,
+REM read it first with:  EV ds   then   D ds:c4   (segment = 2nd word).
+
+REM --- 1. dump the runtime overlay image (authoritative) ---
+MEMDUMPBIN 3682:0 18000 OVL_RUNTIME.BIN
+
+REM --- 2. dispatch pointer ---
+EV ds
+D ds:c4
+
+REM --- 3. breakpoints on the EXE overlay far-call sites (CS=0823) ---
+BP 0823:07fc
+BP 0823:0800
+BP 0823:1c5a
+BP 0823:1d00
+BP 0823:1d04
+BP 0823:2057
+BP 0823:2123
+BP 0823:2151
+BP 0823:33eb
+BP 0823:3f40
+BP 0823:6332
+
+REM --- 4. run; at each stop do: EV eip  then  D ds:<global>  (see map below),
+REM        TAB to Data View, read 4 bytes, press F5 for next stop.
+REM call site -> global:
+REM   07FC->00b6  0800->00b8  1C5A/1D00->0684  1D04->1e06  2057->0f46
+REM   2123->0f40  2151->0f3e  33EB->15da  3F40->0a06  6332->08ec
+
+REM --- 5. list breakpoints / delete all ---
+BPLIST
+BPDEL *
