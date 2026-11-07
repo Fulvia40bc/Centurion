@@ -179,14 +179,14 @@ static void draw_province_rome(void) {
     ui_text(g_work, 140, 45, "ROME", 0);
     /* command menu box, 7 items */
     box(6, 63, 151, 134);
-    ui_text(g_work, 10, 85, "What is your command?", 0);
+    ui_text(g_work, 27, 85, "What is your command?", 15);
     const char *items[] = {"Legions", "Tribute", "Hold Games", "Build Fleet",
                            "Tribute Policy", "See Province List", "Continue"};
     for (int i = 0; i < 7; i++)
         ui_text(g_work, 23, 102 + i * 10, items[i], 0);
     /* status panel */
     box(164, 63, 151, 134);
-    ui_text(g_work, 168, 65, "The people are Rebellious", 0);
+    ui_text(g_work, 168, 62, "The people are Rebellious", 0);
     ui_text(g_work, 168, 86, "Status: Citizens", 0);
     ui_text(g_work, 168, 106, "Tribute: 8", 0);
     ui_text(g_work, 168, 117, "Manpower: 5000", 0);
@@ -200,6 +200,7 @@ static void draw_province_rome(void) {
 int game_dump_frame(const char *outpath, const char *screen) {
     if (screen && strcasecmp(screen, "province_rome") == 0) {
         if (assets_load_luts("OVL0.OVL") != 0) return 1;
+        if (assets_load_font("OVL0.OVL") != 0) return 1;
         draw_province_rome();
     } else {
         game_init();
