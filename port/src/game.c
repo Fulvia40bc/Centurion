@@ -369,7 +369,7 @@ int game_dump_frame(const char *outpath, const char *screen) {
         ui_rect(g_work, 227, 2, 2, 27, 15);
         ui_rect(g_work, 313, 2, 3, 27, 15);
         ui_rect(g_work, 227, 27, 89, 2, 15);
-        ui_text_centered(g_work, 272, 4, "275 BC", 15);
+        ui_text_centered(g_work, 272, 2, "275 BC", 15);
         ui_text_centered(g_work, 272, 21, "End Turn", 0);
         /* map icons from the INIT sprite sheet (MINIT): ships + legion markers
            (positions UNVERIFIED - should come from game state) */
@@ -442,7 +442,7 @@ static void draw_map_screen(void) {
     ui_rect(g_work, 227, 2, 2, 27, 15);
     ui_rect(g_work, 313, 2, 3, 27, 15);
     ui_rect(g_work, 227, 27, 89, 2, 15);
-    ui_text_centered(g_work, 272, 4, "275 BC", 15);
+    ui_text_centered(g_work, 272, 2, "275 BC", 15);
     ui_text_centered(g_work, 272, 21, "End Turn", 0);
 }
 
