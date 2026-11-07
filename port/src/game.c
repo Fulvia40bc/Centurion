@@ -178,14 +178,14 @@ static void draw_province_rome(void) {
     }
     ui_text(g_work, 140, 45, "ROME", 0);
     /* command menu box, 7 items */
-    box(6, 63, 151, 135);
-    ui_text(g_work, 10, 66, "What is your command?", 0);
+    box(6, 63, 151, 134);
+    ui_text(g_work, 10, 85, "What is your command?", 0);
     const char *items[] = {"Legions", "Tribute", "Hold Games", "Build Fleet",
                            "Tribute Policy", "See Province List", "Continue"};
     for (int i = 0; i < 7; i++)
-        ui_text(g_work, 23, 104 + i * 10, items[i], 0);
+        ui_text(g_work, 23, 102 + i * 10, items[i], 0);
     /* status panel */
-    box(164, 63, 151, 135);
+    box(164, 63, 151, 134);
     ui_text(g_work, 168, 65, "The people are Rebellious", 0);
     ui_text(g_work, 168, 86, "Status: Citizens", 0);
     ui_text(g_work, 168, 106, "Tribute: 8", 0);
@@ -193,7 +193,7 @@ static void draw_province_rome(void) {
     ui_text(g_work, 168, 128, "Courage: Fierce", 0);
     ui_text(g_work, 168, 139, "Rank: Officer", 0);
     ui_text(g_work, 168, 156, "Talents: 20", 0);
-    ui_text(g_work, 168, 167, "Galley Slave level", 0);
+    ui_text(g_work, 168, 180, "Galley Slave level", 0);
 }
 
 /* Headless: render the current frame (work buffer) to a raw index file. */
