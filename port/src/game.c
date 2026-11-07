@@ -422,12 +422,24 @@ static void draw_province_screen(int prov) {
     FILE *f = fopen("OVL0.OVL", "rb");
     static uint8_t ovl0[0x20000];
     if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
-    if (prov == 0) draw_province_rome();
-    else {
-        static const province_t narb = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, NULL,
-            "Occupied", "Good", "Officer", 0, 5279, 20, 0};
-        draw_province(&narb);
+    province_t p;
+    /* play mode: province data from the save file (3.CSV preferred, any .CSV fallback) */
+    if (load_province_csv("3.CSV", prov, &p) != 0 &&
+        load_province_csv("0.CSV", prov, &p) != 0) {
+        /* no save: capture-matching defaults */
+        if (prov == 0) {
+            static const char *const ri[7] = {"Legions", "Tribute", "Hold Games", "Build Fleet",
+                                               "Tribute Policy", "See Province List", "Continue"};
+            static const province_t def = {"ROME", "ROME.CBM", NULL, NULL, 0, ri,
+                "Citizens", "Fierce", "Officer", 8, 5000, 20, 0};
+            p = def;
+        } else {
+            static const province_t def = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, NULL,
+                "Occupied", "Good", "Officer", 0, 5279, 20, 0};
+            p = def;
+        }
     }
+    draw_province(&p);
 }
 
 void game_play(void) {
