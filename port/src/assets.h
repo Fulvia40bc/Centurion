@@ -43,3 +43,13 @@ int assets_effective_lut(const img_entry_t *imgs, int i);
    width[96], yoff[96], glyph[96][8]; chars 0x20..0x7F, 8 rows, bit7 = leftmost. */
 int assets_load_font(const char *ovl0_path);
 const uint8_t *font_glyph(int ch, int *w, int *yoff);  /* NULL if out of range */
+
+/* Sprite sheet (xxxHDR.LZW + xxxDAT.LZW in MINIT.DAT etc.; VERIFIED on INIT2):
+   HDR unpacks to 14-byte entries <HhhBBBBI = w, xhot, yhot, bpr, rows, byte8(transp),
+   lut, u32 offset into unpacked DAT. DAT = raw 4-bit nibbles, bpr stride, no compression. */
+typedef struct { int w, h, xhot, yhot, trans, lut; uint32_t off; } sprite_ent_t;
+int assets_load_sheet(const char *hdr_name, const char *dat_name,
+                      sprite_ent_t *ents, int *count, uint8_t **pixels, size_t *npix);
+/* blit sprite i into fb at (px,py); nibble==trans is transparent */
+void assets_blit_sprite(const uint8_t *pixels, const sprite_ent_t *e, const uint8_t *lut,
+                        uint8_t *fb, int fb_w, int fb_h, int px, int py);

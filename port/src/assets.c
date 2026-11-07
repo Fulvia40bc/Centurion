@@ -353,3 +353,60 @@ const uint8_t *font_glyph(int ch, int *w, int *yoff) {
     *yoff = g_font[96 + c];
     return g_font + 192 + c * 8;
 }
+
+/* ---- sprite sheets ---- */
+static dir_entry_t *find_entry(const char *name) {
+    for (int i = 0; i < g_entry_count; i++)
+        if (strcasecmp(g_entries[i].name, name) == 0) return &g_entries[i];
+    return NULL;
+}
+
+int assets_load_sheet(const char *hdr_name, const char *dat_name,
+                      sprite_ent_t *ents, int *count, uint8_t **pixels, size_t *npix) {
+    dir_entry_t *eh = find_entry(hdr_name), *ed = find_entry(dat_name);
+    if (!eh || !ed) return -1;
+    /* HDR member: u32 unpacked size, then LZSS -> 14-byte entries <HhhBBBBI */
+    const uint8_t *hm = g_dat + eh->offset;
+    uint32_t hsize = hm[0] | (hm[1] << 8) | ((uint32_t)hm[2] << 16) | ((uint32_t)hm[3] << 24);
+    uint8_t *hdr = malloc(hsize + 16);
+    size_t hn = lzss_run(hm, eh->length, 4, hdr, hsize + 16);
+    int n = hn / 14;
+    for (int i = 0; i < n; i++) {
+        const uint8_t *p = hdr + i * 14;
+        ents[i].w = p[0] | (p[1] << 8);
+        ents[i].xhot = (int16_t)(p[2] | (p[3] << 8));
+        ents[i].yhot = (int16_t)(p[4] | (p[5] << 8));
+        ents[i].h = p[7];
+        ents[i].trans = p[8];
+        ents[i].lut = p[9];
+        ents[i].off = p[10] | (p[11] << 8) | ((uint32_t)p[12] << 16) | ((uint32_t)p[13] << 24);
+        /* bpr = p[6]; stored in w field separately if needed */
+    }
+    free(hdr);
+    /* DAT member: u32 unpacked size, then LZSS -> raw 4-bit nibbles */
+    const uint8_t *dm = g_dat + ed->offset;
+    uint32_t dsize = dm[0] | (dm[1] << 8) | ((uint32_t)dm[2] << 16) | ((uint32_t)dm[3] << 24);
+    uint8_t *pix = malloc(dsize + 16);
+    *npix = lzss_run(dm, ed->length, 4, pix, dsize + 16);
+    *pixels = pix;
+    *count = n;
+    return 0;
+}
+
+void assets_blit_sprite(const uint8_t *pixels, const sprite_ent_t *e, const uint8_t *lut,
+                        uint8_t *fb, int fb_w, int fb_h, int px, int py) {
+    int bpr = (e->w + 1) / 2;
+    for (int y = 0; y < e->h; y++) {
+        int dy = py + y;
+        if (dy < 0 || dy >= fb_h) continue;
+        for (int x = 0; x < e->w; x++) {
+            int dx = px + x;
+            if (dx < 0 || dx >= fb_w) continue;
+            size_t byteidx = e->off + (size_t)y * bpr + x / 2;
+            uint8_t b = pixels[byteidx];
+            uint8_t nib = (x & 1) ? (b & 0xF) : ((b >> 4) & 0xF);
+            if (nib == (uint8_t)e->trans) continue;   /* byte8 IS the transparent nibble here (VERIFIED) */
+            fb[dy * fb_w + dx] = lut[nib];
+        }
+    }
+}

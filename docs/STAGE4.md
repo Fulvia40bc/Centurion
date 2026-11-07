@@ -400,3 +400,10 @@ table to locate the image loader instead of grepping the linear sweep.
   ROME.CBM strip at (0,0) (LUT 19, pixel-perfect vs capture), two windowed
   panels with the game's border style, game font text. Diff vs capture: 10.5%,
   strip 0%. Remaining: text glyph positions in the panels.
+
+## Stage 41: sprite sheets (HDR/DAT) in port; crowd portrait drawn
+- assets_load_sheet + assets_blit_sprite implement the xxxHDR/xxxDAT sheet format
+  (VERIFIED on INIT2: 14-byte entries, u32 offset into raw-nibble DAT, byte8 =
+  transparent nibble). Province screen draws INIT2 sprite 0 at (255,104) LUT 22.
+- Diff vs capture now 6.7%. OVL0 map/province section disassembled:
+  disasm/OVL_MAP.clean.asm (832 funcs, 95.3%).

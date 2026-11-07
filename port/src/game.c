@@ -194,6 +194,22 @@ static void draw_province_rome(void) {
     ui_text(g_work, 168, 139, "Rank: Officer", 0);
     ui_text(g_work, 168, 156, "Talents: 20", 0);
     ui_text(g_work, 168, 180, "Galley Slave level", 0);
+    /* crowd portrait: INIT2 sprite sheet entry 0 at (255,104), LUT 22, trans nibble 0
+       (VERIFIED by Claude: 1701/1731, misses = panel border drawn over) */
+    {
+        if (assets_load("MINIT.DIR", "MINIT.DAT") == 0) {
+            sprite_ent_t ents[16];
+            int n = 0;
+            uint8_t *pix = NULL;
+            size_t npix = 0;
+            if (assets_load_sheet("INIT2HDR.LZW", "INIT2DAT.LZW", ents, &n, &pix, &npix) == 0 && n > 0) {
+                const uint8_t *t = assets_lut(ents[0].lut ? ents[0].lut : 22);
+                if (!t) t = assets_lut(22);
+                assets_blit_sprite(pix, &ents[0], t, g_work, SCREEN_W, SCREEN_H, 255, 104);
+                free(pix);
+            }
+        }
+    }
 }
 
 /* Headless: render the current frame (work buffer) to a raw index file. */
