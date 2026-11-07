@@ -1,11 +1,14 @@
 # Save file format (*.CSV) — VERIFIED against mem_narbonensis_province_640k.bin
 
-- File = 0x38-byte header + a verbatim copy of DS 0x5270 .. 0x5270+ (filesize-0x38).
-  VERIFIED: 0.CSV[0x38:] aligns with DS:0x5270 in the snapshot (region matches byte-for-byte
-  where the two saves agree); total save size 1780 = 0x38 + 0x6BC, so state area = DS 0x5270-0x58EF.
+- File = 0x38-byte header + a verbatim copy of DS 0x526C .. (filesize-0x38).
+  VERIFIED (Claude vs 3.CSV + snapshot): CSV[0x38:] matches DS:0x526C 100% for the first 0x300+
+  bytes; save size 1780 = 0x38 + 0x6BC, so state area = DS 0x526C-0x5927. The tail past CSV 0x380
+  is a different block (UNVERIFIED).
 - Header (0x38 bytes): `"10A\0"` version, then player name NUL-terminated ("Falcon2", "erik"),
   rest zero.
-- Province records: 32 bytes each starting at DS 0x5270 (prov index * 32).
+- Province records: 32 bytes each starting at CSV 0x3C = DS 0x5270 (i.e. CSV offset
+  `0x3C + idx*32 + field`). VERIFIED: Narbonensis = record 24 (manpower 5279 = 0x149F at
+  CSV 0x340 = DS:5574); Rome = record 0 in 0.CSV (manpower 4914, tribute 8, status 4).
   Fields used by the EXE (offsets relative to the 32-byte record), from func_0x6c26 / func_0x6f0c:
   - +0x04 u16  manpower (VERIFIED: Narbonensis 5279 = 0x14A7)
   - +0x0A u8   courage index (table DS:7486, value/0x19)

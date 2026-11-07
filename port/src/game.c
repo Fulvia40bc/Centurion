@@ -285,8 +285,10 @@ static void draw_province(const province_t *p) {
 
 /* province names by index (DS string table; VERIFIED for 0=ROME via capture) */
 static const char *prov_name(int idx) {
-    static const char *names[] = {"Rome", "Narbonensis"};  /* full table UNVERIFIED */
-    return (idx >= 0 && idx < 2) ? names[idx] : "?";
+    static const char *names[] = {"Rome", "?", "?", "?", "?", "?", "?", "?",
+        "?", "?", "?", "?", "?", "?", "?", "?", "?", "?", "?", "?",
+        "?", "?", "?", "Narbonensis"};   /* indices VERIFIED: 0=Rome, 24=Narbonensis */
+    return (idx >= 0 && idx < 25) ? names[idx] : "?";
 }
 
 /* load province record idx from a .CSV save; returns 0 on success */
@@ -300,8 +302,7 @@ static int load_province_csv(const char *path, int idx, province_t *p) {
     if (fread(buf, 1, sz, f) != (size_t)sz) { fclose(f); free(buf); return -1; }
     fclose(f);
     if (sz < 0x38 + 0x6BC) { free(buf); return -1; }
-    const uint8_t *rec = buf + 0x38 + 0x5270 - 0x5270 + idx * 32;  /* CSV 0x38 == DS 0x5270 */
-    rec = buf + 0x38 + idx * 32;
+    const uint8_t *rec = buf + 0x3C + idx * 32;   /* CSV 0x38 == DS 0x526C; records at +4 (VERIFIED) */
     p->manpower = rec[0x04] | (rec[0x05] << 8);
     p->tribute = rec[0x11];
     p->status = (rec[0x15] == 1) ? "Occupied" : (rec[0x15] == 2) ? "Ally" :
@@ -363,6 +364,26 @@ int game_dump_frame(const char *outpath, const char *screen) {
         ui_rect(g_work, 227, 27, 89, 2, 15);
         ui_text_centered(g_work, 272, 4, "275 BC", 15);
         ui_text_centered(g_work, 272, 21, "End Turn", 0);
+        /* map icons from the INIT sprite sheet (MINIT): ships + legion markers
+           (positions UNVERIFIED - should come from game state) */
+        if (assets_load("MINIT.DIR", "MINIT.DAT") == 0) {
+            sprite_ent_t ents[16];
+            int n = 0;
+            uint8_t *pix = NULL;
+            size_t npix = 0;
+            if (assets_load_sheet("INITHDR.LZW", "INITDAT.LZW", ents, &n, &pix, &npix) == 0) {
+                static const struct { int ent, x, y; } icons[] = {
+                    {8, 211, 127}, {2, 125, 103}, {0, 128, 114},
+                };
+                for (size_t i = 0; i < sizeof(icons)/sizeof(icons[0]) && icons[i].ent < n; i++) {
+                    const uint8_t *t = assets_lut(ents[icons[i].ent].lut ? ents[icons[i].ent].lut : 11);
+                    if (!t) t = assets_lut(11);
+                    assets_blit_sprite(pix, &ents[icons[i].ent], t, g_work, SCREEN_W, SCREEN_H,
+                                       icons[i].x, icons[i].y);
+                }
+                free(pix);
+            }
+        }
     } else if (screen && strcasecmp(screen, "game_menu") == 0) {
         if (assets_load_luts("OVL0.OVL") != 0) return 1;
         if (assets_load_font("OVL0.OVL") != 0) return 1;
@@ -399,7 +420,7 @@ static int g_last_click;
 /* province hit regions on the map (320x200), UNVERIFIED approximate */
 static const struct { int x0, y0, x1, y1, prov; } g_regions[] = {
     {190, 140, 215, 165, 0},   /* Italy / Rome */
-    {120, 100, 150, 125, 1},   /* Gaul / Narbonensis */
+    {120, 100, 150, 125, 24},  /* Gaul / Narbonensis (record 24, VERIFIED) */
 };
 
 static void draw_map_screen(void) {
