@@ -365,20 +365,20 @@ int game_dump_frame(const char *outpath, const char *screen) {
             for (int i = 0; i < n; i++)
                 if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
         }
-        /* two side-by-side buttons (measured from capture): [End Turn] x228-272, [275 BC] x276-318 */
+        /* two buttons, exact frame per capture + DS rects (227,2)-(275,18) and (277,2)-(317,18) */
         for (int b = 0; b < 2; b++) {
-            int bx = b == 0 ? 228 : 276, bw = b == 0 ? 45 : 43;
+            int x0 = b == 0 ? 227 : 277, x1 = b == 0 ? 275 : 317, y0 = 2, y1 = 18;
             const char *txt = b == 0 ? "End Turn" : "275 BC";
-            ui_rect(g_work, bx, 2, bw, 17, 26);
-            ui_rect(g_work, bx, 2, bw, 1, 15);
-            ui_rect(g_work, bx, 17, bw, 2, 0);
-            ui_rect(g_work, bx, 3, 1, 15, 8);
-            ui_rect(g_work, bx + bw - 1, 3, 1, 15, 8);
-            ui_rect(g_work, bx + 2, 5, bw - 4, 1, 8);
-            ui_rect(g_work, bx + 2, 15, bw - 4, 1, 8);
-            ui_rect(g_work, bx + 2, 6, 1, 9, 8);
-            ui_rect(g_work, bx + bw - 3, 6, 1, 9, 8);
-            ui_text_centered(g_work, bx + bw / 2, 7, txt, 15);
+            ui_rect(g_work, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 26);      /* fill */
+            ui_rect(g_work, x0, y0, x1 - x0 + 1, 2, 15);                /* top highlight (2 rows) */
+            ui_rect(g_work, x0, y0 + 2, 2, y1 - y0 - 4, 8);             /* left border 2px */
+            ui_rect(g_work, x1 - 1, y0 + 2, 2, y1 - y0 - 4, 8);         /* right border 2px */
+            ui_rect(g_work, x0, y1 - 1, x1 - x0 + 1, 2, 0);             /* bottom shadow */
+            g_work[(y1 - 1) * SCREEN_W + x0] = 8;
+            g_work[(y1 - 1) * SCREEN_W + x1] = 8;
+            ui_rect(g_work, x0 + 2, y0 + 3, x1 - x0 - 3, 1, 8);          /* inner top line */
+            ui_rect(g_work, x0 + 2, y1 - 3, x1 - x0 - 3, 1, 8);          /* inner bottom line */
+            ui_text(g_work, x0 + 5, y0 + 4, txt, 15);                   /* text per func_0x4aa6 */
         }
         /* map icons from the zone anchor table DS:1AB8 + INIT sheet (VERIFIED anchors:
            zone 0 Italia (125,114), 27 (254,144), 28 (220,138), 30 (144,166); icon drawn at
@@ -466,13 +466,20 @@ static void draw_map_screen(void) {
     int n = assets_scan_images(".", imgs, 256);
     for (int i = 0; i < n; i++)
         if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
-    ui_rect(g_work, 227, 2, 89, 27, 26);
-    ui_rect(g_work, 227, 2, 89, 2, 15);
-    ui_rect(g_work, 227, 2, 2, 27, 15);
-    ui_rect(g_work, 313, 2, 3, 27, 15);
-    ui_rect(g_work, 227, 27, 89, 2, 15);
-    ui_text_centered(g_work, 272, 2, "275 BC", 15);
-    ui_text_centered(g_work, 272, 21, "End Turn", 0);
+    for (int b = 0; b < 2; b++) {
+        int x0 = b == 0 ? 227 : 277, x1 = b == 0 ? 275 : 317, y0 = 2, y1 = 18;
+        const char *txt = b == 0 ? "End Turn" : "275 BC";
+        ui_rect(g_work, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 26);
+        ui_rect(g_work, x0, y0, x1 - x0 + 1, 2, 15);
+        ui_rect(g_work, x0, y0 + 2, 2, y1 - y0 - 4, 8);
+        ui_rect(g_work, x1 - 1, y0 + 2, 2, y1 - y0 - 4, 8);
+        ui_rect(g_work, x0, y1 - 1, x1 - x0 + 1, 2, 0);
+        g_work[(y1 - 1) * SCREEN_W + x0] = 8;
+        g_work[(y1 - 1) * SCREEN_W + x1] = 8;
+        ui_rect(g_work, x0 + 2, y0 + 3, x1 - x0 - 3, 1, 8);
+        ui_rect(g_work, x0 + 2, y1 - 3, x1 - x0 - 3, 1, 8);
+        ui_text(g_work, x0 + 5, y0 + 4, txt, 15);
+    }
 }
 
 static void draw_province_screen(int prov) {
