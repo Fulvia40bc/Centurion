@@ -413,3 +413,7 @@ table to locate the image loader instead of grepping the linear sweep.
   OVL0 at runtime), mood from func_0x6c26 index -> INIT2 sprite, status strings composed per
   func_0x6f0c, title centred at (160,66). --dump-frame out.bin province_rome|province_narbonensis.
 - Rome: 707 px (1.1%). Narbonensis: menu+status ~700 px (bevels), strip asset still unidentified.
+
+## Stage 44: layered province strips (VERIFIED 20160/20160 on Narbonensis)
+- Non-city strips = sky fill (23) rows 0-30 + NEGBG?.CBM at y=19 + NEGFGX-style fg at y=31,
+  LUT 1, byte8 (8) transparent. Port: blit_cbm_at_trans. Narb now 964 px (1.5%); Rome 707 px.

@@ -58,6 +58,26 @@ static void blit_cbm_at(const img_entry_t *e, int px0, int py0) {
     free(px);
 }
 
+static void blit_cbm_at_trans(const img_entry_t *e, int px0, int py0, int trans_nibble) {
+    int w, h, xo, yo, trans, lut = 0;
+    uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans, &lut);
+    if (!px) return;
+    const uint8_t *table = assets_lut(lut ? lut : 0);
+    if (!table) table = assets_lut(0);
+    for (int y = 0; y < h; y++) {
+        int dy = py0 + y;
+        if (dy < 0 || dy >= SCREEN_H) continue;
+        for (int x = 0; x < w; x++) {
+            int dx = px0 + x;
+            if (dx < 0 || dx >= SCREEN_W) continue;
+            uint8_t nib = px[y * w + x] & 0xF;
+            if (nib == (uint8_t)trans_nibble) continue;   /* byte8 IS transparent for overlays (VERIFIED) */
+            g_work[dy * SCREEN_W + dx] = table[nib];
+        }
+    }
+    free(px);
+}
+
 static void blit_cbm(const img_entry_t *e) {
     int w, h, xo, yo, trans, lut = 0;
     uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans, &lut);
@@ -181,7 +201,9 @@ static const char *ds_str(uint16_t ptr) {
 
 typedef struct {
     const char *name;        /* province title */
-    const char *strip;       /* CBM city strip */
+    const char *strip;       /* CBM city strip (cities) or NULL */
+    const char *bg, *fg;     /* layered strip: NEGBG?/NEGFG? (non-city) */
+    int sky;                 /* sky fill color for layered strips */
     const char *const *items; /* NULL = read the 7 DS:573C records; else override list */
     const char *status, *courage, *rank;
     int tribute, manpower, talents, mood;  /* mood = func_0x6c26 index 0..3 */
@@ -189,12 +211,22 @@ typedef struct {
 
 static void draw_province(const province_t *p) {
     memset(g_work, 116, sizeof(g_work));
-    /* city strip */
+    /* strip: full city CBM, or layered sky+NEGBG+NEGFG (VERIFIED for Narbonensis) */
     {
         img_entry_t imgs[256];
         int n = assets_scan_images(".", imgs, 256);
-        for (int i = 0; i < n; i++)
-            if (strcasecmp(imgs[i].name, p->strip) == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
+        if (p->strip) {
+            for (int i = 0; i < n; i++)
+                if (strcasecmp(imgs[i].name, p->strip) == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
+        } else {
+            ui_rect(g_work, 0, 0, SCREEN_W, 31, p->sky);
+            for (int i = 0; i < n; i++) {
+                if (p->bg && strcasecmp(imgs[i].name, p->bg) == 0)
+                    blit_cbm_at_trans(&imgs[i], 0, 19, 8);
+                if (p->fg && strcasecmp(imgs[i].name, p->fg) == 0)
+                    blit_cbm_at_trans(&imgs[i], 0, 31, 8);
+            }
+        }
     }
     ui_text_centered(g_work, 160, 66, p->name, 0);
     /* command menu: box + items from DS:573C records (12-byte {text,hk,x0,y0,x1,y1}) */
@@ -252,7 +284,7 @@ static void draw_province(const province_t *p) {
 static void draw_province_rome(void) {
     static const char *const rome_items[7] = {"Legions", "Tribute", "Hold Games", "Build Fleet",
                                                "Tribute Policy", "See Province List", "Continue"};
-    static const province_t rome = {"ROME", "ROME.CBM", rome_items,
+    static const province_t rome = {"ROME", "ROME.CBM", NULL, NULL, 0, rome_items,
         "Citizens", "Fierce", "Officer", 8, 5000, 20, 0};
     draw_province(&rome);
 }
@@ -269,7 +301,7 @@ int game_dump_frame(const char *outpath, const char *screen) {
         fclose(f);
         g_ovl0 = ovl0;
         if (strcasecmp(screen, "province_narbonensis") == 0) {
-            static const province_t narb = {"Narbonensis", "ROME.CBM", NULL,
+            static const province_t narb = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, NULL,
                 "Occupied", "Good", "Officer", 0, 5279, 20, 0};
             draw_province(&narb);
         } else {

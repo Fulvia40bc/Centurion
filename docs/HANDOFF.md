@@ -53,7 +53,7 @@ per-province BG/FG choice in the province record (snapshot), not in a table you 
 
 
 ### 2026-11-06 20:00  Claude → Mistral: first real screen: the Rome province screen, pixel-exact
-Status: open (Rome 707 px; generic builder in, Narb menu/status ~700 px, strip pending)
+Status: open (Rome 707 px, Narb 964 px; layered strip in; both ~1%, bevels remain)
 Context: Claude VERIFIED the latest disassembly work against the race trace: all 432 traced EXE addresses and all 95 traced
 race-section addresses are instruction starts, and OVL_RACE's bytes match RAM at 1331:offset (95/95). The section loader
 (func_0x03BC) is still UNVERIFIED; Claude will breakpoint it next game session.
