@@ -150,23 +150,24 @@ int game_dump_screen(const char *name, const char *outpath) {
 
 /* Rome province screen (target: tools/dosbox/results/scr_rome_province.bin).
    Composed from the mapped primitives; coordinates from the verified capture. */
-static void box(int x, int y, int w, int h) {
-    /* measured from the capture: title band keeps the 116 background,
-       body (y+18 .. y+h-6) is filled 26, with the game's 4px borders */
-    ui_rect(g_work, x + 4, y + 18, w - 8, h - 23, 26);   /* body fill to y+h-6 */
-    ui_rect(g_work, x, y + 16, w, 2, 27);                /* title/body separator */
-    ui_rect(g_work, x, y, w, 1, 0);
-    ui_rect(g_work, x, y + 1, w, 1, 8);
-    ui_rect(g_work, x, y, 1, h, 25);
-    ui_rect(g_work, x + 1, y, 3, h, 30);
-    ui_rect(g_work, x + w - 6, y, 3, h, 28);
-    ui_rect(g_work, x + w - 3, y, 1, h, 0);
-    ui_rect(g_work, x + w - 2, y, 1, h, 28);
-    ui_rect(g_work, x + w - 1, y, 1, h, 27);
+static void box(int x, int y, int w, int h, int sep_rows) {
+    /* exact structure measured from the capture:
+       full-width top line (y, y+1), side borders only from the separator down,
+       separator rows, body fill, bottom border, 1px shadow */
+    ui_rect(g_work, 1, y, 319, 1, 0);
+    ui_rect(g_work, 2, y + 1, 318, 1, 8);
+    ui_rect(g_work, x, y + 16, w, sep_rows, 27);
+    ui_rect(g_work, x + 4, y + 16 + sep_rows, w - 8, h - 22 - sep_rows, 26);
+    ui_rect(g_work, x, y + 16, 1, h - 16, 25);
+    ui_rect(g_work, x + 1, y + 16, 3, h - 16, 30);
+    ui_rect(g_work, x + w - 6, y + 16, 3, h - 16, 28);
+    ui_rect(g_work, x + w - 3, y + 16, 1, h - 16, 0);
+    ui_rect(g_work, x + w - 2, y + 16, 1, h - 16, 28);
+    ui_rect(g_work, x + w - 1, y + 16, 1, h - 16, 27);
     ui_rect(g_work, x, y + h - 5, w, 3, 28);
     ui_rect(g_work, x, y + h - 2, w, 1, 0);
     ui_rect(g_work, x, y + h - 1, w, 1, 28);
-    ui_rect(g_work, x, y + h, w, 1, 26);   /* shadow row under the box */
+    ui_rect(g_work, x, y + h, w, 1, 26);
 }
 
 static void draw_province_rome(void) {
@@ -180,7 +181,7 @@ static void draw_province_rome(void) {
     }
     ui_text(g_work, 123, 47, "ROME", 25);
     /* command menu box, 7 items */
-    box(6, 63, 151, 134);
+    box(6, 63, 151, 134, 2);
     ui_text(g_work, 27, 85, "What is your command?", 15);
     const char *items[] = {"Legions", "Tribute", "Hold Games", "Build Fleet",
                            "Tribute Policy", "See Province List", "Continue"};
@@ -190,8 +191,7 @@ static void draw_province_rome(void) {
         for (int x = 14; x <= 18; x += 2)
             g_work[y * SCREEN_W + x] = 8;   /* vertical stripe bar beside items */
     /* status panel */
-    box(164, 63, 151, 134);
-    ui_rect(g_work, 164, 81, 151, 1, 27);   /* status box: 3-row separator (row 81) */
+    box(164, 63, 151, 134, 3);
     /* status panel: centred at x=239 per EXE func_0x6f0c (0x8be4 centred text) */
     ui_text_centered(g_work, 239, 86, "The people are Rebellious", 0);
     ui_text(g_work, 171, 106, "Status: Citizens", 0);
