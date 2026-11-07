@@ -287,8 +287,8 @@ static void draw_province(const province_t *p) {
 static const char *prov_name(int idx) {
     static const char *names[] = {"Rome", "?", "?", "?", "?", "?", "?", "?",
         "?", "?", "?", "?", "?", "?", "?", "?", "?", "?", "?", "?",
-        "?", "?", "?", "Narbonensis"};   /* indices VERIFIED: 0=Rome, 24=Narbonensis */
-    return (idx >= 0 && idx < 25) ? names[idx] : "?";
+        "?", "?", "?", "?", "Narbonensis"};   /* indices VERIFIED: 0=Rome, 24=Narbonensis (25 entries) */
+    return (idx >= 0 && idx < (int)(sizeof(names) / sizeof(names[0]))) ? names[idx] : "?";
 }
 
 /* load province record idx from a .CSV save; returns 0 on success */

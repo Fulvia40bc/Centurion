@@ -10,7 +10,7 @@
   `0x3C + idx*32 + field`). VERIFIED: Narbonensis = record 24 (manpower 5279 = 0x149F at
   CSV 0x340 = DS:5574); Rome = record 0 in 0.CSV (manpower 4914, tribute 8, status 4).
   Fields used by the EXE (offsets relative to the 32-byte record), from func_0x6c26 / func_0x6f0c:
-  - +0x04 u16  manpower (VERIFIED: Narbonensis 5279 = 0x14A7)
+  - +0x04 u16  manpower (VERIFIED: Narbonensis 5279 = 0x149F)
   - +0x0A u8   courage index (table DS:7486, value/0x19)
   - +0x0D u8   mood component A
   - +0x0E u8   ? (0x527e)
