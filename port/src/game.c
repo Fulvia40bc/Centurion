@@ -172,9 +172,9 @@ int game_dump_screen(const char *name, const char *outpath) {
 
 /* Rome province screen (target: tools/dosbox/results/scr_rome_province.bin).
    Composed from the mapped primitives; coordinates from the verified capture. */
+/* window-with-title-band box (province screens): full-width divider drawn by caller;
+   side borders from the separator down, separator rows, body fill, bottom border, shadow */
 static void box(int x, int y, int w, int h, int sep_rows) {
-    ui_rect(g_work, 1, y, 319, 1, 0);
-    ui_rect(g_work, 2, y + 1, 318, 1, 8);
     ui_rect(g_work, x, y + 16, w, sep_rows, 27);
     ui_rect(g_work, x + 4, y + 16 + sep_rows, w - 8, h - 21 - sep_rows, 26);
     ui_rect(g_work, x, y + 16, 1, h - 16, 25);
@@ -213,6 +213,8 @@ typedef struct {
 
 static void draw_province(const province_t *p) {
     memset(g_work, 116, sizeof(g_work));
+    ui_rect(g_work, 1, 63, 319, 1, 0);    /* full-width divider line above the boxes */
+    ui_rect(g_work, 2, 64, 318, 1, 8);
     /* strip: full city CBM, or layered sky+NEGBG+NEGFG (VERIFIED for Narbonensis) */
     {
         img_entry_t imgs[256];
