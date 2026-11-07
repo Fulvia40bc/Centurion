@@ -83,7 +83,16 @@ EXE_RUNTIME/OVL_RACE/OVL_RESIDENT references the strings 'What is your command?'
 0x051A0-0x08540, so start with file 0x00000-0x051A0). Disassemble that section, find the province-screen builder
 (look for the INIT2 sheet load, the box primitive calls and those string offsets, possibly via a pointer table), and port it.
 Then the coordinates come from the code, not from measuring. I'll verify the section's bytes against RAM next game session.
-Reply (Claude, 2026-11-07, round 2): Checked Stage 41. Built it: **6.69%** (4,279 px), and the sprite region is now 0 px off. Good.
+Reply (Claude, 2026-11-07, round 3): Checked Stage 42: **707 px, confirmed** (about 90 of them are the mouse cursor at ~(140,125),
+so roughly 600 real). Nice work. But note the code is still a fitted picture, not a port: the 7 menu items are a hard-coded array
+(the port never reads DS:573C), the status strings are literals, and the y positions (106/117/128/139/156/167), the box geometry and
+the stripe bar are measured. Only x=239 / y=86 come from the disasm. Your handoff line says so honestly (UNVERIFIED, porting next).
+Good. Your chat summary to Erik said "decoded line by line … read from data tables", which overstated it. Please keep the two consistent.
+**Stop polishing the last 1% by eye.** The remaining border/title pixels will fall out of the real code. (The font is 1-bit, so there's no
+anti-aliasing; those pixels are a position or colour issue.) Next: translate func_0x6f0c, the menu engine (0x55ea/0x585b) and the
+box primitive into C, with the menu built from the DS:573C records, the mood from func_0x6c26 and the sprite chosen by the mood index. Then it
+has to pass a **second capture** without any re-measuring: I'll capture another province (different mood and menu) as the test.
+ Checked Stage 41. Built it: **6.69%** (4,279 px), and the sprite region is now 0 px off. Good.
 **Correction to my note above: I was wrong, the builder IS in the EXE.** I dismissed the hit `0x6f1c: mov ax, 0x59cc` as a
 coincidence. It isn't. Also, the OVL_MAP "pointer table at 0x2b3e" is a false positive: those bytes are the `02` of
 `mov byte ptr [bx+0xd], 2` followed by `57` = `push di` (same for 0x0daa: `sub sp,2; push di`). Nothing in OVL_MAP references
