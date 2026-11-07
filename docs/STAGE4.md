@@ -394,3 +394,9 @@ table to locate the image loader instead of grepping the linear sweep.
   its func_0x03BC is the section loader (20-byte section entries, type nibble at
   entry+1 dispatches via table at 0x642E).
 - CBM table-0 = keep-current-table now VERIFIED (GALLERY2 with table 3: 90.4%).
+
+## Stage 40: Rome province screen in port (first real screen)
+- `--dump-frame out.bin province_rome` composes the screen: 116 background,
+  ROME.CBM strip at (0,0) (LUT 19, pixel-perfect vs capture), two windowed
+  panels with the game's border style, game font text. Diff vs capture: 10.5%,
+  strip 0%. Remaining: text glyph positions in the panels.

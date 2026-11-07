@@ -4,7 +4,7 @@
 void game_run(void);
 
 int game_dump_screen(const char *name, const char *outpath);
-int game_dump_frame(const char *outpath);
+int game_dump_frame(const char *outpath, const char *screen);
 
 int main(int argc, char **argv) {
     /* headless screen dump: centurion --dump-screen NAME out.bin */
@@ -12,7 +12,7 @@ int main(int argc, char **argv) {
         if (i + 2 < argc && strcmp(argv[i], "--dump-screen") == 0)
             return game_dump_screen(argv[i + 1], argv[i + 2]);
         if (i + 1 < argc && strcmp(argv[i], "--dump-frame") == 0)
-            return game_dump_frame(argv[i + 1]);
+            return game_dump_frame(argv[i + 1], (i + 2 < argc) ? argv[i + 2] : NULL);
     }
     if (platform_init() != 0) return 1;
     game_run();

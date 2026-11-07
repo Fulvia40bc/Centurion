@@ -40,6 +40,24 @@ static void load_palette(const char *path) {
     }
 }
 
+static void blit_cbm_at(const img_entry_t *e, int px0, int py0) {
+    int w, h, xo, yo, trans, lut = 0;
+    uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans, &lut);
+    if (!px) return;
+    const uint8_t *table = assets_lut(lut ? lut : 0);
+    if (!table) table = assets_lut(0);
+    for (int y = 0; y < h; y++) {
+        int dy = py0 + y;
+        if (dy < 0 || dy >= SCREEN_H) continue;
+        for (int x = 0; x < w; x++) {
+            int dx = px0 + x;
+            if (dx < 0 || dx >= SCREEN_W) continue;
+            g_work[dy * SCREEN_W + dx] = table[px[y * w + x] & 0xF];
+        }
+    }
+    free(px);
+}
+
 static void blit_cbm(const img_entry_t *e) {
     int w, h, xo, yo, trans, lut = 0;
     uint8_t *px = assets_decode_cbm_file(e->dat, e, &w, &h, &xo, &yo, &trans, &lut);
@@ -130,10 +148,63 @@ int game_dump_screen(const char *name, const char *outpath) {
     return 1;
 }
 
+/* Rome province screen (target: tools/dosbox/results/scr_rome_province.bin).
+   Composed from the mapped primitives; coordinates from the verified capture. */
+static void box(int x, int y, int w, int h) {
+    /* measured from the capture: title band keeps the 116 background,
+       body (y+18 .. y+h-6) is filled 26, with the game's 4px borders */
+    ui_rect(g_work, x + 4, y + 18, w - 8, h - 24, 26);
+    ui_rect(g_work, x, y, w, 1, 0);
+    ui_rect(g_work, x, y + 1, w, 1, 8);
+    ui_rect(g_work, x, y, 1, h, 25);
+    ui_rect(g_work, x + 1, y, 3, h, 30);
+    ui_rect(g_work, x + w - 6, y, 3, h, 28);
+    ui_rect(g_work, x + w - 3, y, 1, h, 0);
+    ui_rect(g_work, x + w - 2, y, 1, h, 28);
+    ui_rect(g_work, x + w - 1, y, 1, h, 27);
+    ui_rect(g_work, x, y + h - 5, w, 3, 28);
+    ui_rect(g_work, x, y + h - 2, w, 1, 0);
+    ui_rect(g_work, x, y + h - 1, w, 1, 28);
+}
+
+static void draw_province_rome(void) {
+    memset(g_work, 116, sizeof(g_work));
+    /* city strip ROME.CBM across the top */
+    {
+        img_entry_t imgs[256];
+        int n = assets_scan_images(".", imgs, 256);
+        for (int i = 0; i < n; i++)
+            if (strcasecmp(imgs[i].name, "ROME.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
+    }
+    ui_text(g_work, 140, 45, "ROME", 0);
+    /* command menu box, 7 items */
+    box(6, 63, 151, 135);
+    ui_text(g_work, 10, 66, "What is your command?", 0);
+    const char *items[] = {"Legions", "Tribute", "Hold Games", "Build Fleet",
+                           "Tribute Policy", "See Province List", "Continue"};
+    for (int i = 0; i < 7; i++)
+        ui_text(g_work, 23, 104 + i * 10, items[i], 0);
+    /* status panel */
+    box(164, 63, 151, 135);
+    ui_text(g_work, 168, 65, "The people are Rebellious", 0);
+    ui_text(g_work, 168, 86, "Status: Citizens", 0);
+    ui_text(g_work, 168, 106, "Tribute: 8", 0);
+    ui_text(g_work, 168, 117, "Manpower: 5000", 0);
+    ui_text(g_work, 168, 128, "Courage: Fierce", 0);
+    ui_text(g_work, 168, 139, "Rank: Officer", 0);
+    ui_text(g_work, 168, 156, "Talents: 20", 0);
+    ui_text(g_work, 168, 167, "Galley Slave level", 0);
+}
+
 /* Headless: render the current frame (work buffer) to a raw index file. */
-int game_dump_frame(const char *outpath) {
-    game_init();
-    game_frame();
+int game_dump_frame(const char *outpath, const char *screen) {
+    if (screen && strcasecmp(screen, "province_rome") == 0) {
+        if (assets_load_luts("OVL0.OVL") != 0) return 1;
+        draw_province_rome();
+    } else {
+        game_init();
+        game_frame();
+    }
     FILE *f = fopen(outpath, "wb");
     if (!f) return 1;
     fwrite(g_work, 1, sizeof(g_work), f);
