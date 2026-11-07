@@ -391,6 +391,88 @@ int game_dump_frame(const char *outpath, const char *screen) {
     return 0;
 }
 
+/* ---- playable slice: map <-> province <-> back (no game logic yet) ---- */
+static int g_screen;          /* 0 = map, 1 = province */
+static int g_province;        /* province index */
+static int g_last_click;
+
+/* province hit regions on the map (320x200), UNVERIFIED approximate */
+static const struct { int x0, y0, x1, y1, prov; } g_regions[] = {
+    {190, 140, 215, 165, 0},   /* Italy / Rome */
+    {120, 100, 150, 125, 1},   /* Gaul / Narbonensis */
+};
+
+static void draw_map_screen(void) {
+    if (assets_load_luts("OVL0.OVL") != 0) return;
+    if (assets_load_font("OVL0.OVL") != 0) return;
+    img_entry_t imgs[256];
+    int n = assets_scan_images(".", imgs, 256);
+    for (int i = 0; i < n; i++)
+        if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
+    ui_rect(g_work, 227, 2, 89, 27, 26);
+    ui_rect(g_work, 227, 2, 89, 2, 15);
+    ui_rect(g_work, 227, 2, 2, 27, 15);
+    ui_rect(g_work, 313, 2, 3, 27, 15);
+    ui_rect(g_work, 227, 27, 89, 2, 15);
+    ui_text_centered(g_work, 272, 4, "275 BC", 15);
+    ui_text_centered(g_work, 272, 21, "End Turn", 0);
+}
+
+static void draw_province_screen(int prov) {
+    FILE *f = fopen("OVL0.OVL", "rb");
+    static uint8_t ovl0[0x20000];
+    if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
+    if (prov == 0) draw_province_rome();
+    else {
+        static const province_t narb = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, NULL,
+            "Occupied", "Good", "Officer", 0, 5279, 20, 0};
+        draw_province(&narb);
+    }
+}
+
+void game_play(void) {
+    g_screen = 0;
+    g_province = 0;
+    g_last_click = 0;
+    draw_map_screen();
+    input_t in;
+    const uint32_t frame_ms = 1000 / FPS;
+    uint32_t next = platform_ticks_ms();
+    while (1) {
+        platform_poll_input(&in);
+        if (in.quit_requested) break;
+        int click = in.mouse_buttons & 1;
+        if (click && !g_last_click) {
+            if (g_screen == 0) {
+                for (size_t i = 0; i < sizeof(g_regions)/sizeof(g_regions[0]); i++) {
+                    const typeof(g_regions[0]) *r = &g_regions[i];
+                    if (in.mouse_x >= r->x0 && in.mouse_x <= r->x1 &&
+                        in.mouse_y >= r->y0 && in.mouse_y <= r->y1) {
+                        g_province = r->prov;
+                        g_screen = 1;
+                        draw_province_screen(g_province);
+                        break;
+                    }
+                }
+            } else {
+                /* Continue = last menu item, rect ~(6,172)-(144,182) window-relative -> abs */
+                if (in.mouse_x >= 6 + 6 && in.mouse_x <= 6 + 138 &&
+                    in.mouse_y >= 63 + 39 + (83 - 23) + 10 * 6 && in.mouse_y <= 63 + 39 + (83 - 23) + 10 * 6 + 10) {
+                    g_screen = 0;
+                    draw_map_screen();
+                }
+            }
+        }
+        g_last_click = click;
+        memcpy(g_fb, g_work, sizeof(g_fb));
+        platform_present(g_fb, g_palette);
+        next += frame_ms;
+        uint32_t now = platform_ticks_ms();
+        if (next > now) platform_sleep_ms(next - now);
+        else next = now;
+    }
+}
+
 void game_run(void) {
     game_init();
     input_t in;

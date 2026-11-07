@@ -428,3 +428,8 @@ table to locate the image loader instead of grepping the linear sweep.
 - --dump-frame out.bin map: MAP.CBM (LUT 10) + local top-right box with "275 BC"/"End Turn".
   Diff vs scr_newgame_map.bin: 2608 px (4%); MAP.CBM alone is 2547 - rest = legion markers
   (game-state drawings, next for the playable slice).
+
+## Stage 47: first playable slice (--play)
+- `centurion --play`: map screen -> click province region -> province screen ->
+  click Continue -> back to map. Real screens (MAP.CBM, province builder), no game
+  logic. Province hit regions are UNVERIFIED approximations.
