@@ -284,11 +284,18 @@ static void draw_province(const province_t *p) {
 }
 
 /* province names by index (DS string table; VERIFIED for 0=ROME via capture) */
+/* province names from the game's own DS table at 0x5222 (u16 string ptrs, VERIFIED:
+   [0]=Italia, [24]=Narbonensis). NOTE: the Rome capture title was "ROME", not
+   "Italia" - the title is likely the capital city from another table (UNVERIFIED). */
 static const char *prov_name(int idx) {
-    static const char *names[] = {"Rome", "?", "?", "?", "?", "?", "?", "?",
-        "?", "?", "?", "?", "?", "?", "?", "?", "?", "?", "?", "?",
-        "?", "?", "?", "?", "Narbonensis"};   /* indices VERIFIED: 0=Rome, 24=Narbonensis (25 entries) */
-    return (idx >= 0 && idx < (int)(sizeof(names) / sizeof(names[0]))) ? names[idx] : "?";
+    static char buf[64];
+    if (!g_ovl0 || idx < 0 || idx > 36) return "?";
+    uint16_t p = g_ovl0[0xB400 + 0x5222 + idx * 2] | (g_ovl0[0xB400 + 0x5222 + idx * 2 + 1] << 8);
+    const uint8_t *s = g_ovl0 + 0xB400 + p;
+    int i = 0;
+    while (s[i] && i < 63) { buf[i] = s[i]; i++; }
+    buf[i] = 0;
+    return buf;
 }
 
 /* load province record idx from a .CSV save; returns 0 on success */
