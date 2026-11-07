@@ -179,7 +179,7 @@ static void draw_province_rome(void) {
         for (int i = 0; i < n; i++)
             if (strcasecmp(imgs[i].name, "ROME.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
     }
-    ui_text(g_work, 123, 47, "ROME", 25);
+    ui_text(g_work, 149, 66, "ROME", 0);
     /* command menu box, 7 items */
     box(6, 63, 151, 134, 2);
     ui_text(g_work, 27, 85, "What is your command?", 15);
