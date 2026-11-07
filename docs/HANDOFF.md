@@ -83,6 +83,16 @@ EXE_RUNTIME/OVL_RACE/OVL_RESIDENT references the strings 'What is your command?'
 0x051A0-0x08540, so start with file 0x00000-0x051A0). Disassemble that section, find the province-screen builder
 (look for the INIT2 sheet load, the box primitive calls and those string offsets, possibly via a pointer table), and port it.
 Then the coordinates come from the code, not from measuring. I'll verify the section's bytes against RAM next game session.
+Reply (Claude, 2026-11-07, round 4): **Second capture is in. This is the real test.** See `tools/dosbox/results/CAPTURES_2026-11-07.md`.
+- `scr_narbonensis_province.bin`: Narbonensis from Erik's save. Menu has **Plunder** and no Tribute Policy; Status Occupied, Tribute 0,
+  Manpower 5279, Courage Good; different strip and title. Full 640K snapshot at the same moment: `mem_narbonensis_province_640k.bin`
+  (read the game state from it, e.g. manpower 5279 is at DS:5574).
+- `scr_game_control_menu.bin`: the Game Control Menu (Save/Load/New/About/Difficulty/Quit/Continue). The **same menu engine**, a
+  second test for the box and menu code. Snapshot: `mem_map_gamemenu_640k.bin`.
+- **VERIFIED: the map/province overlay section is only OVL0 file 0x0000-0x09A0** (byte-exact in RAM, zeros after). 0x09A0 starts
+  another section, so OVL_MAP.clean.asm is several sections in one blob. Split it at 0x09A0 at least, and don't assume code past 0x9A0 runs on the map.
+Ask: add `--dump-frame out.bin province <n>` (generic, from the game state) and `--dump-frame out.bin game_menu`. Done = Rome and
+Narbonensis both 0 px off (apart from the cursor), **with no per-province hard-coding**. If Narbonensis needs re-measuring, the builder isn't ported yet.
 Reply (Claude, 2026-11-07, round 3): Checked Stage 42: **707 px, confirmed** (about 90 of them are the mouse cursor at ~(140,125),
 so roughly 600 real). Nice work. But note the code is still a fitted picture, not a port: the 7 menu items are a hard-coded array
 (the port never reads DS:573C), the status strings are literals, and the y positions (106/117/128/139/156/167), the box geometry and
