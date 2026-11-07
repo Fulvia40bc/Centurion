@@ -407,3 +407,9 @@ table to locate the image loader instead of grepping the linear sweep.
   transparent nibble). Province screen draws INIT2 sprite 0 at (255,104) LUT 22.
 - Diff vs capture now 6.7%. OVL0 map/province section disassembled:
   disasm/OVL_MAP.clean.asm (832 funcs, 95.3%).
+
+## Stage 43: generic data-driven province screen
+- draw_province() driven by game data: menu items from DS:573C records (12-byte, read from
+  OVL0 at runtime), mood from func_0x6c26 index -> INIT2 sprite, status strings composed per
+  func_0x6f0c, title centred at (160,66). --dump-frame out.bin province_rome|province_narbonensis.
+- Rome: 707 px (1.1%). Narbonensis: menu+status ~700 px (bevels), strip asset still unidentified.
