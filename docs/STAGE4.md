@@ -423,3 +423,8 @@ table to locate the image loader instead of grepping the linear sweep.
   32-byte province records (manpower +0x04, tribute +0x11, status +0x15, mood bytes +0x0D/+0x10).
 - game_menu frame: MAP.CBM bg + centred box (83,80,167x117), title centred, 7 items at
   (98, 103+10i) -> 13.4% diff vs scr_game_control_menu.bin (was 88.8% stub).
+
+## Stage 46: map screen frame
+- --dump-frame out.bin map: MAP.CBM (LUT 10) + local top-right box with "275 BC"/"End Turn".
+  Diff vs scr_newgame_map.bin: 2608 px (4%); MAP.CBM alone is 2547 - rest = legion markers
+  (game-state drawings, next for the playable slice).

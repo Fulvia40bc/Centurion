@@ -345,6 +345,24 @@ int game_dump_frame(const char *outpath, const char *screen) {
         } else {
             draw_province_rome();
         }
+    } else if (screen && strcasecmp(screen, "map") == 0) {
+        if (assets_load_luts("OVL0.OVL") != 0) return 1;
+        if (assets_load_font("OVL0.OVL") != 0) return 1;
+        /* world map + top-right year/End-Turn box (measured from scr_newgame_map.bin) */
+        {
+            img_entry_t imgs[256];
+            int n = assets_scan_images(".", imgs, 256);
+            for (int i = 0; i < n; i++)
+                if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
+        }
+        /* local box (no full-width top line): border 15, fill 26 */
+        ui_rect(g_work, 227, 2, 89, 27, 26);
+        ui_rect(g_work, 227, 2, 89, 2, 15);
+        ui_rect(g_work, 227, 2, 2, 27, 15);
+        ui_rect(g_work, 313, 2, 3, 27, 15);
+        ui_rect(g_work, 227, 27, 89, 2, 15);
+        ui_text_centered(g_work, 272, 4, "275 BC", 15);
+        ui_text_centered(g_work, 272, 21, "End Turn", 0);
     } else if (screen && strcasecmp(screen, "game_menu") == 0) {
         if (assets_load_luts("OVL0.OVL") != 0) return 1;
         if (assets_load_font("OVL0.OVL") != 0) return 1;
