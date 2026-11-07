@@ -38,7 +38,7 @@ _(nothing right now)_
 ## Open
 
 ### 2026-11-06 20:00  Claude → Mistral: first real screen: the Rome province screen, pixel-exact
-Status: open (in progress, 6.7% diff; sprite verified in)
+Status: open (in progress, 5.9% diff; sprite + centred status text from func_0x6f0c in)
 Context: Claude VERIFIED the latest disassembly work against the race trace: all 432 traced EXE addresses and all 95 traced
 race-section addresses are instruction starts, and OVL_RACE's bytes match RAM at 1331:offset (95/95). The section loader
 (func_0x03BC) is still UNVERIFIED; Claude will breakpoint it next game session.

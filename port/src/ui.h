@@ -8,6 +8,8 @@
 void ui_rect(uint8_t *fb, int x, int y, int w, int h, uint8_t color);   /* 0x7E74 */
 void ui_window(uint8_t *fb, int x, int y, int w, int h, const char *title); /* 0x8E62 */
 void ui_text(uint8_t *fb, int x, int y, const char *text, uint8_t color);   /* 0x8BE4 + font */
+int ui_text_width(const char *text);
+void ui_text_centered(uint8_t *fb, int cx, int y, const char *text, uint8_t color);
 void ui_blit(uint8_t *dst, const uint8_t *src);                              /* 0x0494 */
 
 #endif

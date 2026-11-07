@@ -186,14 +186,15 @@ static void draw_province_rome(void) {
         ui_text(g_work, 23, 102 + i * 10, items[i], 0);
     /* status panel */
     box(164, 63, 151, 134);
-    ui_text(g_work, 168, 62, "The people are Rebellious", 0);
-    ui_text(g_work, 168, 86, "Status: Citizens", 0);
-    ui_text(g_work, 168, 106, "Tribute: 8", 0);
-    ui_text(g_work, 168, 117, "Manpower: 5000", 0);
-    ui_text(g_work, 168, 128, "Courage: Fierce", 0);
-    ui_text(g_work, 168, 139, "Rank: Officer", 0);
-    ui_text(g_work, 168, 156, "Talents: 20", 0);
-    ui_text(g_work, 168, 180, "Galley Slave level", 0);
+    /* status panel: centred at x=239 per EXE func_0x6f0c (0x8be4 centred text) */
+    ui_text_centered(g_work, 239, 86, "The people are Rebellious", 0);
+    ui_text_centered(g_work, 239, 106, "Status: Citizens", 0);
+    ui_text_centered(g_work, 239, 117, "Tribute: 8", 0);
+    ui_text_centered(g_work, 239, 128, "Manpower: 5000", 0);
+    ui_text_centered(g_work, 239, 139, "Courage: Fierce", 0);
+    ui_text_centered(g_work, 239, 150, "Rank: Officer", 0);
+    ui_text_centered(g_work, 239, 161, "Talents: 20", 0);
+    ui_text_centered(g_work, 239, 180, "Galley Slave level", 0);
     /* crowd portrait: INIT2 sprite sheet entry 0 at (255,104), LUT 22, trans nibble 0
        (VERIFIED by Claude: 1701/1731, misses = panel border drawn over) */
     {

@@ -45,3 +45,16 @@ void ui_window(uint8_t *fb, int x, int y, int w, int h, const char *title) {
 void ui_blit(uint8_t *dst, const uint8_t *src) {
     memcpy(dst, src, (size_t)SCREEN_W * SCREEN_H);
 }
+
+int ui_text_width(const char *text) {
+    int w = 0;
+    for (const char *p = text; *p; p++) {
+        int gw, yo;
+        if (font_glyph((unsigned char)*p, &gw, &yo)) w += gw + 1;
+    }
+    return w ? w - 1 : 0;
+}
+
+void ui_text_centered(uint8_t *fb, int cx, int y, const char *text, uint8_t color) {
+    ui_text(fb, cx - ui_text_width(text) / 2, y, text, color);
+}
