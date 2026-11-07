@@ -191,6 +191,7 @@ static void draw_province_rome(void) {
             g_work[y * SCREEN_W + x] = 8;   /* vertical stripe bar beside items */
     /* status panel */
     box(164, 63, 151, 134);
+    ui_rect(g_work, 164, 81, 151, 1, 27);   /* status box: 3-row separator (row 81) */
     /* status panel: centred at x=239 per EXE func_0x6f0c (0x8be4 centred text) */
     ui_text_centered(g_work, 239, 86, "The people are Rebellious", 0);
     ui_text(g_work, 171, 106, "Status: Citizens", 0);
