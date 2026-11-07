@@ -157,7 +157,7 @@ static void box(int x, int y, int w, int h, int sep_rows) {
     ui_rect(g_work, 1, y, 319, 1, 0);
     ui_rect(g_work, 2, y + 1, 318, 1, 8);
     ui_rect(g_work, x, y + 16, w, sep_rows, 27);
-    ui_rect(g_work, x + 4, y + 16 + sep_rows, w - 8, h - 22 - sep_rows, 26);
+    ui_rect(g_work, x + 4, y + 16 + sep_rows, w - 8, h - 21 - sep_rows, 26);
     ui_rect(g_work, x, y + 16, 1, h - 16, 25);
     ui_rect(g_work, x + 1, y + 16, 3, h - 16, 30);
     ui_rect(g_work, x + w - 6, y + 16, 3, h - 16, 28);
