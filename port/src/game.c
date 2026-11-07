@@ -153,7 +153,8 @@ int game_dump_screen(const char *name, const char *outpath) {
 static void box(int x, int y, int w, int h) {
     /* measured from the capture: title band keeps the 116 background,
        body (y+18 .. y+h-6) is filled 26, with the game's 4px borders */
-    ui_rect(g_work, x + 4, y + 18, w - 8, h - 24, 26);
+    ui_rect(g_work, x + 4, y + 18, w - 8, h - 23, 26);   /* body fill to y+h-6 */
+    ui_rect(g_work, x, y + 16, w, 2, 27);                /* title/body separator */
     ui_rect(g_work, x, y, w, 1, 0);
     ui_rect(g_work, x, y + 1, w, 1, 8);
     ui_rect(g_work, x, y, 1, h, 25);
@@ -191,12 +192,12 @@ static void draw_province_rome(void) {
     box(164, 63, 151, 134);
     /* status panel: centred at x=239 per EXE func_0x6f0c (0x8be4 centred text) */
     ui_text_centered(g_work, 239, 86, "The people are Rebellious", 0);
-    ui_text_centered(g_work, 239, 106, "Status: Citizens", 0);
-    ui_text_centered(g_work, 239, 117, "Tribute: 8", 0);
-    ui_text_centered(g_work, 239, 128, "Manpower: 5000", 0);
-    ui_text_centered(g_work, 239, 139, "Courage: Fierce", 0);
-    ui_text_centered(g_work, 239, 156, "Rank: Officer", 0);
-    ui_text_centered(g_work, 239, 167, "Talents: 20", 0);
+    ui_text(g_work, 168, 86 + 20, "Status: Citizens", 0);
+    ui_text(g_work, 168, 117, "Tribute: 8", 0);
+    ui_text(g_work, 168, 128, "Manpower: 5000", 0);
+    ui_text(g_work, 168, 139, "Courage: Fierce", 0);
+    ui_text(g_work, 168, 156, "Rank: Officer", 0);
+    ui_text(g_work, 168, 167, "Talents: 20", 0);
     ui_text_centered(g_work, 239, 180, "Galley Slave level", 0);
     /* crowd portrait: INIT2 sprite sheet entry 0 at (255,104), LUT 22, trans nibble 0
        (VERIFIED by Claude: 1701/1731, misses = panel border drawn over) */
