@@ -411,7 +411,17 @@ int game_dump_frame(const char *outpath, const char *screen) {
             for (int i = 0; i < n; i++)
                 if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
         }
-        box(83, 80, 167, 117, 2);
+        /* exact box from capture: top y80=15/y81=26/y82=8, left x84=8, right x248+x250=8,
+           bottom y194=8/y195=0, interior 26 */
+        ui_rect(g_work, 83, 80, 167, 117, 26);
+        ui_rect(g_work, 83, 80, 167, 1, 15);
+        ui_rect(g_work, 83, 81, 167, 1, 26);
+        ui_rect(g_work, 83, 82, 167, 1, 8);
+        ui_rect(g_work, 84, 83, 1, 111, 8);
+        ui_rect(g_work, 248, 83, 1, 111, 8);
+        ui_rect(g_work, 250, 83, 1, 111, 8);
+        ui_rect(g_work, 83, 194, 167, 1, 8);
+        ui_rect(g_work, 83, 195, 167, 2, 0);
         ui_text_centered(g_work, 166, 86, "Game Control Menu", 15);
         static const char *const gitems[7] = {"Save Game...", "Load Game...", "New Game",
             "About Centurion...", "Difficulty Levels...", "Quit to DOS", "Continue Playing"};

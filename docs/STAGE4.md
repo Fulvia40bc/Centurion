@@ -433,3 +433,8 @@ table to locate the image loader instead of grepping the linear sweep.
 - `centurion --play`: map screen -> click province region -> province screen ->
   click Continue -> back to map. Real screens (MAP.CBM, province builder), no game
   logic. Province hit regions are UNVERIFIED approximations.
+
+## Stage 48: game_menu exact box
+- Game Control Menu box rebuilt from the capture's exact border structure
+  (top 15/26/8 rows, side 8-px lines, bottom 8/0). game_menu 8564 -> 3810 px (5.9%);
+  remaining = map background details outside the box + title pixels.
