@@ -283,7 +283,43 @@ static void draw_province(const province_t *p) {
     }
 }
 
+/* province names by index (DS string table; VERIFIED for 0=ROME via capture) */
+static const char *prov_name(int idx) {
+    static const char *names[] = {"Rome", "Narbonensis"};  /* full table UNVERIFIED */
+    return (idx >= 0 && idx < 2) ? names[idx] : "?";
+}
+
+/* load province record idx from a .CSV save; returns 0 on success */
+static int load_province_csv(const char *path, int idx, province_t *p) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    uint8_t *buf = malloc(sz);
+    if (fread(buf, 1, sz, f) != (size_t)sz) { fclose(f); free(buf); return -1; }
+    fclose(f);
+    if (sz < 0x38 + 0x6BC) { free(buf); return -1; }
+    const uint8_t *rec = buf + 0x38 + 0x5270 - 0x5270 + idx * 32;  /* CSV 0x38 == DS 0x5270 */
+    rec = buf + 0x38 + idx * 32;
+    p->manpower = rec[0x04] | (rec[0x05] << 8);
+    p->tribute = rec[0x11];
+    p->status = (rec[0x15] == 1) ? "Occupied" : (rec[0x15] == 2) ? "Ally" :
+                (rec[0x15] == 3) ? "Colony" : "Citizens";
+    p->mood = 0;  /* func_0x6c26 formula UNVERIFIED in port */
+    p->name = prov_name(idx);
+    p->strip = (idx == 0) ? "ROME.CBM" : NULL;
+    p->bg = (idx != 0) ? "NEGBGA.CBM" : NULL;
+    p->fg = (idx != 0) ? "NEGFGX.CBM" : NULL;
+    p->sky = (idx != 0) ? 23 : 0;
+    p->items = NULL;
+    p->courage = "Fierce"; p->rank = "Officer"; p->talents = 20;  /* UNVERIFIED from save */
+    free(buf);
+    return 0;
+}
+
 static void draw_province_rome(void) {
+    (void)load_province_csv;  /* save-driven play mode comes next; dump frames use capture state */
     static const char *const rome_items[7] = {"Legions", "Tribute", "Hold Games", "Build Fleet",
                                                "Tribute Policy", "See Province List", "Continue"};
     static const province_t rome = {"ROME", "ROME.CBM", NULL, NULL, 0, rome_items,
