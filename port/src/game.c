@@ -363,14 +363,21 @@ int game_dump_frame(const char *outpath, const char *screen) {
             for (int i = 0; i < n; i++)
                 if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
         }
-        /* local box (no full-width top line): border 15, fill 26 */
-        ui_rect(g_work, 227, 2, 89, 27, 26);
-        ui_rect(g_work, 227, 2, 89, 2, 15);
-        ui_rect(g_work, 227, 2, 2, 27, 15);
-        ui_rect(g_work, 313, 2, 3, 27, 15);
-        ui_rect(g_work, 227, 27, 89, 2, 15);
-        ui_text_centered(g_work, 272, 2, "275 BC", 15);
-        ui_text_centered(g_work, 272, 21, "End Turn", 0);
+        /* two side-by-side buttons (measured from capture): [End Turn] x228-272, [275 BC] x276-318 */
+        for (int b = 0; b < 2; b++) {
+            int bx = b == 0 ? 228 : 276, bw = b == 0 ? 45 : 43;
+            const char *txt = b == 0 ? "End Turn" : "275 BC";
+            ui_rect(g_work, bx, 2, bw, 17, 26);
+            ui_rect(g_work, bx, 2, bw, 1, 15);
+            ui_rect(g_work, bx, 17, bw, 2, 0);
+            ui_rect(g_work, bx, 3, 1, 15, 8);
+            ui_rect(g_work, bx + bw - 1, 3, 1, 15, 8);
+            ui_rect(g_work, bx + 2, 5, bw - 4, 1, 8);
+            ui_rect(g_work, bx + 2, 15, bw - 4, 1, 8);
+            ui_rect(g_work, bx + 2, 6, 1, 9, 8);
+            ui_rect(g_work, bx + bw - 3, 6, 1, 9, 8);
+            ui_text_centered(g_work, bx + bw / 2, 7, txt, 15);
+        }
         /* map icons from the zone anchor table DS:1AB8 + INIT sheet (VERIFIED anchors:
            zone 0 Italia (125,114), 27 (254,144), 28 (220,138), 30 (144,166); icon drawn at
            anchor + (4,0) - hotspot). Fresh-game units: legion in zone 0, fleets in 27/28/30. */
