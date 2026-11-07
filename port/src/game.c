@@ -315,7 +315,7 @@ static int load_province_csv(const char *path, int idx, province_t *p) {
     p->status = (rec[0x15] == 1) ? "Occupied" : (rec[0x15] == 2) ? "Ally" :
                 (rec[0x15] == 3) ? "Colony" : "Citizens";
     p->mood = 0;  /* func_0x6c26 formula UNVERIFIED in port */
-    p->name = prov_name(idx);
+    p->name = (idx == 0) ? ds_str(0x5A42) : prov_name(idx);  /* ROME special case DS:5A42 (UNVERIFIED rule) */
     p->strip = (idx == 0) ? "ROME.CBM" : NULL;
     p->bg = (idx != 0) ? "NEGBGA.CBM" : NULL;
     p->fg = (idx != 0) ? "NEGFGX.CBM" : NULL;
@@ -371,22 +371,32 @@ int game_dump_frame(const char *outpath, const char *screen) {
         ui_rect(g_work, 227, 27, 89, 2, 15);
         ui_text_centered(g_work, 272, 2, "275 BC", 15);
         ui_text_centered(g_work, 272, 21, "End Turn", 0);
-        /* map icons from the INIT sprite sheet (MINIT): ships + legion markers
-           (positions UNVERIFIED - should come from game state) */
+        /* map icons from the zone anchor table DS:1AB8 + INIT sheet (VERIFIED anchors:
+           zone 0 Italia (125,114), 27 (254,144), 28 (220,138), 30 (144,166); icon drawn at
+           anchor + (4,0) - hotspot). Fresh-game units: legion in zone 0, fleets in 27/28/30. */
+        {
+            FILE *f = fopen("OVL0.OVL", "rb");
+            static uint8_t ovl0[0x20000];
+            if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
+        }
         if (assets_load("MINIT.DIR", "MINIT.DAT") == 0) {
             sprite_ent_t ents[16];
             int n = 0;
             uint8_t *pix = NULL;
             size_t npix = 0;
-            if (assets_load_sheet("INITHDR.LZW", "INITDAT.LZW", ents, &n, &pix, &npix) == 0) {
-                static const struct { int ent, x, y; } icons[] = {
-                    {8, 211, 127}, {2, 125, 103}, {0, 128, 114},
+            if (assets_load_sheet("INITHDR.LZW", "INITDAT.LZW", ents, &n, &pix, &npix) == 0 && g_ovl0) {
+                static const struct { int ent, zone; } icons[] = {
+                    {2, 0}, {8, 27}, {8, 28}, {8, 30},
                 };
                 for (size_t i = 0; i < sizeof(icons)/sizeof(icons[0]) && icons[i].ent < n; i++) {
-                    const uint8_t *t = assets_lut(ents[icons[i].ent].lut ? ents[icons[i].ent].lut : 11);
+                    int z = icons[i].zone;
+                    uint16_t ax = g_ovl0[0xB400 + 0x1AB8 + 4*z] | (g_ovl0[0xB400 + 0x1AB8 + 4*z + 1] << 8);
+                    uint16_t ay = g_ovl0[0xB400 + 0x1AB8 + 4*z + 2] | (g_ovl0[0xB400 + 0x1AB8 + 4*z + 3] << 8);
+                    sprite_ent_t *e = &ents[icons[i].ent];
+                    const uint8_t *t = assets_lut(e->lut ? e->lut : 11);
                     if (!t) t = assets_lut(11);
-                    assets_blit_sprite(pix, &ents[icons[i].ent], t, g_work, SCREEN_W, SCREEN_H,
-                                       icons[i].x, icons[i].y);
+                    assets_blit_sprite(pix, e, t, g_work, SCREEN_W, SCREEN_H,
+                                       ax + 4 - e->xhot, ay - e->yhot);
                 }
                 free(pix);
             }
