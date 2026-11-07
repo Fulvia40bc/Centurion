@@ -18,8 +18,10 @@ off size  field
  4  s16   y offset / hotspot       (-19 for NEGBG*, -10 for TITLE)
  6  u8    bytes per row            (= width/2 rounded up: 160, 48, 157)
  7  u8    rows                     (200, 66, 51, ...)
- 8  u8    unknown. NOT a transparent nibble: MAP.CBM has 06 and the game draws all 6,172 nibble-6
-          pixels (VERIFIED vs RAM). Values seen: 00 02 06 07 08 09 0D 0F.
+ 8  u8    transparent nibble WHEN the image is drawn as an overlay. MAP.CBM has 06 and the game draws all
+          6,172 nibble-6 pixels (VERIFIED vs RAM): full-screen backdrops are drawn opaque. But the province strip
+          layers NEGBG* (byte8 = 8) over a sky fill, and nibble 8 IS transparent there (VERIFIED, see below), as is
+          nibble 0 for the INIT2 sprites. Values seen: 00 02 06 07 08 09 0D 0F.
  9  u8    colour lookup table index; 0 = keep the current table (see below)
 10  u16   unpacked size            (= bytes_per_row * rows)
 12  u16   0
@@ -46,6 +48,16 @@ lookup table**; it is *not* `nibble + 0x68`. That rule happens to be close for M
 - **Row stride:** each row is `bytes_per_row` bytes (2 nibbles each); for odd widths (TITLE.CBM: 313 px, 157 bytes) the last
   nibble of each row is padding. Crop to `width`.
 - All 82 CBMs checked visually on a contact sheet with these rules (2026-11-06).
+
+## Layered province strips (VERIFIED 2026-11-07, Narbonensis: 20,160 / 20,160 pixels)
+
+Non-city provinces don't have their own strip image. Rows 0-62 are composed from layers (all in MNEGO.DAT, LUT 1):
+1. rows 0-30 filled with colour **23** (sky);
+2. **NEGBG?.CBM** (A-K, 10-16 rows: mountains) drawn at y = -hotspot_y (NEGBGA: y = 19), **nibble 8 (= byte8) transparent**;
+3. **NEGFG?.CBM** (A-Z, 32 rows: foreground) at y = 31.
+Narbonensis = NEGBGA (MNEGO index 31) + NEGFGX (index 65). The file names aren't stored as strings in the EXE or OVL0, so the
+game picks them by archive index; where the per-province choice lives is still UNVERIFIED (probably the province record).
+SKY0-3 are not used here (the sky is a plain fill). Cities like Rome use a full 63-row strip (ROME.CBM, MNEGO index 68).
 
 ## Runtime notes (from the debugger captures)
 
