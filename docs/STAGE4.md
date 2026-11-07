@@ -417,3 +417,9 @@ table to locate the image loader instead of grepping the linear sweep.
 ## Stage 44: layered province strips (VERIFIED 20160/20160 on Narbonensis)
 - Non-city strips = sky fill (23) rows 0-30 + NEGBG?.CBM at y=19 + NEGFGX-style fg at y=31,
   LUT 1, byte8 (8) transparent. Port: blit_cbm_at_trans. Narb now 964 px (1.5%); Rome 707 px.
+
+## Stage 45: save format + game menu + CSV loader
+- docs/SAVE_FORMAT.md: .CSV = 0x38 header (ver "10A" + player name) + DS 0x5270.. verbatim;
+  32-byte province records (manpower +0x04, tribute +0x11, status +0x15, mood bytes +0x0D/+0x10).
+- game_menu frame: MAP.CBM bg + centred box (83,80,167x117), title centred, 7 items at
+  (98, 103+10i) -> 13.4% diff vs scr_game_control_menu.bin (was 88.8% stub).

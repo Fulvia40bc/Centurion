@@ -346,10 +346,21 @@ int game_dump_frame(const char *outpath, const char *screen) {
             draw_province_rome();
         }
     } else if (screen && strcasecmp(screen, "game_menu") == 0) {
+        if (assets_load_luts("OVL0.OVL") != 0) return 1;
         if (assets_load_font("OVL0.OVL") != 0) return 1;
-        memset(g_work, 116, sizeof(g_work));
-        box(6, 63, 151, 134, 2);
-        ui_text(g_work, 27, 85, "Game Control Menu", 15);
+        /* map background + centred Game Control Menu (measured from scr_game_control_menu.bin) */
+        {
+            img_entry_t imgs[256];
+            int n = assets_scan_images(".", imgs, 256);
+            for (int i = 0; i < n; i++)
+                if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
+        }
+        box(83, 80, 167, 117, 2);
+        ui_text_centered(g_work, 166, 86, "Game Control Menu", 15);
+        static const char *const gitems[7] = {"Save Game...", "Load Game...", "New Game",
+            "About Centurion...", "Difficulty Levels...", "Quit to DOS", "Continue Playing"};
+        for (int i = 0; i < 7; i++)
+            ui_text(g_work, 98, 103 + i * 10, gitems[i], 0);
     } else {
         game_init();
         game_frame();
