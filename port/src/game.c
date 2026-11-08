@@ -9,7 +9,9 @@
 static uint8_t g_fb[SCREEN_W * SCREEN_H];
 static int g_turn = 0;
 static int g_prov_level[27];      /* tribute LEVEL 0-4 at province record +0x12 (0x7ce0); +0x11 is the amount the panel prints */
-static int g_prov_init_done;        /* turn counter (save CSV 0x5FE); year = 275 - turn */
+static int g_prov_init_done;
+static int g_legion_zone[12];   /* in-memory legion array (save CSV 0x3A4, byte0 = zone) */
+static int g_legion_n;        /* turn counter (save CSV 0x5FE); year = 275 - turn */
 static void draw_map_buttons(void);
 static void draw_map_full(const char *save_path);
 static const char *g_save_path;      /* what SDL shows */
@@ -525,9 +527,9 @@ static void draw_map_full(const char *save_path) {
                     /* fleets: exactly 6 records (EXE func_0x2af8 loops DS:1114..0x115E); legions: 8 checked here */
                     for (int i = 0; i < (pass == 0 ? 8 : 6); i++) {
                         int z, ent;
-                        if (pass == 0) {  /* legions: CSV 0x3A4, 20-byte records */
-                            if (!have) break;
-                            z = csv[0x3A4 + i * 20];
+                        if (pass == 0) {  /* legions: in-memory array if loaded, else CSV 0x3A4 */
+                            if (g_legion_n > 0) { if (i >= g_legion_n) break; z = g_legion_zone[i]; }
+                            else { if (!have) break; z = csv[0x3A4 + i * 20]; }
                             ent = 2;
                         } else {          /* fleets: CSV 0x48E, 12-byte records, byte2==0xFF empty */
                             if (!have) break;
@@ -552,7 +554,7 @@ static void draw_map_full(const char *save_path) {
 }
 
 /* ---- playable slice: map <-> province <-> back (no game logic yet) ---- */
-static int g_screen;          /* 0 = map, 1 = province */
+static int g_screen;          /* 0 = map, 1 = province, 2 = province list */
 static int g_province;        /* province index */
 static int g_last_click;
 
@@ -691,6 +693,66 @@ static int tribute_item_at(int mx, int my) {
     return -1;
 }
 
+
+
+static void init_legions(const char *save_path) {
+    g_legion_n = 0;
+    for (int i = 0; i < 12; i++) g_legion_zone[i] = -1;
+    static uint8_t csv[2048];
+    const char *sv = save_path ? save_path : "tools/dosbox/results/saves/fresh_275BC.csv";
+    FILE *f = fopen(sv, "rb");
+    if (!f && !save_path) f = fopen("3.CSV", "rb");
+    if (!f && !save_path) f = fopen("0.CSV", "rb");
+    if (f) {
+        if (fread(csv, 1, sizeof(csv), f) > 0x4D5)
+            for (int i = 0; i < 12; i++) {
+                uint8_t z = csv[0x3A4 + i * 20];
+                if (z != 0xFF && z < 37) g_legion_zone[g_legion_n++] = z;
+            }
+        fclose(f);
+    }
+}
+
+/* See Province List (EXE 0x69cc): box listing provinces with status >= 1 (save record +0x15) */
+static void draw_province_list(const char *save_path) {
+    static uint8_t csv[2048];
+    const char *sv = save_path ? save_path : "tools/dosbox/results/saves/fresh_275BC.csv";
+    FILE *f = fopen(sv, "rb");
+    if (!f && !save_path) f = fopen("3.CSV", "rb");
+    if (!f && !save_path) f = fopen("0.CSV", "rb");
+    int have = f && fread(csv, 1, sizeof(csv), f) > 0x4D5;
+    if (f) fclose(f);
+    int x0 = 90, y0 = 30, w = 140, h = 150;
+    ui_rect(g_work, x0, y0, w, h, 26);
+    ui_rect(g_work, x0, y0, w, 2, 15);
+    ui_rect(g_work, x0, y0 + 2, 2, h - 4, 8);
+    ui_rect(g_work, x0 + w - 2, y0 + 2, 2, h - 4, 8);
+    ui_rect(g_work, x0, y0 + h - 2, w, 2, 0);
+    ui_text_centered(g_work, x0 + w / 2, y0 + 4, "Provinces", 15);
+    int row = 0;
+    for (int p = 0; p < 27 && row < 12; p++) {
+        int status = have ? csv[0x3C + p * 32 + 0x15] : (p == 0 ? 4 : 0);
+        if (status >= 1) {
+            ui_text(g_work, x0 + 8, y0 + 16 + row * 10, prov_name(p), 0);
+            row++;
+        }
+    }
+}
+
+/* Legions (EXE 0x4065): move a legion to an adjacent zone (adjacency DS:50EC, 8 neighbours).
+   Returns 1 if (mx,my) is a valid move target for the legion in zone `from`. */
+static int legion_move_target(int from, int mx, int my) {
+    if (!g_ovl0) return -1;
+    for (int i = 0; i < 8; i++) {
+        uint8_t nb = g_ovl0[0xB400 + 0x50EC + from * 8 + i];
+        if (nb == 0xFF) continue;
+        uint16_t ax = g_ovl0[0xB400 + 0x1AB8 + 4*nb] | (g_ovl0[0xB400 + 0x1AB8 + 4*nb + 1] << 8);
+        uint16_t ay = g_ovl0[0xB400 + 0x1AB8 + 4*nb + 2] | (g_ovl0[0xB400 + 0x1AB8 + 4*nb + 3] << 8);
+        if (mx >= ax - 8 && mx <= ax + 8 && my >= ay - 8 && my <= ay + 8) return nb;
+    }
+    return -1;
+}
+
 void game_play(void) {
     g_screen = 0;
     g_province = 0;
@@ -703,6 +765,7 @@ void game_play(void) {
         g_turn = t < 0 ? 0 : t;
     }
     init_prov_state(g_save_path);
+    init_legions(g_save_path);
     draw_map_screen();
     input_t in;
     const uint32_t frame_ms = 1000 / FPS;
@@ -731,7 +794,16 @@ void game_play(void) {
                         draw_map_screen();   /* year button updates */
                     }
                 }
-                for (size_t i = 0; i < sizeof(g_regions)/sizeof(g_regions[0]); i++) {
+                if (g_menu_selected == -3 && g_legion_n > 0) {
+                    int from = g_legion_zone[0];
+                    int to = legion_move_target(from, in.mouse_x, in.mouse_y);
+                    if (to >= 0) {
+                        g_legion_zone[0] = to;   /* move the legion (record byte0) */
+                        g_menu_selected = -1;
+                        g_screen = 0;
+                        draw_map_screen();       /* back to the map showing the move */
+                    }
+                } else for (size_t i = 0; i < sizeof(g_regions)/sizeof(g_regions[0]); i++) {
                     const __typeof__(g_regions[0]) *r = &g_regions[i];   /* typeof is GNU-only; breaks the -std=c99 Windows build */
                     if (in.mouse_x >= r->x0 && in.mouse_x <= r->x1 &&
                         in.mouse_y >= r->y0 && in.mouse_y <= r->y1) {
@@ -742,6 +814,11 @@ void game_play(void) {
                         draw_province_screen(g_province);
                         break;
                     }
+                }
+            } else if (g_screen == 2) {
+                if (click && !g_last_click) {
+                    g_screen = 1;
+                    redraw_province_with_menu();
                 }
             } else {
                 int hover = menu_item_at(in.mouse_x, in.mouse_y);
@@ -754,6 +831,13 @@ void game_play(void) {
                     if (hover == 6) {  /* Continue */
                         g_screen = 0;
                         draw_map_screen();
+                    } else if (hover == 5) {  /* See Province List (EXE 0x69cc) */
+                        g_screen = 2;
+                        redraw_province_with_menu();
+                        draw_province_list(g_save_path);
+                    } else if (hover == 0) {  /* Legions (EXE 0x4065): arm legion-move mode */
+                        g_menu_selected = -3;   /* next map click moves the legion */
+                        redraw_province_with_menu();
                     } else if (hover == 2) {  /* Tribute (EXE 0x7ce0): 5-level sub-menu, write +0x12 */
                         g_menu_selected = -2;  /* sub-menu open */
                         redraw_province_with_menu();
