@@ -438,3 +438,11 @@ table to locate the image loader instead of grepping the linear sweep.
 - Game Control Menu box rebuilt from the capture's exact border structure
   (top 15/26/8 rows, side 8-px lines, bottom 8/0). game_menu 8564 -> 3810 px (5.9%);
   remaining = map background details outside the box + title pixels.
+
+## Stage 50: remaining-gaps measurement (map)
+- Diff of scr_newgame_map.bin vs bare MAP.CBM: the white pixels form Italy's territory shape
+  (owned-province fill/outline) centered ~x150-230,y90-160, plus the 4 icon clusters and the
+  buttons. So the "outline" = owned-territory fill drawn by the map-overlay code (needs the
+  province border data + draw routine, not yet located statically).
+- Map now 583 px with fresh_275BC.csv as input. Buttons 0 px. Remaining: territory fill (~470),
+  legion marker detail, cursor, ship pixels (~112).
