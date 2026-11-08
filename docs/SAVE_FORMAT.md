@@ -27,5 +27,10 @@
   byte** (VERIFIED vs 3.CSV): 6 records x 12 bytes, byte 0 = zone (fleets: 30, 27, 28), bytes 1/3/4 =
   id/strength (UNVERIFIED beyond byte 0). Legion records are in the save tail (CSV 0x380-0x6F3,
   UNVERIFIED which block).
-- Year: runtime global DS:0x717C (i16, -275 = 275 BC). In-save storage UNVERIFIED (turn-1 saves only;
-  probably a turn counter).
+- **Turn counter at CSV 0x5FE** (u8; fresh=0, after one End Turn=1; VERIFIED by diffing
+  fresh_275BC.csv vs turn2_274BC.csv). **Year = 275 BC - turn** (turn2 screenshot shows "274 BC").
+  Runtime global DS:0x717C mirrors it (-275).
+
+- Province record +0x19: 0 -> 1 in every record after one turn (per-province counter, UNVERIFIED meaning).
+- Reference saves: tools/dosbox/results/saves/fresh_275BC.csv (matches scr_newgame_map.bin),
+  turn2_274BC.csv (+ turn2_274BC_map.png).

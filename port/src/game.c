@@ -341,6 +341,19 @@ static void draw_province_rome(void) {
 
 /* Headless: render the current frame (work buffer) to a raw index file. */
 
+
+/* turn counter from a save (CSV 0x5FE); year = 275 - turn, i.e. "275 BC" fresh (VERIFIED vs
+   fresh_275BC.csv / turn2_274BC.csv + screenshot) */
+static int load_turn(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+    fseek(f, 0x5FE, SEEK_SET);
+    uint8_t t = 0;
+    if (fread(&t, 1, 1, f) != 1) { fclose(f); return -1; }
+    fclose(f);
+    return t;
+}
+
 /* fleet zones from a save: CSV 0x48E = DS 0x1114, 6 x 12-byte records, byte0 = zone.
    Returns record count, or -1 if the file can't be read. */
 static int load_fleet_zones(const char *path, uint8_t *zones, int maxz) {
@@ -416,7 +429,8 @@ int game_dump_frame(const char *outpath, const char *screen, const char *save_pa
                     if (g_save_path)
                         nf = load_fleet_zones(g_save_path, zones + 1, 7);  /* explicit: fail loudly below */
                     else {
-                        nf = load_fleet_zones("3.CSV", zones + 1, 7);
+                        nf = load_fleet_zones("tools/dosbox/results/saves/fresh_275BC.csv", zones + 1, 7);
+                        if (nf < 0) nf = load_fleet_zones("3.CSV", zones + 1, 7);
                         if (nf < 0) nf = load_fleet_zones("0.CSV", zones + 1, 7);
                     }
                     if (nf < 0) {
@@ -482,7 +496,13 @@ int game_dump_frame(const char *outpath, const char *screen, const char *save_pa
 /* map top-right buttons, one copy: rects from DS globals 0x3C42..0x3C50 (func_0x4aa6/0x3134) */
 static void draw_map_buttons(void) {
     if (!g_ovl0) return;
-    static const char *const txt[2] = {"End Turn", "275 BC"};  /* year is runtime DS:0x717C, not in save */
+    static char year_txt[16];
+    int turn = g_save_path ? load_turn(g_save_path) : load_turn("3.CSV");
+    if (turn < 0) turn = load_turn("0.CSV");
+    if (turn < 0) turn = 0;
+    snprintf(year_txt, sizeof(year_txt), "%d BC", 275 - turn);
+    const char *txt0 = "End Turn";
+    const char *txt1 = year_txt;
     for (int b = 0; b < 2; b++) {
         const uint8_t *d = g_ovl0 + 0xB400 + 0x3C42 + b * 8;
         int x0 = d[0] | (d[1] << 8), y0 = d[2] | (d[3] << 8);
@@ -502,7 +522,7 @@ static void draw_map_buttons(void) {
         ui_rect(g_work, x0 + 3, y1 - 3, w - 6, 1, 8);
         ui_rect(g_work, x0 + 3, y0 + 4, 1, h - 7, 8);
         ui_rect(g_work, x1 - 3, y0 + 4, 1, h - 7, 8);
-        ui_text_centered(g_work, x0 + w / 2, y0 + 4, txt[b], 15);
+        ui_text_centered(g_work, x0 + w / 2, y0 + 4, b == 0 ? txt0 : txt1, 15);
     }
 }
 
