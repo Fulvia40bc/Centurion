@@ -22,8 +22,10 @@
 - Other state (rank, talents, owner, legions, fleets, ...) in the same area — mapping UNVERIFIED.
 
 ## Units (map icons)
-- The icon-draw code (EXE 0x2b04 / 0x382a) iterates a **runtime unit array at DS 0x1114..0x115E, 12-byte
-  records** (0xFF-padded = empty). Record layout (UNVERIFIED): type/owner at +0/+1, zone/x at +2/+3.
-  This array is NOT in the save (save covers DS 0x526C-0x5927) - it's rebuilt from province records
-  at load. So map icons derive from province legion/fleet counts, not stored directly.
-- Year: runtime global DS:0x717C (i16, -275 = 275 BC), not in the save.
+- The icon-draw code (EXE 0x2b04 / 0x382a) iterates a unit array at DS 0x1114..0x115E, 12-byte records
+  (0xFF-padded = empty). **The fleet array IS in the save: CSV 0x48E-0x4D5 = DS 0x1114-0x115B byte for
+  byte** (VERIFIED vs 3.CSV): 6 records x 12 bytes, byte 0 = zone (fleets: 30, 27, 28), bytes 1/3/4 =
+  id/strength (UNVERIFIED beyond byte 0). Legion records are in the save tail (CSV 0x380-0x6F3,
+  UNVERIFIED which block).
+- Year: runtime global DS:0x717C (i16, -275 = 275 BC). In-save storage UNVERIFIED (turn-1 saves only;
+  probably a turn counter).

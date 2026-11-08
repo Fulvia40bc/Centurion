@@ -339,7 +339,8 @@ static void draw_province_rome(void) {
 }
 
 /* Headless: render the current frame (work buffer) to a raw index file. */
-int game_dump_frame(const char *outpath, const char *screen) {
+int game_dump_frame(const char *outpath, const char *screen, const char *save_path) {
+    (void)save_path;  /* fleet zones read from 3.CSV/0.CSV; --save selects explicitly */
     if (screen && strncasecmp(screen, "province", 8) == 0) {
         if (assets_load_luts("OVL0.OVL") != 0) return 1;
         if (assets_load_font("OVL0.OVL") != 0) return 1;
@@ -482,7 +483,7 @@ static void draw_map_buttons(void) {
         ui_rect(g_work, x0 + 3, y1 - 3, w - 6, 1, 8);
         ui_rect(g_work, x0 + 3, y0 + 4, 1, h - 7, 8);
         ui_rect(g_work, x1 - 3, y0 + 4, 1, h - 7, 8);
-        ui_text(g_work, x0 + 5, y0 + 4, txt[b], 15);
+        ui_text_centered(g_work, x0 + w / 2, y0 + 4, txt[b], 15);
     }
 }
 
