@@ -386,14 +386,32 @@ int game_dump_frame(const char *outpath, const char *screen) {
             uint8_t *pix = NULL;
             size_t npix = 0;
             if (assets_load_sheet("INITHDR.LZW", "INITDAT.LZW", ents, &n, &pix, &npix) == 0 && g_ovl0) {
-                static const struct { int ent, zone; } icons[] = {
-                    {2, 0}, {8, 27}, {8, 28}, {8, 30},
-                };
-                for (size_t i = 0; i < sizeof(icons)/sizeof(icons[0]) && icons[i].ent < n; i++) {
-                    int z = icons[i].zone;
+                /* fleets from the save (CSV 0x48E = DS 0x1114, 6 x 12-byte records, byte0 = zone);
+                   legion at zone 0 for the fresh game (legion array in save tail: UNVERIFIED) */
+                int zones[8];
+                int nz = 0;
+                zones[nz++] = 0;  /* legion, INIT ent2 */
+                {
+                    static uint8_t csv[2048];
+                    int have = 0;
+                    FILE *f = fopen("3.CSV", "rb");
+                    if (!f) f = fopen("0.CSV", "rb");
+                    if (f) { have = fread(csv, 1, sizeof(csv), f) > 0x4D5; fclose(f); }
+                    if (have) {
+                        for (int i = 0; i < 6 && nz < 8; i++) {
+                            uint8_t z = csv[0x48E + i * 12];
+                            if (z != 0xFF && z < 37) zones[nz++] = z;
+                        }
+                    } else {
+                        zones[nz++] = 27; zones[nz++] = 28; zones[nz++] = 30;  /* fallback */
+                    }
+                }
+                for (int i = 0; i < nz && 2 < n; i++) {
+                    int z = zones[i];
+                    int ent = (i == 0) ? 2 : 8;   /* ent2 = legion, ent8 = ship */
                     uint16_t ax = g_ovl0[0xB400 + 0x1AB8 + 4*z] | (g_ovl0[0xB400 + 0x1AB8 + 4*z + 1] << 8);
                     uint16_t ay = g_ovl0[0xB400 + 0x1AB8 + 4*z + 2] | (g_ovl0[0xB400 + 0x1AB8 + 4*z + 3] << 8);
-                    sprite_ent_t *e = &ents[icons[i].ent];
+                    sprite_ent_t *e = &ents[ent];
                     const uint8_t *t = assets_lut(e->lut ? e->lut : 11);
                     if (!t) t = assets_lut(11);
                     assets_blit_sprite(pix, e, t, g_work, SCREEN_W, SCREEN_H,
