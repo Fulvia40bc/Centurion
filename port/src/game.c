@@ -6,7 +6,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static uint8_t g_fb[SCREEN_W * SCREEN_H];      /* what SDL shows */
+static uint8_t g_fb[SCREEN_W * SCREEN_H];
+static void draw_map_buttons(void);      /* what SDL shows */
 static uint8_t g_work[SCREEN_W * SCREEN_H];    /* off-screen work buffer, like the original */
 static rgb_t g_palette[256];
 
@@ -358,6 +359,11 @@ int game_dump_frame(const char *outpath, const char *screen) {
     } else if (screen && strcasecmp(screen, "map") == 0) {
         if (assets_load_luts("OVL0.OVL") != 0) return 1;
         if (assets_load_font("OVL0.OVL") != 0) return 1;
+        {
+            FILE *f = fopen("OVL0.OVL", "rb");
+            static uint8_t ovl0[0x20000];
+            if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
+        }
         /* world map + top-right year/End-Turn box (measured from scr_newgame_map.bin) */
         {
             img_entry_t imgs[256];
@@ -365,21 +371,7 @@ int game_dump_frame(const char *outpath, const char *screen) {
             for (int i = 0; i < n; i++)
                 if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
         }
-        /* two buttons, exact frame per capture + DS rects (227,2)-(275,18) and (277,2)-(317,18) */
-        for (int b = 0; b < 2; b++) {
-            int x0 = b == 0 ? 227 : 277, x1 = b == 0 ? 275 : 317, y0 = 2, y1 = 18;
-            const char *txt = b == 0 ? "End Turn" : "275 BC";
-            ui_rect(g_work, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 26);      /* fill */
-            ui_rect(g_work, x0, y0, x1 - x0 + 1, 2, 15);                /* top highlight (2 rows) */
-            ui_rect(g_work, x0, y0 + 2, 2, y1 - y0 - 4, 8);             /* left border 2px */
-            ui_rect(g_work, x1 - 1, y0 + 2, 2, y1 - y0 - 4, 8);         /* right border 2px */
-            ui_rect(g_work, x0, y1 - 1, x1 - x0 + 1, 2, 0);             /* bottom shadow */
-            g_work[(y1 - 1) * SCREEN_W + x0] = 8;
-            g_work[(y1 - 1) * SCREEN_W + x1] = 8;
-            ui_rect(g_work, x0 + 2, y0 + 3, x1 - x0 - 3, 1, 8);          /* inner top line */
-            ui_rect(g_work, x0 + 2, y1 - 3, x1 - x0 - 3, 1, 8);          /* inner bottom line */
-            ui_text(g_work, x0 + 5, y0 + 4, txt, 15);                   /* text per func_0x4aa6 */
-        }
+        draw_map_buttons();
         /* map icons from the zone anchor table DS:1AB8 + INIT sheet (VERIFIED anchors:
            zone 0 Italia (125,114), 27 (254,144), 28 (220,138), 30 (144,166); icon drawn at
            anchor + (4,0) - hotspot). Fresh-game units: legion in zone 0, fleets in 27/28/30. */
@@ -448,6 +440,14 @@ int game_dump_frame(const char *outpath, const char *screen) {
     return 0;
 }
 
+
+/* map top-right buttons, one copy: rects from DS globals 0x3C42..0x3C50 (func_0x4aa6/0x3134) */
+static void draw_map_buttons(void) {
+    if (!g_ovl0) return;
+    static const char *const txt[2] = {"End Turn", "275 BC"};  /* year is runtime DS:0x717C, not in save */
+    draw_map_buttons();
+}
+
 /* ---- playable slice: map <-> province <-> back (no game logic yet) ---- */
 static int g_screen;          /* 0 = map, 1 = province */
 static int g_province;        /* province index */
@@ -462,6 +462,11 @@ static const struct { int x0, y0, x1, y1, prov; } g_regions[] = {
 static void draw_map_screen(void) {
     if (assets_load_luts("OVL0.OVL") != 0) return;
     if (assets_load_font("OVL0.OVL") != 0) return;
+    {
+        FILE *f = fopen("OVL0.OVL", "rb");
+        static uint8_t ovl0[0x20000];
+        if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
+    }
     img_entry_t imgs[256];
     int n = assets_scan_images(".", imgs, 256);
     for (int i = 0; i < n; i++)
