@@ -744,28 +744,18 @@ static void init_prov_state(const char *save_path) {
 static const char *const TRIBUTE_LEVELS[5] = {"Exempt this province", "Tolerable", "Irritating", "Oppressive", "Bleed Them Dry"};  /* DS:5F6A.. */
 
 static void draw_tribute_menu(void) {
-    int x0 = 60, y0 = 80, w = 150, h = 90;
-    box(x0, y0, w, h, 2);   /* same window primitive as the province menu */
-    ui_text_centered(g_work, x0 + w / 2, y0 + 4, "What level of tribute?", 15);
-    for (int i = 0; i < 5; i++) {
-        ui_text(g_work, x0 + 8, y0 + 20 + i * 10, TRIBUTE_LEVELS[i], 0);
-        /* preselect the current level (0x585b gets si = current) */
-        if (g_province >= 0 && g_province < 27 && g_prov_level[g_province] == i)
-            for (int y = y0 + 20 + i * 10; y < y0 + 20 + i * 10 + 9; y++)
-                for (int x = x0 + 8; x < x0 + w - 8; x++) {
-                    uint8_t *p = &g_work[y * SCREEN_W + x];
-                    if (*p == 0) *p = 26; else if (*p == 26) *p = 0;
-                }
-    }
+    static const menu_item_t items[5] = {
+        {"Exempt this province", 'E', 8, 20, 130, 30},
+        {"Tolerable", 'T', 8, 30, 130, 40},
+        {"Irritating", 'I', 8, 40, 130, 50},
+        {"Oppressive", 'O', 8, 50, 130, 60},
+        {"Bleed Them Dry", 'B', 8, 60, 130, 70},
+    };
+    static const menu_hdr_t m = {5, 60, 80, 150, 90, 0, 0};
+    ui_menu_draw(g_work, &m, items, "What level of tribute?",
+                 (g_province >= 0 && g_province < 27) ? g_prov_level[g_province] : -1);
 }
 
-static int tribute_item_at(int mx, int my) {
-    int x0 = 60, y0 = 80, w = 120;
-    for (int i = 0; i < 5; i++)
-        if (mx >= x0 && mx <= x0 + w && my >= y0 + 20 + i * 10 && my <= y0 + 20 + i * 10 + 10)
-            return i;
-    return -1;
-}
 
 
 
@@ -848,13 +838,22 @@ void game_play(void) {
         platform_poll_input(&in);
         if (in.quit_requested) break;
         int click = in.mouse_buttons & 1;
-        if (click && !g_last_click && g_menu_selected == -2) {
-            int ti = tribute_item_at(in.mouse_x, in.mouse_y);
-            if (ti >= 0 && g_province >= 0 && g_province < 27) {
+        if (g_menu_selected == -2) {
+            static const menu_item_t items[5] = {
+                {"Exempt this province", 'E', 8, 20, 130, 30},
+                {"Tolerable", 'T', 8, 30, 130, 40},
+                {"Irritating", 'I', 8, 40, 130, 50},
+                {"Oppressive", 'O', 8, 50, 130, 60},
+                {"Bleed Them Dry", 'B', 8, 60, 130, 70},
+            };
+            static const menu_hdr_t m = {5, 60, 80, 150, 90, 0, 0};
+            int ti = ui_menu_run(&m, items, &in, &g_last_click);
+            if (ti >= 0 && g_province >= 0 && g_province < 27)
                 g_prov_level[g_province] = ti;   /* write record +0x12 (level) */
+            if (ti != -2) {   /* selected or cancelled */
+                g_menu_selected = -1;
+                redraw_province_with_menu();
             }
-            g_menu_selected = -1;
-            redraw_province_with_menu();
         }
         if (click && !g_last_click) {
             if (g_screen == 0) {

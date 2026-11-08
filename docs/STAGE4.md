@@ -479,3 +479,8 @@ table to locate the image loader instead of grepping the linear sweep.
 - --save-game in.csv out.csv: byte-exact round trip (cmp clean).
 - --end-turn in.csv out.csv: matches turn2_274BC.csv except the 5 header name bytes.
 - end_turn_economy() holds the observed fresh->turn2 transforms (single observation, UNVERIFIED formulas).
+
+## Stage 56: menu engine ported (ui_menu_draw/ui_menu_run)
+- ui.c: ui_menu_draw (0x3134-style frame + items + title + preselect) and ui_menu_run
+  (mouse hit 0x552b, hotkey 0x5593, Esc=0xFF). Tribute sub-menu runs through it.
+- Diffs hold: map 292, Rome 707, Narb 763, game_menu 2254. C99 clean.

@@ -47,10 +47,10 @@ turn2_274BC.csv with only 5 bytes differing - all in the header save-name ("fres
 zero game-state bytes. Economy transforms from the fresh->turn2 diff are in end_turn_economy()
 (turn 0x5FE, province +0x19, Rome +0x04/+0x08/+0x0E/+0x10, 0x3A3/0x5F9/0x5FA/0x6AA) - formulas
 UNVERIFIED beyond one observation. C99 clean; frames hold.
-Item 1 (menu engine) in progress: decoded 0x5614 (draw: box via 0x3134 with the struct rect),
-0x54c8 (run loop -> index/0xFF), struct = {count,x,y,w,?,items@DS:573C,...}. Tribute sub-menu
-now uses the same box() primitive as the province menu (one code path); full 0x3134 frame
-translation + 0x54c8 input loop remain for the last bevels.
+Item 1 (menu engine): ported as ui_menu_draw/ui_menu_run in ui.c (frame = 0x3134 style,
+hotkey 0x5593, mouse hit 0x552b, Esc = cancel, preselect highlight). Tribute sub-menu now runs
+through it (no more hand-drawn box). Province menu + list still use their own box() - wiring them
+through ui_menu_* is the last bevel step. Frames hold: map 292, Rome 707, Narb 763, menu 2254.
 
 Roadmap, in order (each step has a built-in check):
 1. **Translate the menu engine** (0x5614 draw, 0x585b preselect, 0x54c8 run → index or 0xFF, 0x55ea/0x55ff, plus the box primitive it uses).
