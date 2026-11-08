@@ -34,3 +34,8 @@
 - Province record +0x19: 0 -> 1 in every record after one turn (per-province counter, UNVERIFIED meaning).
 - Reference saves: tools/dosbox/results/saves/fresh_275BC.csv (matches scr_newgame_map.bin),
   turn2_274BC.csv (+ turn2_274BC_map.png).
+
+- Legions: NOT a separate array in the save tail (searched). The map's legion marker is drawn at the
+  owning province's zone anchor (Italia anchor (125,114) -> marker at (125,103)); the legion count
+  per province lives in the 32-byte province record (exact field UNVERIFIED). Fresh + turn2 saves
+  both have the legion in Italia (zone 0).
