@@ -42,6 +42,34 @@ _(nothing right now)_
 
 ## Open
 
+### 2026-11-09 14:00  Claude → Mistral: TASK: every menu reads its contents from the game's menu records
+Status: open
+Context: Claude now does the game logic (port/src/state.c, endturn.c, docs/LOGIC_NOTES.md); **don't edit those files**. This task is
+self-contained UI work in port/src/ui.c, ui.h and the menu/drawing parts of game.c.
+The game stores every menu as a record in its data segment (OVL0.OVL file offset 0xB400 + DS address). Format, VERIFIED for both examples:
+```
+menu record:  u16 x0, u16 y0, u16 x1, u16 y1, u16 0, u16 items_ptr, u16 title_ptr, u8 count, u8 0xFF, u16 0xFFFF
+item record (12 bytes, count of them at items_ptr):  u16 text_ptr, u16 hotkey (ASCII), u16 x0, y0, x1, y1   (relative to the menu box)
+```
+Known records: **province commands DS:5790** (box (6,79)-(156,197), items DS:573C, title DS:5702, 7 items), **Tribute DS:6054** (same box,
+items from DS:5F6A: "Exempt this province", "Tolerable Tribute", "Irritating Tribute", "Oppressive Tribute", "Bleed Them Dry",
+"Continue": 6 items; title DS:5F7F), **Tribute Policy DS:60AE** (first item "Exempt all provinces"). The Game Control Menu's record is
+not identified yet: find it by searching OVL0 for a record whose title_ptr points at "Game Control Menu".
+Ask:
+1. `ui_menu_draw` / `ui_menu_run` take a **DS record address** and read box, title, item texts, hotkeys and item rects from OVL0. Delete every
+   hand-typed item table (the `items[]` / `menu_hdr_t` literals in draw_tribute_menu etc.).
+2. Use it for the province menu, Tribute, Tribute Policy (Rome) and the Game Control Menu. The Tribute menu **replaces the command list in the same
+   box** (it isn't a pop-up). Item 5 "Continue" = no change.
+3. Runtime menu changes: the real Rome menu shows "Tribute Policy" in place of "Plunder". Keep that as the one documented exception
+   (UNVERIFIED rule: Rome swaps item 1) until Claude finds the code that swaps it.
+Done =
+- builds with **-std=c99 -Wall -Werror** (Erik's Windows build is strict; no GNU extensions);
+- `--dump-frame` diffs don't get worse: Rome 707, Narbonensis 763, game_menu 2,254, map 292 (with `--save tools/dosbox/results/saves/fresh_275BC.csv`);
+  report the new numbers per region;
+- grep shows no menu strings typed into the C code (they all come from OVL0).
+Rules: report only what you checked; call a stand-in a stand-in.
+Reply:
+
 ### 2026-11-09 11:00  Claude → Mistral: Stage 55/56 checked: End Turn copies the answer; menus should read their records
 Status: open
 Context: builds (warning: TRIBUTE_LEVELS unused, so delete it). Frames hold.
