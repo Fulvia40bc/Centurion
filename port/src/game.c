@@ -381,22 +381,6 @@ static void flood_fill(int x, int y, uint8_t target, uint8_t fill) {
     }
 }
 
-/* fleet zones from a save: CSV 0x48E = DS 0x1114, 6 x 12-byte records, byte0 = zone.
-   Returns record count, or -1 if the file can't be read. */
-static int load_fleet_zones(const char *path, uint8_t *zones, int maxz) {
-    FILE *f = fopen(path, "rb");
-    if (!f) return -1;
-    static uint8_t csv[2048];
-    size_t r = fread(csv, 1, sizeof(csv), f);
-    fclose(f);
-    if (r <= 0x4D5) return -1;
-    int n = 0;
-    for (int i = 0; i < 6 && n < maxz; i++) {
-        uint8_t z = csv[0x48E + i * 12];
-        if (z != 0xFF && z < 37) zones[n++] = z;
-    }
-    return n;
-}
 
 int game_dump_frame(const char *outpath, const char *screen, const char *save_path) {
     g_save_path = save_path;  /* used by the map fleet loader */
@@ -629,6 +613,34 @@ static void draw_province_screen(int prov) {
     draw_province(&p);
 }
 
+
+/* menu engine slice (EXE 0x55ea/0x585b): highlight hovered item (invert), click to select */
+static int g_menu_hover = -1;
+static int g_menu_selected = -1;
+
+static int menu_item_at(int mx, int my) {
+    for (int i = 0; i < 7; i++) {
+        int x0 = 6 + 6, x1 = 6 + 138, y0 = 102 + 10 * i, y1 = y0 + 10;
+        if (mx >= x0 && mx <= x1 && my >= y0 && my <= y1) return i;
+    }
+    return -1;
+}
+
+static void redraw_province_with_menu(void) {
+    draw_province_screen(g_province);
+    /* re-highlight hovered/selected items on the fresh frame */
+    for (int i = 0; i < 7; i++) {
+        if (i == g_menu_hover || i == g_menu_selected) {
+            /* invert the item row's text area */
+            for (int y = 102 + 10 * i; y < 102 + 10 * i + 9; y++)
+                for (int x = 23; x < 144; x++) {
+                    uint8_t *p = &g_work[y * SCREEN_W + x];
+                    if (*p == 0) *p = 26; else if (*p == 26) *p = 0;
+                }
+        }
+    }
+}
+
 void game_play(void) {
     g_screen = 0;
     g_province = 0;
@@ -649,16 +661,26 @@ void game_play(void) {
                         in.mouse_y >= r->y0 && in.mouse_y <= r->y1) {
                         g_province = r->prov;
                         g_screen = 1;
+                        g_menu_hover = -1;
+                        g_menu_selected = -1;
                         draw_province_screen(g_province);
                         break;
                     }
                 }
             } else {
-                /* Continue = last menu item, rect ~(6,172)-(144,182) window-relative -> abs */
-                if (in.mouse_x >= 6 + 6 && in.mouse_x <= 6 + 138 &&
-                    in.mouse_y >= 63 + 39 + (83 - 23) + 10 * 6 && in.mouse_y <= 63 + 39 + (83 - 23) + 10 * 6 + 10) {
-                    g_screen = 0;
-                    draw_map_screen();
+                int hover = menu_item_at(in.mouse_x, in.mouse_y);
+                if (hover != g_menu_hover) {
+                    g_menu_hover = hover;
+                    redraw_province_with_menu();
+                }
+                if (click && !g_last_click && hover >= 0) {
+                    g_menu_selected = hover;
+                    if (hover == 6) {  /* Continue */
+                        g_screen = 0;
+                        draw_map_screen();
+                    } else {
+                        redraw_province_with_menu();  /* other items: stub, no game logic yet */
+                    }
                 }
             }
         }
