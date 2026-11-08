@@ -618,9 +618,13 @@ static int g_menu_hover = -1;
 static int g_menu_selected = -1;
 
 static int menu_item_at(int mx, int my) {
+    if (!g_ovl0) return -1;
     for (int i = 0; i < 7; i++) {
-        int x0 = 6 + 6, x1 = 6 + 138, y0 = 102 + 10 * i, y1 = y0 + 10;
-        if (mx >= x0 && mx <= x1 && my >= y0 && my <= y1) return i;
+        const uint8_t *rec = g_ovl0 + 0xB400 + 0x573C + 12 * i;   /* DS:573C item records */
+        int x0 = (int16_t)(rec[4] | (rec[5] << 8)), y0 = (int16_t)(rec[6] | (rec[7] << 8));
+        int x1 = (int16_t)(rec[8] | (rec[9] << 8)), y1 = (int16_t)(rec[10] | (rec[11] << 8));
+        /* window origin (6,63), body origin y = 63+18 = 81 */
+        if (mx >= 6 + x0 && mx <= 6 + x1 && my >= 81 + y0 && my <= 81 + y1) return i;
     }
     return -1;
 }

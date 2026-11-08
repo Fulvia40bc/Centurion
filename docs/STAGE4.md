@@ -451,3 +451,8 @@ table to locate the image loader instead of grepping the linear sweep.
 - Outline = 4-connected flood fill of MAP.CBM border colour 104 -> 9 (blue), seeded per owned
   province from DS:3C52 (VERIFIED). Legions: save CSV 0x3A4 (DS:1924, 20-byte records, byte0=zone).
   Fleets: CSV 0x48E (byte2==0xFF empty). Map 583 -> 379 px; game_menu 3810 -> 2254 (map bg behind menu).
+
+## Stage 52: menu engine data-driven
+- menu_item_at() reads hit rects from the DS:573C records (window origin 6,63, body y 81).
+- --play: End Turn advances g_turn (year = 275 - turn); menu hover/click from the records.
+- Diffs hold: map 292, Rome 707, Narb 763, game_menu 2254.
