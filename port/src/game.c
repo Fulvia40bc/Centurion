@@ -463,7 +463,27 @@ int game_dump_frame(const char *outpath, const char *screen) {
 static void draw_map_buttons(void) {
     if (!g_ovl0) return;
     static const char *const txt[2] = {"End Turn", "275 BC"};  /* year is runtime DS:0x717C, not in save */
-    draw_map_buttons();
+    for (int b = 0; b < 2; b++) {
+        const uint8_t *d = g_ovl0 + 0xB400 + 0x3C42 + b * 8;
+        int x0 = d[0] | (d[1] << 8), y0 = d[2] | (d[3] << 8);
+        int x1 = d[4] | (d[5] << 8), y1 = d[6] | (d[7] << 8);
+        int w = x1 - x0 + 1, h = y1 - y0 + 1;
+        ui_rect(g_work, x0, y0, w, h, 26);
+        ui_rect(g_work, x0, y0, w, 1, 15);            /* top highlight row */
+        ui_rect(g_work, x0 + 1, y0 + 1, w - 2, 1, 15);  /* 2nd row, corners stay 8 */
+        g_work[(y0 + 1) * SCREEN_W + x0] = 8;
+        g_work[(y0 + 1) * SCREEN_W + x1] = 8;
+        ui_rect(g_work, x0, y0 + 2, 2, h - 4, 8);
+        ui_rect(g_work, x1 - 1, y0 + 2, 2, h - 4, 8);
+        ui_rect(g_work, x0, y1 - 1, w, 2, 0);
+        g_work[(y1 - 1) * SCREEN_W + x0] = 8;
+        g_work[(y1 - 1) * SCREEN_W + x1] = 8;
+        ui_rect(g_work, x0 + 3, y0 + 3, w - 6, 1, 8);  /* inner lines at +3 */
+        ui_rect(g_work, x0 + 3, y1 - 3, w - 6, 1, 8);
+        ui_rect(g_work, x0 + 3, y0 + 4, 1, h - 7, 8);
+        ui_rect(g_work, x1 - 3, y0 + 4, 1, h - 7, 8);
+        ui_text(g_work, x0 + 5, y0 + 4, txt[b], 15);
+    }
 }
 
 /* ---- playable slice: map <-> province <-> back (no game logic yet) ---- */
