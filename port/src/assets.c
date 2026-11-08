@@ -259,7 +259,7 @@ int assets_scan_images(const char *dir, img_entry_t *out, int max) {
             memcpy(e->name, buf + off + 6, 13);
             e->name[13] = 0;
             for (int i = 0; i < 13; i++) if (e->name[i] == 0) break;
-            snprintf(e->dat, sizeof(e->dat), "%s", datpath);
+            snprintf(e->dat, sizeof(e->dat), "%.*s", (int)sizeof(e->dat) - 1, datpath);
         }
         free(buf);
     }

@@ -14,6 +14,8 @@ static int g_prov_init_done;
 static int g_legion_zone[12];   /* in-memory legion array (save CSV 0x3A4, byte0 = zone) */
 static int g_legion_n;        /* turn counter (save CSV 0x5FE); year = 275 - turn */
 static void draw_map_buttons(void);
+
+
 static void draw_map_full(const char *save_path);
 static const char *g_save_path;      /* what SDL shows */
 static uint8_t g_work[SCREEN_W * SCREEN_H];    /* off-screen work buffer, like the original */
@@ -200,6 +202,10 @@ static void box(int x, int y, int w, int h, int sep_rows) {
 
 /* ---- province screen, driven by game data (EXE func_0x6f0c + menu DS:573C) ---- */
 static const uint8_t *g_ovl0;
+/* load a DS menu record from OVL0 into a menu_t */
+static void load_menu(menu_t *m, uint16_t rec_ds) {
+    ui_menu_load(m, g_ovl0, rec_ds);
+}
 
 static const char *ds_str(uint16_t ptr) {
     static char buf[128];
@@ -215,7 +221,7 @@ typedef struct {
     const char *strip;       /* CBM city strip (cities) or NULL */
     const char *bg, *fg;     /* layered strip: NEGBG?/NEGFG? (non-city) */
     int sky;                 /* sky fill color for layered strips */
-    const char *const *items; /* NULL = read the 7 DS:573C records; else override list */
+    int swap_plunder;        /* Rome: item 1 "Plunder" -> "Tribute Policy" (DS:59AB), documented exception */
     const char *status, *courage, *rank;
     int tribute, manpower, talents, mood;  /* mood = func_0x6c26 index 0..3 */
 } province_t;
@@ -242,24 +248,28 @@ static void draw_province(const province_t *p) {
         }
     }
     ui_text_centered(g_work, 160, 66, p->name, 0);
-    /* command menu: box + items from DS:573C records (12-byte {text,hk,x0,y0,x1,y1}) */
-    box(6, 63, 151, 134, 2);
-    ui_text(g_work, 27, 85, ds_str(0x5702), 15);   /* "What is your command?" */
+    /* command menu: box + title + items all from the DS:5790 record (read from OVL0).
+       Rome (citizen) swaps item 1 "Plunder" -> "Tribute Policy" (DS:59AB) - the one
+       documented exception (UNVERIFIED rule) until the swap code is found. */
     {
-        char items[7][64];
-        for (int i = 0; i < 7; i++) {
-            const uint8_t *rec = g_ovl0 + 0xB400 + 0x573C + 12 * i;
-            uint16_t text = rec[0] | (rec[1] << 8);
-            if (p->items) {
-                snprintf(items[i], sizeof(items[i]), "%s", p->items[i]);
-            } else {
-                snprintf(items[i], sizeof(items[i]), "%s", ds_str(text));
+        menu_t m;
+        load_menu(&m, 0x5790);
+        if (p->swap_plunder) {
+            /* Rome (citizen): record has Plunder at slot 1; the real menu drops it and shows
+               "Tribute Policy" (DS:59AB) at slot 4 - documented exception (UNVERIFIED rule) */
+            char tmp[64];
+            for (int i = 1; i < m.count - 2; i++) {
+                snprintf(tmp, sizeof(tmp), "%s", m.items[i + 1].text);
+                snprintf(m.items[i].text, sizeof(m.items[i].text), "%s", tmp);
             }
-            /* rect y0 is window-relative; window body starts at y=63+16+2=81, items at 81+23-... :
-               measured item0 glyphs at y102 -> draw y = 102 - (23 - 23) ... use rect y0 mapped: y = 63 + 16 + 2 + y0 - 23 + 23 */
-            int y0 = (int16_t)(rec[6] | (rec[7] << 8));
-            ui_text(g_work, 6 + 17, 63 + 39 + (y0 - 23), items[i], 0);
+            snprintf(m.items[m.count - 3].text, sizeof(m.items[m.count - 3].text), "%s", ds_str(0x59AB));
         }
+        /* province screen uses the window frame (title band); record gives title+items+rects.
+           Record box is (6,79)-(156,197); items at (6+x0, 79+y0); capture-matched text x = 6+17. */
+        box(6, 63, 151, 134, 2);
+        ui_text(g_work, 27, 85, m.title, 15);
+        for (int i = 0; i < m.count; i++)
+            ui_text(g_work, 6 + 17, 79 + m.items[i].y0, m.items[i].text, 0);
     }
     for (int y = 100; y < 172; y++)
         for (int x = 14; x <= 18; x += 2)
@@ -331,7 +341,7 @@ static int load_province_csv(const char *path, int idx, province_t *p) {
     p->bg = (idx != 0) ? "NEGBGA.CBM" : NULL;
     p->fg = (idx != 0) ? "NEGFGX.CBM" : NULL;
     p->sky = (idx != 0) ? 23 : 0;
-    p->items = NULL;
+    p->swap_plunder = 0;
     p->courage = "Fierce"; p->rank = "Officer"; p->talents = 20;  /* UNVERIFIED from save */
     free(buf);
     return 0;
@@ -339,9 +349,7 @@ static int load_province_csv(const char *path, int idx, province_t *p) {
 
 static void draw_province_rome(void) {
     (void)load_province_csv;  /* save-driven play mode comes next; dump frames use capture state */
-    static const char *const rome_items[7] = {"Legions", "Tribute", "Hold Games", "Build Fleet",
-                                               "Tribute Policy", "See Province List", "Continue"};
-    static const province_t rome = {"ROME", "ROME.CBM", NULL, NULL, 0, rome_items,
+    static const province_t rome = {"ROME", "ROME.CBM", NULL, NULL, 0, 1,
         "Citizens", "Fierce", "Officer", 8, 5000, 20, 0};
     draw_province(&rome);
 }
@@ -430,7 +438,7 @@ int game_dump_frame(const char *outpath, const char *screen, const char *save_pa
         fclose(f);
         g_ovl0 = ovl0;
         if (strcasecmp(screen, "province_narbonensis") == 0) {
-            static const province_t narb = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, NULL,
+            static const province_t narb = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, 0,
                 "Occupied", "Good", "Officer", 0, 5279, 20, 0};
             draw_province(&narb);
         } else {
@@ -452,22 +460,11 @@ int game_dump_frame(const char *outpath, const char *screen, const char *save_pa
         if (assets_load_font("OVL0.OVL") != 0) return 1;
         /* map background + centred Game Control Menu (measured from scr_game_control_menu.bin) */
         draw_map_full(g_save_path);
-        /* exact box from capture: top y80=15/y81=26/y82=8, left x84=8, right x248+x250=8,
-           bottom y194=8/y195=0, interior 26 */
-        ui_rect(g_work, 83, 80, 167, 117, 26);
-        ui_rect(g_work, 83, 80, 167, 1, 15);
-        ui_rect(g_work, 83, 81, 167, 1, 26);
-        ui_rect(g_work, 83, 82, 167, 1, 8);
-        ui_rect(g_work, 84, 83, 1, 111, 8);
-        ui_rect(g_work, 248, 83, 1, 111, 8);
-        ui_rect(g_work, 250, 83, 1, 111, 8);
-        ui_rect(g_work, 83, 194, 167, 1, 8);
-        ui_rect(g_work, 83, 195, 167, 2, 0);
-        ui_text_centered(g_work, 166, 86, "Game Control Menu", 15);
-        static const char *const gitems[7] = {"Save Game...", "Load Game...", "New Game",
-            "About Centurion...", "Difficulty Levels...", "Quit to DOS", "Continue Playing"};
-        for (int i = 0; i < 7; i++)
-            ui_text(g_work, 98, 103 + i * 10, gitems[i], 0);
+        {
+            menu_t m;
+            load_menu(&m, 0x5A6);   /* Game Control Menu record */
+            ui_menu_draw(g_work, &m, -1);
+        }
     } else {
         game_init();
         game_frame();
@@ -487,7 +484,7 @@ static void draw_map_buttons(void) {
     static char year_txt[16];
     int turn = g_turn;
     snprintf(year_txt, sizeof(year_txt), "%d BC", 275 - turn);
-    const char *txt0 = "End Turn";
+    const char *txt0 = g_ovl0 ? ds_str(0x3CC6) : "?";   /* "End Turn" from DS:3CC6 */
     const char *txt1 = year_txt;
     for (int b = 0; b < 2; b++) {
         const uint8_t *d = g_ovl0 + 0xB400 + 0x3C42 + b * 8;
@@ -607,20 +604,7 @@ static void draw_map_screen(void) {
     int n = assets_scan_images(".", imgs, 256);
     for (int i = 0; i < n; i++)
         if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
-    for (int b = 0; b < 2; b++) {
-        int x0 = b == 0 ? 227 : 277, x1 = b == 0 ? 275 : 317, y0 = 2, y1 = 18;
-        const char *txt = b == 0 ? "End Turn" : "275 BC";
-        ui_rect(g_work, x0, y0, x1 - x0 + 1, y1 - y0 + 1, 26);
-        ui_rect(g_work, x0, y0, x1 - x0 + 1, 2, 15);
-        ui_rect(g_work, x0, y0 + 2, 2, y1 - y0 - 4, 8);
-        ui_rect(g_work, x1 - 1, y0 + 2, 2, y1 - y0 - 4, 8);
-        ui_rect(g_work, x0, y1 - 1, x1 - x0 + 1, 2, 0);
-        g_work[(y1 - 1) * SCREEN_W + x0] = 8;
-        g_work[(y1 - 1) * SCREEN_W + x1] = 8;
-        ui_rect(g_work, x0 + 2, y0 + 3, x1 - x0 - 3, 1, 8);
-        ui_rect(g_work, x0 + 2, y1 - 3, x1 - x0 - 3, 1, 8);
-        ui_text(g_work, x0 + 5, y0 + 4, txt, 15);
-    }
+    draw_map_buttons();
 }
 
 static void draw_province_screen(int prov) {
@@ -633,13 +617,11 @@ static void draw_province_screen(int prov) {
         load_province_csv("0.CSV", prov, &p) != 0) {
         /* no save: capture-matching defaults */
         if (prov == 0) {
-            static const char *const ri[7] = {"Legions", "Tribute", "Hold Games", "Build Fleet",
-                                               "Tribute Policy", "See Province List", "Continue"};
-            static const province_t def = {"ROME", "ROME.CBM", NULL, NULL, 0, ri,
+            static const province_t def = {"ROME", "ROME.CBM", NULL, NULL, 0, 1,
                 "Citizens", "Fierce", "Officer", 8, 5000, 20, 0};
             p = def;
         } else {
-            static const province_t def = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, NULL,
+            static const province_t def = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, 0,
                 "Occupied", "Good", "Officer", 0, 5279, 20, 0};
             p = def;
         }
@@ -703,17 +685,12 @@ static void init_prov_state(const char *save_path) {
 /* Tribute sub-menu (EXE 0x7ce0): DS:5F7F "What level of tribute?", items DS:5F6A.. (5 levels).
    Click a level -> store in g_prov_level[prov] (= record +0x12); click outside = no change. */
 
+/* Tribute sub-menu = the DS:6054 record, drawn in the SAME box as the command menu
+   (EXE 0x7ce0 replaces the command list in place). All text from OVL0. */
 static void draw_tribute_menu(void) {
-    static const menu_item_t items[5] = {
-        {"Exempt this province", 'E', 8, 20, 130, 30},
-        {"Tolerable", 'T', 8, 30, 130, 40},
-        {"Irritating", 'I', 8, 40, 130, 50},
-        {"Oppressive", 'O', 8, 50, 130, 60},
-        {"Bleed Them Dry", 'B', 8, 60, 130, 70},
-    };
-    static const menu_hdr_t m = {5, 60, 80, 150, 90, 0, 0};
-    ui_menu_draw(g_work, &m, items, "What level of tribute?",
-                 (g_province >= 0 && g_province < 27) ? g_prov_level[g_province] : -1);
+    menu_t m;
+    load_menu(&m, 0x6054);
+    ui_menu_draw(g_work, &m, (g_province >= 0 && g_province < 27) ? g_prov_level[g_province] : -1);
 }
 
 
@@ -799,21 +776,13 @@ void game_play(void) {
         if (in.quit_requested) break;
         int click = in.mouse_buttons & 1;
         if (g_menu_selected == -2) {
-            static const menu_item_t items[5] = {
-                {"Exempt this province", 'E', 8, 20, 130, 30},
-                {"Tolerable", 'T', 8, 30, 130, 40},
-                {"Irritating", 'I', 8, 40, 130, 50},
-                {"Oppressive", 'O', 8, 50, 130, 60},
-                {"Bleed Them Dry", 'B', 8, 60, 130, 70},
-            };
-            static const menu_hdr_t m = {5, 60, 80, 150, 90, 0, 0};
-            int ti = ui_menu_run(&m, items, &in, &g_last_click);
+            menu_t m;
+            load_menu(&m, 0x6054);
+            int ti = ui_menu_run(&m, &in, &g_last_click);
             if (ti >= 0 && g_province >= 0 && g_province < 27)
                 g_prov_level[g_province] = ti;   /* write record +0x12 (level) */
-            if (ti != -2) {   /* selected or cancelled */
-                g_menu_selected = -1;
-                redraw_province_with_menu();
-            }
+            if (ti == 5) { g_menu_selected = -1; redraw_province_with_menu(); }  /* Continue = no change */
+            else if (ti != -2) { g_menu_selected = -1; redraw_province_with_menu(); }
         }
         if (click && !g_last_click) {
             if (g_screen == 0) {

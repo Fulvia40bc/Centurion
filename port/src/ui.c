@@ -59,12 +59,37 @@ void ui_text_centered(uint8_t *fb, int cx, int y, const char *text, uint8_t colo
     ui_text(fb, cx - ui_text_width(text) / 2, y, text, color);
 }
 
-/* ---- menu engine (EXE 0x5614 draw / 0x54c8 run / 0x552b mouse / 0x5593 hotkey) ----
-   Menu struct (DS:5790-style): { u16 count; u16 x, y, w, h; u16 ?; u16 items; }
-   Item record (12 bytes): { u16 text_ptr; u16 hotkey; s16 x0, y0, x1, y1; } (window-relative).
-   The port stores item text directly (no DS pointers). */
+/* ---- menu engine (EXE 0x5614/0x54c8): menus are DS records in OVL0 ---- */
+static const char *ds_str(const uint8_t *ovl0, uint16_t ptr, char *buf, int bufsz) {
+    const uint8_t *p = ovl0 + 0xB400 + ptr;
+    int i = 0;
+    while (p[i] && i < bufsz - 1) { buf[i] = p[i]; i++; }
+    buf[i] = 0;
+    return buf;
+}
 
-/* box frame = EXE 0x3134: fill 26, top 2 rows 15, sides 2px 8, bottom 2 rows 0, inner 8 lines */
+void ui_menu_load(menu_t *m, const uint8_t *ovl0, uint16_t rec_ds) {
+    const uint8_t *r = ovl0 + 0xB400 + rec_ds;
+    uint16_t x0 = r[0] | (r[1] << 8), y0 = r[2] | (r[3] << 8);
+    uint16_t x1 = r[4] | (r[5] << 8), y1 = r[6] | (r[7] << 8);
+    uint16_t items = r[10] | (r[11] << 8), title = r[12] | (r[13] << 8);
+    int count = r[14];
+    m->x = x0; m->y = y0; m->w = x1 - x0 + 1; m->h = y1 - y0 + 1;
+    m->count = count > 16 ? 16 : count;
+    ds_str(ovl0, title, m->title, sizeof(m->title));
+    for (int i = 0; i < m->count; i++) {
+        const uint8_t *it = ovl0 + 0xB400 + items + 12 * i;
+        uint16_t tp = it[0] | (it[1] << 8);
+        uint16_t hk = it[2] | (it[3] << 8);
+        ds_str(ovl0, tp, m->items[i].text, sizeof(m->items[i].text));
+        m->items[i].hotkey = (char)(hk & 0xFF);
+        m->items[i].x0 = (int16_t)(it[4] | (it[5] << 8));
+        m->items[i].y0 = (int16_t)(it[6] | (it[7] << 8));
+        m->items[i].x1 = (int16_t)(it[8] | (it[9] << 8));
+        m->items[i].y1 = (int16_t)(it[10] | (it[11] << 8));
+    }
+}
+
 static void ui_frame(uint8_t *fb, int x, int y, int w, int h) {
     ui_rect(fb, x, y, w, h, 26);
     ui_rect(fb, x, y, w, 2, 15);
@@ -77,43 +102,40 @@ static void ui_frame(uint8_t *fb, int x, int y, int w, int h) {
     ui_rect(fb, x + w - 4, y + 4, 1, h - 7, 8);
 }
 
-void ui_menu_draw(uint8_t *fb, const menu_hdr_t *m, const menu_item_t *items, const char *title, int preselect) {
+void ui_menu_draw(uint8_t *fb, const menu_t *m, int preselect) {
     ui_frame(fb, m->x, m->y, m->w, m->h);
-    if (title)
-        ui_text_centered(fb, m->x + m->w / 2, m->y + 4, title, 15);
+    ui_text_centered(fb, m->x + m->w / 2, m->y + 4, m->title, 15);
     for (int i = 0; i < m->count; i++) {
-        int ix = m->x + items[i].x0, iy = m->y + items[i].y0;
-        ui_text(fb, ix, iy, items[i].text, 0);
+        int ix = m->x + m->items[i].x0, iy = m->y + m->items[i].y0;
+        ui_text(fb, ix, iy, m->items[i].text, 0);
         if (i == preselect)
             for (int y = iy; y < iy + 9; y++)
-                for (int x = ix; x < m->x + items[i].x1; x++) {
+                for (int x = ix; x < m->x + m->items[i].x1; x++) {
                     uint8_t *p = &fb[y * SCREEN_W + x];
                     if (*p == 0) *p = 26; else if (*p == 26) *p = 0;
                 }
     }
 }
 
-/* run loop (0x54c8): returns item index, or -1 on Esc / click outside (0xFF) */
-int ui_menu_run(const menu_hdr_t *m, const menu_item_t *items, const input_t *in, int *last_click) {
+int ui_menu_run(const menu_t *m, const input_t *in, int *last_click) {
     int click = in->mouse_buttons & 1;
     if (click && !*last_click) {
         if (in->mouse_x < m->x || in->mouse_x > m->x + m->w ||
             in->mouse_y < m->y || in->mouse_y > m->y + m->h)
-            return -1;   /* outside = cancel (0xFF in the original) */
+            return -1;
         for (int i = 0; i < m->count; i++) {
-            int x0 = m->x + items[i].x0, y0 = m->y + items[i].y0;
-            int x1 = m->x + items[i].x1, y1 = m->y + items[i].y1;
+            int x0 = m->x + m->items[i].x0, y0 = m->y + m->items[i].y0;
+            int x1 = m->x + m->items[i].x1, y1 = m->y + m->items[i].y1;
             if (in->mouse_x >= x0 && in->mouse_x <= x1 && in->mouse_y >= y0 && in->mouse_y <= y1)
                 return i;
         }
     }
-    /* hotkeys (0x5593): scancode in key_special/key_down matched against item hotkey */
     for (int i = 0; i < m->count; i++) {
-        int hk = items[i].hotkey;
-        if (hk > 0 && hk < 256 && in->key_down[hk])
+        unsigned char hk = (unsigned char)m->items[i].hotkey;
+        if (hk > 0 && hk < 128 && in->key_down[hk])
             return i;
     }
-    if (in->key_down[27])   /* Esc */
+    if (in->key_down[27])
         return -1;
-    return -2;              /* no selection this frame */
+    return -2;
 }
