@@ -456,3 +456,10 @@ table to locate the image loader instead of grepping the linear sweep.
 - menu_item_at() reads hit rects from the DS:573C records (window origin 6,63, body y 81).
 - --play: End Turn advances g_turn (year = 275 - turn); menu hover/click from the records.
 - Diffs hold: map 292, Rome 707, Narb 763, game_menu 2254.
+
+## Stage 53: overlay section loader decoded (OVL resident func_0x03BC)
+- Section table entries = 20 bytes; byte+1 packs two 4-bit handler indices dispatched via
+  tables at 0x642E / 0x643C. Loader seeks (DOS AH=42) to base + index*0x14, reads entry, loads
+  the section into the swap area (1331:0000), and shows "Loading <province>" (name from the
+  DS:5222 table via [bx+0x5222]). So per-section code is dispatched by type nibble, not a
+  fixed layout - the province command handlers live in type-specific sections.
