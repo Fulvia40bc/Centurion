@@ -8,7 +8,7 @@
 
 static uint8_t g_fb[SCREEN_W * SCREEN_H];
 static int g_turn = 0;
-static int g_prov_tribute[27];   /* in-memory tribute per province (commands mutate this) */
+static int g_prov_level[27];      /* tribute LEVEL 0-4 at province record +0x12 (0x7ce0); +0x11 is the amount the panel prints */
 static int g_prov_init_done;        /* turn counter (save CSV 0x5FE); year = 275 - turn */
 static void draw_map_buttons(void);
 static void draw_map_full(const char *save_path);
@@ -611,8 +611,7 @@ static void draw_province_screen(int prov) {
             p = def;
         }
     }
-    if (g_prov_init_done && prov >= 0 && prov < 27 && g_prov_tribute[prov] >= 0)
-        p.tribute = g_prov_tribute[prov];
+    /* panel "Tribute: N" always from +0x11 (amount); level (+0x12) only via the Tribute command */
     draw_province(&p);
 }
 
@@ -653,7 +652,7 @@ static void redraw_province_with_menu(void) {
 static void init_prov_state(const char *save_path) {
     if (g_prov_init_done) return;
     g_prov_init_done = 1;
-    for (int i = 0; i < 27; i++) g_prov_tribute[i] = -1;
+    for (int i = 0; i < 27; i++) g_prov_level[i] = -1;
     static uint8_t csv[2048];
     const char *sv = save_path ? save_path : "tools/dosbox/results/saves/fresh_275BC.csv";
     FILE *f = fopen(sv, "rb");
@@ -662,9 +661,34 @@ static void init_prov_state(const char *save_path) {
     if (f) {
         if (fread(csv, 1, sizeof(csv), f) > 0x4D5)
             for (int i = 0; i < 27; i++)
-                g_prov_tribute[i] = csv[0x3C + i * 32 + 0x11];   /* tribute byte, VERIFIED offset */
+                g_prov_level[i] = csv[0x3C + i * 32 + 0x12];   /* tribute LEVEL byte +0x12 (0x7ce0); +0x11 = amount */
         fclose(f);
     }
+}
+
+
+/* Tribute sub-menu (EXE 0x7ce0): DS:5F7F "What level of tribute?", items DS:5F6A.. (5 levels).
+   Click a level -> store in g_prov_level[prov] (= record +0x12); click outside = no change. */
+static const char *const TRIBUTE_LEVELS[5] = {"Exempt", "Tolerable", "Irritating", "Oppressive", "Bleed Them Dry"};
+
+static void draw_tribute_menu(void) {
+    int x0 = 60, y0 = 80, w = 120, h = 9 + 5 * 10;
+    ui_rect(g_work, x0, y0, w, h, 26);
+    ui_rect(g_work, x0, y0, w, 2, 15);
+    ui_rect(g_work, x0, y0 + 2, 2, h - 4, 8);
+    ui_rect(g_work, x0 + w - 2, y0 + 2, 2, h - 4, 8);
+    ui_rect(g_work, x0, y0 + h - 2, w, 2, 0);
+    ui_text_centered(g_work, x0 + w / 2, y0 + 4, "What level of tribute?", 15);
+    for (int i = 0; i < 5; i++)
+        ui_text(g_work, x0 + 8, y0 + 12 + i * 10, TRIBUTE_LEVELS[i], 0);
+}
+
+static int tribute_item_at(int mx, int my) {
+    int x0 = 60, y0 = 80, w = 120;
+    for (int i = 0; i < 5; i++)
+        if (mx >= x0 && mx <= x0 + w && my >= y0 + 12 + i * 10 && my <= y0 + 12 + i * 10 + 10)
+            return i;
+    return -1;
 }
 
 void game_play(void) {
@@ -687,6 +711,14 @@ void game_play(void) {
         platform_poll_input(&in);
         if (in.quit_requested) break;
         int click = in.mouse_buttons & 1;
+        if (click && !g_last_click && g_menu_selected == -2) {
+            int ti = tribute_item_at(in.mouse_x, in.mouse_y);
+            if (ti >= 0 && g_province >= 0 && g_province < 27) {
+                g_prov_level[g_province] = ti;   /* write record +0x12 (level) */
+            }
+            g_menu_selected = -1;
+            redraw_province_with_menu();
+        }
         if (click && !g_last_click) {
             if (g_screen == 0) {
                 /* End Turn button (first button rect from DS:3C42) -> advance the turn */
@@ -722,10 +754,10 @@ void game_play(void) {
                     if (hover == 6) {  /* Continue */
                         g_screen = 0;
                         draw_map_screen();
-                    } else if (hover == 2) {  /* Tribute (EXE 0x7ce0) */
-                        if (g_prov_tribute[g_province] < 0) g_prov_tribute[g_province] = 0;
-                        g_prov_tribute[g_province] = (g_prov_tribute[g_province] + 1) % 6;
+                    } else if (hover == 2) {  /* Tribute (EXE 0x7ce0): 5-level sub-menu, write +0x12 */
+                        g_menu_selected = -2;  /* sub-menu open */
                         redraw_province_with_menu();
+                        draw_tribute_menu();
                     } else {
                         redraw_province_with_menu();  /* other items: stub, no game logic yet */
                     }
