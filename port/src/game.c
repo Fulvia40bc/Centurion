@@ -7,7 +7,8 @@
 #include <stdlib.h>
 
 static uint8_t g_fb[SCREEN_W * SCREEN_H];
-static void draw_map_buttons(void);      /* what SDL shows */
+static void draw_map_buttons(void);
+static const char *g_save_path;      /* what SDL shows */
 static uint8_t g_work[SCREEN_W * SCREEN_H];    /* off-screen work buffer, like the original */
 static rgb_t g_palette[256];
 
@@ -339,8 +340,26 @@ static void draw_province_rome(void) {
 }
 
 /* Headless: render the current frame (work buffer) to a raw index file. */
+
+/* fleet zones from a save: CSV 0x48E = DS 0x1114, 6 x 12-byte records, byte0 = zone.
+   Returns record count, or -1 if the file can't be read. */
+static int load_fleet_zones(const char *path, uint8_t *zones, int maxz) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+    static uint8_t csv[2048];
+    size_t r = fread(csv, 1, sizeof(csv), f);
+    fclose(f);
+    if (r <= 0x4D5) return -1;
+    int n = 0;
+    for (int i = 0; i < 6 && n < maxz; i++) {
+        uint8_t z = csv[0x48E + i * 12];
+        if (z != 0xFF && z < 37) zones[n++] = z;
+    }
+    return n;
+}
+
 int game_dump_frame(const char *outpath, const char *screen, const char *save_path) {
-    (void)save_path;  /* fleet zones read from 3.CSV/0.CSV; --save selects explicitly */
+    g_save_path = save_path;  /* used by the map fleet loader */
     if (screen && strncasecmp(screen, "province", 8) == 0) {
         if (assets_load_luts("OVL0.OVL") != 0) return 1;
         if (assets_load_font("OVL0.OVL") != 0) return 1;
@@ -389,22 +408,22 @@ int game_dump_frame(const char *outpath, const char *screen, const char *save_pa
             if (assets_load_sheet("INITHDR.LZW", "INITDAT.LZW", ents, &n, &pix, &npix) == 0 && g_ovl0) {
                 /* fleets from the save (CSV 0x48E = DS 0x1114, 6 x 12-byte records, byte0 = zone);
                    legion at zone 0 for the fresh game (legion array in save tail: UNVERIFIED) */
-                int zones[8];
+                uint8_t zones[8];
                 int nz = 0;
-                zones[nz++] = 0;  /* legion, INIT ent2 */
+                zones[nz++] = 0;  /* legion, INIT ent2 (fresh game) */
                 {
-                    static uint8_t csv[2048];
-                    int have = 0;
-                    FILE *f = fopen("3.CSV", "rb");
-                    if (!f) f = fopen("0.CSV", "rb");
-                    if (f) { have = fread(csv, 1, sizeof(csv), f) > 0x4D5; fclose(f); }
-                    if (have) {
-                        for (int i = 0; i < 6 && nz < 8; i++) {
-                            uint8_t z = csv[0x48E + i * 12];
-                            if (z != 0xFF && z < 37) zones[nz++] = z;
-                        }
+                    int nf = -1;
+                    if (g_save_path)
+                        nf = load_fleet_zones(g_save_path, zones + 1, 7);  /* explicit: fail loudly below */
+                    else {
+                        nf = load_fleet_zones("3.CSV", zones + 1, 7);
+                        if (nf < 0) nf = load_fleet_zones("0.CSV", zones + 1, 7);
+                    }
+                    if (nf < 0) {
+                        if (g_save_path) { fprintf(stderr, "cannot read save %s\n", g_save_path); return 1; }
+                        zones[nz++] = 27; zones[nz++] = 28; zones[nz++] = 30;  /* no-save fallback */
                     } else {
-                        zones[nz++] = 27; zones[nz++] = 28; zones[nz++] = 30;  /* fallback */
+                        nz += nf;
                     }
                 }
                 for (int i = 0; i < nz && 2 < n; i++) {
