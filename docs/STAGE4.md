@@ -457,9 +457,10 @@ table to locate the image loader instead of grepping the linear sweep.
 - --play: End Turn advances g_turn (year = 275 - turn); menu hover/click from the records.
 - Diffs hold: map 292, Rome 707, Narb 763, game_menu 2254.
 
-## Stage 53: overlay section loader decoded (OVL resident func_0x03BC)
-- Section table entries = 20 bytes; byte+1 packs two 4-bit handler indices dispatched via
-  tables at 0x642E / 0x643C. Loader seeks (DOS AH=42) to base + index*0x14, reads entry, loads
-  the section into the swap area (1331:0000), and shows "Loading <province>" (name from the
-  DS:5222 table via [bx+0x5222]). So per-section code is dispatched by type nibble, not a
-  fixed layout - the province command handlers live in type-specific sections.
+## Stage 53 (CORRECTED): func_0x03BC is the copy-protection question, not a loader
+- OVL resident func_0x03BC picks a random PLACES entry (20-byte records) and asks "What is the
+  <direction> <type> in the province of <name>?" with 3 tries (word lists DS:642E/643C, name
+  DS:5222). No "Loading" string exists; `mov ax,0x42` is random(66), not DOS seek. Port: skip it.
+- Province commands are resident in the EXE: menu switch at 0x6d76 after call 0x54c8:
+  0 Legions -> 0x4065; 1 Plunder -> 0x6db2 (walks legion records); 2 Tribute -> 0x7ce0;
+  3 Hold Games -> 0x3342; 4 Build Fleet -> 0x2458; 5 See Province List -> 0x69cc; 6 Continue -> exit.

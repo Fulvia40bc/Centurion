@@ -7,7 +7,9 @@
 #include <stdlib.h>
 
 static uint8_t g_fb[SCREEN_W * SCREEN_H];
-static int g_turn = 0;        /* turn counter (save CSV 0x5FE); year = 275 - turn */
+static int g_turn = 0;
+static int g_prov_tribute[27];   /* in-memory tribute per province (commands mutate this) */
+static int g_prov_init_done;        /* turn counter (save CSV 0x5FE); year = 275 - turn */
 static void draw_map_buttons(void);
 static void draw_map_full(const char *save_path);
 static const char *g_save_path;      /* what SDL shows */
@@ -609,6 +611,8 @@ static void draw_province_screen(int prov) {
             p = def;
         }
     }
+    if (g_prov_init_done && prov >= 0 && prov < 27 && g_prov_tribute[prov] >= 0)
+        p.tribute = g_prov_tribute[prov];
     draw_province(&p);
 }
 
@@ -644,6 +648,25 @@ static void redraw_province_with_menu(void) {
     }
 }
 
+
+
+static void init_prov_state(const char *save_path) {
+    if (g_prov_init_done) return;
+    g_prov_init_done = 1;
+    for (int i = 0; i < 27; i++) g_prov_tribute[i] = -1;
+    static uint8_t csv[2048];
+    const char *sv = save_path ? save_path : "tools/dosbox/results/saves/fresh_275BC.csv";
+    FILE *f = fopen(sv, "rb");
+    if (!f && !save_path) f = fopen("3.CSV", "rb");
+    if (!f && !save_path) f = fopen("0.CSV", "rb");
+    if (f) {
+        if (fread(csv, 1, sizeof(csv), f) > 0x4D5)
+            for (int i = 0; i < 27; i++)
+                g_prov_tribute[i] = csv[0x3C + i * 32 + 0x11];   /* tribute byte, VERIFIED offset */
+        fclose(f);
+    }
+}
+
 void game_play(void) {
     g_screen = 0;
     g_province = 0;
@@ -655,6 +678,7 @@ void game_play(void) {
         if (t < 0) t = load_turn("0.CSV");
         g_turn = t < 0 ? 0 : t;
     }
+    init_prov_state(g_save_path);
     draw_map_screen();
     input_t in;
     const uint32_t frame_ms = 1000 / FPS;
@@ -698,6 +722,10 @@ void game_play(void) {
                     if (hover == 6) {  /* Continue */
                         g_screen = 0;
                         draw_map_screen();
+                    } else if (hover == 2) {  /* Tribute (EXE 0x7ce0) */
+                        if (g_prov_tribute[g_province] < 0) g_prov_tribute[g_province] = 0;
+                        g_prov_tribute[g_province] = (g_prov_tribute[g_province] + 1) % 6;
+                        redraw_province_with_menu();
                     } else {
                         redraw_province_with_menu();  /* other items: stub, no game logic yet */
                     }
