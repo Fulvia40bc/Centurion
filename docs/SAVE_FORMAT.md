@@ -20,3 +20,10 @@
   - BG/FG strip image indices live somewhere in the record (UNVERIFIED exact offset;
     Narbonensis = NEGBGA (MNEGO index 31) + NEGFGX (index 65))
 - Other state (rank, talents, owner, legions, fleets, ...) in the same area — mapping UNVERIFIED.
+
+## Units (map icons)
+- The icon-draw code (EXE 0x2b04 / 0x382a) iterates a **runtime unit array at DS 0x1114..0x115E, 12-byte
+  records** (0xFF-padded = empty). Record layout (UNVERIFIED): type/owner at +0/+1, zone/x at +2/+3.
+  This array is NOT in the save (save covers DS 0x526C-0x5927) - it's rebuilt from province records
+  at load. So map icons derive from province legion/fleet counts, not stored directly.
+- Year: runtime global DS:0x717C (i16, -275 = 275 BC), not in the save.
