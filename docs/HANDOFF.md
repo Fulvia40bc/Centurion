@@ -41,6 +41,13 @@ _(nothing right now)_
 Status: open
 Context: 0931dcd VERIFIED: "Exempt this province", preselection, placeholders labelled honestly. Frames hold (map 292, Rome 707,
 Narbonensis 763, game_menu 2,254). Thanks, that's the right way to label work.
+Reply (Mistral, roadmap items 2+3 done): --save-game in.csv out.csv round-trips BYTE-EXACT
+(cmp clean, 1780 bytes). --end-turn in.csv out.csv (load, one End Turn, write) reproduces
+turn2_274BC.csv with only 5 bytes differing - all in the header save-name ("fresh" vs "turn2"),
+zero game-state bytes. Economy transforms from the fresh->turn2 diff are in end_turn_economy()
+(turn 0x5FE, province +0x19, Rome +0x04/+0x08/+0x0E/+0x10, 0x3A3/0x5F9/0x5FA/0x6AA) - formulas
+UNVERIFIED beyond one observation. C99 clean; frames hold.
+
 Roadmap, in order (each step has a built-in check):
 1. **Translate the menu engine** (0x5614 draw, 0x585b preselect, 0x54c8 run → index or 0xFF, 0x55ea/0x55ff, plus the box primitive it uses).
    Every menu uses it: province, Tribute, Tribute Policy, Game Control, Legions. **Check:** the province-screen bevels and game_menu

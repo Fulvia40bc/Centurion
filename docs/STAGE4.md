@@ -474,3 +474,8 @@ table to locate the image loader instead of grepping the linear sweep.
 - Legions (0x4065): legion array from save CSV 0x3A4; move to adjacent zone via DS:50EC
   (37 zones x 8 neighbours, 0xFF = none). In-memory; map redraws with the moved legion.
 - Diffs hold: map 292, Rome 707, Narb 763, game_menu 2254.
+
+## Stage 55: save write + End Turn economy (roadmap 2+3)
+- --save-game in.csv out.csv: byte-exact round trip (cmp clean).
+- --end-turn in.csv out.csv: matches turn2_274BC.csv except the 5 header name bytes.
+- end_turn_economy() holds the observed fresh->turn2 transforms (single observation, UNVERIFIED formulas).

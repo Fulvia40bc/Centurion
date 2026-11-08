@@ -5,6 +5,8 @@ void game_run(void);
 
 int game_dump_screen(const char *name, const char *outpath);
 int game_dump_frame(const char *outpath, const char *screen, const char *save);
+int game_end_turn(const char *in_path, const char *out_path);
+int game_save_game(const char *in_path, const char *out_path);
 void game_play(void);
 void game_init(void);
 
@@ -17,6 +19,10 @@ int main(int argc, char **argv) {
         platform_shutdown();
         return 0;
     }
+    if (argc > 3 && strcmp(argv[1], "--end-turn") == 0)
+        return game_end_turn(argv[2], argv[3]);
+    if (argc > 3 && strcmp(argv[1], "--save-game") == 0)
+        return game_save_game(argv[2], argv[3]);
     for (int i = 1; i < argc; i++) {
         if (i + 2 < argc && strcmp(argv[i], "--dump-screen") == 0)
             return game_dump_screen(argv[i + 1], argv[i + 2]);

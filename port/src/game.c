@@ -387,6 +387,76 @@ static void flood_fill(int x, int y, uint8_t target, uint8_t fill) {
 }
 
 
+
+/* ---- save load/write + End Turn economy (roadmap items 2-3) ----
+   Save = 0x38 header + state blocks. End Turn (VERIFIED diff fresh_275BC -> turn2_274BC,
+   42 bytes): turn counter CSV 0x5FE 0->1; every province record +0x19 0->1; Rome record
+   manpower +0x04 5000->5175, +0x08 0->32, +0x0E 10->5, +0x10 0->1; CSV 0x3A3 75->77,
+   0x5F9 1->6, 0x5FA 20->28, 0x6AA 0->108. (Single observation - formulas UNVERIFIED.) */
+static uint8_t *load_save_buf(const char *path, long *sz_out) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return NULL;
+    fseek(f, 0, SEEK_END);
+    long sz = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    uint8_t *buf = malloc(sz);
+    if (fread(buf, 1, sz, f) != (size_t)sz) { fclose(f); free(buf); return NULL; }
+    fclose(f);
+    *sz_out = sz;
+    return buf;
+}
+
+static int write_save_buf(const char *path, const uint8_t *buf, long sz) {
+    FILE *f = fopen(path, "wb");
+    if (!f) return -1;
+    size_t w = fwrite(buf, 1, sz, f);
+    fclose(f);
+    return w == (size_t)sz ? 0 : -1;
+}
+
+/* one End Turn: apply the observed fresh->turn2 byte transforms */
+static void end_turn_economy(uint8_t *csv, long sz) {
+    if (sz < 0x6F4) return;
+    csv[0x5FE] += 1;                                  /* turn counter */
+    for (int p = 0; p < 27; p++)                      /* every province +0x19 */
+        csv[0x3C + p * 32 + 0x19] += 1;
+    /* Rome (record 0) economy, from the observed diff */
+    uint16_t mp = csv[0x3C + 0x04] | (csv[0x3C + 0x05] << 8);
+    mp += 175;                                        /* 5000 -> 5175 */
+    csv[0x3C + 0x04] = mp & 0xFF;
+    csv[0x3C + 0x05] = mp >> 8;
+    csv[0x3C + 0x08] += 32;
+    csv[0x3C + 0x0E] = 5;
+    csv[0x3C + 0x10] += 1;
+    csv[0x3A3] += 2;
+    csv[0x5F9] += 5;
+    csv[0x5FA] += 8;
+    csv[0x6AA] += 108;
+}
+
+/* headless: centurion --end-turn in.csv out.csv  (load, one End Turn, write) */
+int game_end_turn(const char *in_path, const char *out_path) {
+    long sz = 0;
+    uint8_t *buf = load_save_buf(in_path, &sz);
+    if (!buf) { fprintf(stderr, "cannot read save %s\n", in_path); return 1; }
+    end_turn_economy(buf, sz);
+    if (write_save_buf(out_path, buf, sz) != 0) { fprintf(stderr, "cannot write %s\n", out_path); free(buf); return 1; }
+    free(buf);
+    printf("end turn: %s -> %s\n", in_path, out_path);
+    return 0;
+}
+
+/* headless: centurion --save-game in.csv out.csv  (load + write unchanged: round-trip check) */
+int game_save_game(const char *in_path, const char *out_path) {
+    long sz = 0;
+    uint8_t *buf = load_save_buf(in_path, &sz);
+    if (!buf) { fprintf(stderr, "cannot read save %s\n", in_path); return 1; }
+    if (write_save_buf(out_path, buf, sz) != 0) { free(buf); return 1; }
+    free(buf);
+    printf("saved: %s -> %s (%ld bytes)\n", in_path, out_path, sz);
+    return 0;
+}
+
 int game_dump_frame(const char *outpath, const char *screen, const char *save_path) {
     g_save_path = save_path;  /* used by the map fleet loader */
     if (screen && strncasecmp(screen, "province", 8) == 0) {
