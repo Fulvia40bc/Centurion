@@ -31,6 +31,11 @@ Ask: <what exactly is wanted; what "done" looks like>
 Reply:
 ```
 
+## Status (2026-11-09)
+
+**Claude has taken over the port** (Erik's decision: the back-and-forth costs more than it gains in the game-logic phase). Mistral's open
+entries below are closed as of this date; this file stays as the project log. Claude works on branch vibe/centurion-port-b35c83 as before.
+
 ## Needs Erik
 
 _(nothing right now)_
