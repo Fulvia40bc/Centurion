@@ -537,7 +537,8 @@ static void draw_map_full(const char *save_path) {
             size_t npix = 0;
             if (assets_load_sheet("INITHDR.LZW", "INITDAT.LZW", ents, &ne, &pix, &npix) == 0) {
                 for (int pass = 0; pass < 2; pass++) {
-                    for (int i = 0; i < 8; i++) {
+                    /* fleets: exactly 6 records (EXE func_0x2af8 loops DS:1114..0x115E); legions: 8 checked here */
+                    for (int i = 0; i < (pass == 0 ? 8 : 6); i++) {
                         int z, ent;
                         if (pass == 0) {  /* legions: CSV 0x3A4, 20-byte records */
                             if (!have) break;
