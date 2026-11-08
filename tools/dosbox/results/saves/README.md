@@ -3,6 +3,8 @@
 | File | What |
 |---|---|
 | fresh_275BC.csv | New game, saved at once (slot 5, "fresh"). Same state as `scr_newgame_map.bin`: `--dump-frame out.bin map --save fresh_275BC.csv` = 583 px off (outline, legion, cursor, ship details). |
+| erik_275BC.csv | Erik's save "erik" (Narbonensis conquered, legion there; turn 0). |
+| erik_turn2_274BC.csv | erik_275BC.csv after one End Turn in the real game (2026-11-09, slot 7 "erik2"). |
 | turn2_274BC.csv | The same game after one End Turn, nothing else done (slot 6, "turn2"). Screenshot: turn2_274BC_map.png (year button shows 274 BC). |
 
 ## fresh → turn2 (42 bytes differ, 5 of them the name)
@@ -11,3 +13,9 @@
 - Rome (record 0): manpower +0x04 5000 → 5175 (0x1388 → 0x1437); +0x08 0 → 32, +0x0E 10 → 5, +0x10 0 → 1.
 - CSV 0x3A3: 75 → 77 (in the save's second block; unknown).
 - Fleet array (CSV 0x48E) unchanged: zones 30, 27, 28.
+
+## End Turn check (port/src/endturn.c, 2026-11-09)
+`centurion --end-turn A.csv out.csv` must equal the real game's next-turn save in every game-state byte (bytes 0x04-0x33, the save name, excepted):
+- fresh_275BC.csv -> turn2_274BC.csv: 0 bytes differ (42 changed by the game).
+- erik_275BC.csv -> erik_turn2_274BC.csv: **0 bytes differ (44 changed by the game)**. This was a held-out test: made after the translation was written.
+Both are turn 0 -> 1. From turn 5 on End Turn uses random events (not ported yet), so later turns need the RNG first.
