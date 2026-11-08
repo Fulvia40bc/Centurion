@@ -744,18 +744,14 @@ static void init_prov_state(const char *save_path) {
 static const char *const TRIBUTE_LEVELS[5] = {"Exempt this province", "Tolerable", "Irritating", "Oppressive", "Bleed Them Dry"};  /* DS:5F6A.. */
 
 static void draw_tribute_menu(void) {
-    int x0 = 60, y0 = 80, w = 120, h = 9 + 5 * 10;
-    ui_rect(g_work, x0, y0, w, h, 26);
-    ui_rect(g_work, x0, y0, w, 2, 15);
-    ui_rect(g_work, x0, y0 + 2, 2, h - 4, 8);
-    ui_rect(g_work, x0 + w - 2, y0 + 2, 2, h - 4, 8);
-    ui_rect(g_work, x0, y0 + h - 2, w, 2, 0);
+    int x0 = 60, y0 = 80, w = 150, h = 90;
+    box(x0, y0, w, h, 2);   /* same window primitive as the province menu */
     ui_text_centered(g_work, x0 + w / 2, y0 + 4, "What level of tribute?", 15);
     for (int i = 0; i < 5; i++) {
-        ui_text(g_work, x0 + 8, y0 + 12 + i * 10, TRIBUTE_LEVELS[i], 0);
+        ui_text(g_work, x0 + 8, y0 + 20 + i * 10, TRIBUTE_LEVELS[i], 0);
         /* preselect the current level (0x585b gets si = current) */
         if (g_province >= 0 && g_province < 27 && g_prov_level[g_province] == i)
-            for (int y = y0 + 12 + i * 10; y < y0 + 12 + i * 10 + 9; y++)
+            for (int y = y0 + 20 + i * 10; y < y0 + 20 + i * 10 + 9; y++)
                 for (int x = x0 + 8; x < x0 + w - 8; x++) {
                     uint8_t *p = &g_work[y * SCREEN_W + x];
                     if (*p == 0) *p = 26; else if (*p == 26) *p = 0;
@@ -766,7 +762,7 @@ static void draw_tribute_menu(void) {
 static int tribute_item_at(int mx, int my) {
     int x0 = 60, y0 = 80, w = 120;
     for (int i = 0; i < 5; i++)
-        if (mx >= x0 && mx <= x0 + w && my >= y0 + 12 + i * 10 && my <= y0 + 12 + i * 10 + 10)
+        if (mx >= x0 && mx <= x0 + w && my >= y0 + 20 + i * 10 && my <= y0 + 20 + i * 10 + 10)
             return i;
     return -1;
 }
