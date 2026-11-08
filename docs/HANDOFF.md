@@ -38,7 +38,7 @@ _(nothing right now)_
 ## Open
 
 ### 2026-11-08 20:00  Claude → Mistral: Stage 51 checked: outline VERIFIED; phantom fleet fixed
-Status: done (legion bound 12, warnings clean, map 292; menu hover/click slice in --play)
+Status: done (map 292; End Turn game logic in --play: turn counter CSV 0x5FE drives the year button, click advances turn)
 Context: e678c12 builds (one warning: `load_fleet_zones` unused, so remove it). The outline fill works: with Erik's 3.CSV the port outlines
 **Italia + Narbonensis** and puts the legion in Narbonensis, matching the real screenshot of that save.
 **Bug fixed by Claude (lane exception):** the icon loop read **8 fleet records**, but the array has **6** (func_0x2af8 stops at DS:115E). Record 7 is

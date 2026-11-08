@@ -7,6 +7,7 @@
 #include <stdlib.h>
 
 static uint8_t g_fb[SCREEN_W * SCREEN_H];
+static int g_turn = 0;        /* turn counter (save CSV 0x5FE); year = 275 - turn */
 static void draw_map_buttons(void);
 static void draw_map_full(const char *save_path);
 static const char *g_save_path;      /* what SDL shows */
@@ -449,9 +450,7 @@ int game_dump_frame(const char *outpath, const char *screen, const char *save_pa
 static void draw_map_buttons(void) {
     if (!g_ovl0) return;
     static char year_txt[16];
-    int turn = g_save_path ? load_turn(g_save_path) : load_turn("3.CSV");
-    if (turn < 0) turn = load_turn("0.CSV");
-    if (turn < 0) turn = 0;
+    int turn = g_turn;
     snprintf(year_txt, sizeof(year_txt), "%d BC", 275 - turn);
     const char *txt0 = "End Turn";
     const char *txt1 = year_txt;
@@ -645,6 +644,13 @@ void game_play(void) {
     g_screen = 0;
     g_province = 0;
     g_last_click = 0;
+    {
+        int t = g_save_path ? load_turn(g_save_path) : -1;
+        if (t < 0) t = load_turn("tools/dosbox/results/saves/fresh_275BC.csv");
+        if (t < 0) t = load_turn("3.CSV");
+        if (t < 0) t = load_turn("0.CSV");
+        g_turn = t < 0 ? 0 : t;
+    }
     draw_map_screen();
     input_t in;
     const uint32_t frame_ms = 1000 / FPS;
@@ -655,6 +661,16 @@ void game_play(void) {
         int click = in.mouse_buttons & 1;
         if (click && !g_last_click) {
             if (g_screen == 0) {
+                /* End Turn button (first button rect from DS:3C42) -> advance the turn */
+                if (g_ovl0) {
+                    const uint8_t *d = g_ovl0 + 0xB400 + 0x3C42;
+                    int x0 = d[0] | (d[1] << 8), y0 = d[2] | (d[3] << 8);
+                    int x1 = d[4] | (d[5] << 8), y1 = d[6] | (d[7] << 8);
+                    if (in.mouse_x >= x0 && in.mouse_x <= x1 && in.mouse_y >= y0 && in.mouse_y <= y1) {
+                        g_turn++;
+                        draw_map_screen();   /* year button updates */
+                    }
+                }
                 for (size_t i = 0; i < sizeof(g_regions)/sizeof(g_regions[0]); i++) {
                     const __typeof__(g_regions[0]) *r = &g_regions[i];   /* typeof is GNU-only; breaks the -std=c99 Windows build */
                     if (in.mouse_x >= r->x0 && in.mouse_x <= r->x1 &&
