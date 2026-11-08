@@ -8,6 +8,7 @@
 
 static uint8_t g_fb[SCREEN_W * SCREEN_H];
 static void draw_map_buttons(void);
+static void draw_map_full(const char *save_path);
 static const char *g_save_path;      /* what SDL shows */
 static uint8_t g_work[SCREEN_W * SCREEN_H];    /* off-screen work buffer, like the original */
 static rgb_t g_palette[256];
@@ -354,6 +355,32 @@ static int load_turn(const char *path) {
     return t;
 }
 
+
+/* 4-connected flood fill on the work buffer (matches EXE func_0x22ea): replaces the
+   connected region of colour `target` containing (x,y) with `fill`. */
+static void flood_fill(int x, int y, uint8_t target, uint8_t fill) {
+    if (x < 0 || y < 0 || x >= SCREEN_W || y >= SCREEN_H) return;
+    if (g_work[y * SCREEN_W + x] != target) return;
+    static int32_t stack[64000];
+    int sp = 0;
+    stack[sp++] = y * SCREEN_W + x;
+    g_work[y * SCREEN_W + x] = fill;
+    while (sp > 0) {
+        int32_t p = stack[--sp];
+        int px = p % SCREEN_W, py = p / SCREEN_W;
+        static const int dx[4] = {1, -1, 0, 0};
+        static const int dy[4] = {0, 0, 1, -1};
+        for (int i = 0; i < 4; i++) {
+            int nx = px + dx[i], ny = py + dy[i];
+            if (nx < 0 || ny < 0 || nx >= SCREEN_W || ny >= SCREEN_H) continue;
+            if (g_work[ny * SCREEN_W + nx] == target) {
+                g_work[ny * SCREEN_W + nx] = fill;
+                stack[sp++] = ny * SCREEN_W + nx;
+            }
+        }
+    }
+}
+
 /* fleet zones from a save: CSV 0x48E = DS 0x1114, 6 x 12-byte records, byte0 = zone.
    Returns record count, or -1 if the file can't be read. */
 static int load_fleet_zones(const char *path, uint8_t *zones, int maxz) {
@@ -398,72 +425,13 @@ int game_dump_frame(const char *outpath, const char *screen, const char *save_pa
             if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
         }
         /* world map + top-right year/End-Turn box (measured from scr_newgame_map.bin) */
-        {
-            img_entry_t imgs[256];
-            int n = assets_scan_images(".", imgs, 256);
-            for (int i = 0; i < n; i++)
-                if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
-        }
+        draw_map_full(g_save_path);
         draw_map_buttons();
-        /* map icons from the zone anchor table DS:1AB8 + INIT sheet (VERIFIED anchors:
-           zone 0 Italia (125,114), 27 (254,144), 28 (220,138), 30 (144,166); icon drawn at
-           anchor + (4,0) - hotspot). Fresh-game units: legion in zone 0, fleets in 27/28/30. */
-        {
-            FILE *f = fopen("OVL0.OVL", "rb");
-            static uint8_t ovl0[0x20000];
-            if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
-        }
-        if (assets_load("MINIT.DIR", "MINIT.DAT") == 0) {
-            sprite_ent_t ents[16];
-            int n = 0;
-            uint8_t *pix = NULL;
-            size_t npix = 0;
-            if (assets_load_sheet("INITHDR.LZW", "INITDAT.LZW", ents, &n, &pix, &npix) == 0 && g_ovl0) {
-                /* fleets from the save (CSV 0x48E = DS 0x1114, 6 x 12-byte records, byte0 = zone);
-                   legion at zone 0 for the fresh game (legion array in save tail: UNVERIFIED) */
-                uint8_t zones[8];
-                int nz = 0;
-                zones[nz++] = 0;  /* legion, INIT ent2 (fresh game) */
-                {
-                    int nf = -1;
-                    if (g_save_path)
-                        nf = load_fleet_zones(g_save_path, zones + 1, 7);  /* explicit: fail loudly below */
-                    else {
-                        nf = load_fleet_zones("tools/dosbox/results/saves/fresh_275BC.csv", zones + 1, 7);
-                        if (nf < 0) nf = load_fleet_zones("3.CSV", zones + 1, 7);
-                        if (nf < 0) nf = load_fleet_zones("0.CSV", zones + 1, 7);
-                    }
-                    if (nf < 0) {
-                        if (g_save_path) { fprintf(stderr, "cannot read save %s\n", g_save_path); return 1; }
-                        zones[nz++] = 27; zones[nz++] = 28; zones[nz++] = 30;  /* no-save fallback */
-                    } else {
-                        nz += nf;
-                    }
-                }
-                for (int i = 0; i < nz && 2 < n; i++) {
-                    int z = zones[i];
-                    int ent = (i == 0) ? 2 : 8;   /* ent2 = legion, ent8 = ship */
-                    uint16_t ax = g_ovl0[0xB400 + 0x1AB8 + 4*z] | (g_ovl0[0xB400 + 0x1AB8 + 4*z + 1] << 8);
-                    uint16_t ay = g_ovl0[0xB400 + 0x1AB8 + 4*z + 2] | (g_ovl0[0xB400 + 0x1AB8 + 4*z + 3] << 8);
-                    sprite_ent_t *e = &ents[ent];
-                    const uint8_t *t = assets_lut(e->lut ? e->lut : 11);
-                    if (!t) t = assets_lut(11);
-                    assets_blit_sprite(pix, e, t, g_work, SCREEN_W, SCREEN_H,
-                                       ax + 4 - e->xhot, ay - e->yhot);
-                }
-                free(pix);
-            }
-        }
     } else if (screen && strcasecmp(screen, "game_menu") == 0) {
         if (assets_load_luts("OVL0.OVL") != 0) return 1;
         if (assets_load_font("OVL0.OVL") != 0) return 1;
         /* map background + centred Game Control Menu (measured from scr_game_control_menu.bin) */
-        {
-            img_entry_t imgs[256];
-            int n = assets_scan_images(".", imgs, 256);
-            for (int i = 0; i < n; i++)
-                if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
-        }
+        draw_map_full(g_save_path);
         /* exact box from capture: top y80=15/y81=26/y82=8, left x84=8, right x248+x250=8,
            bottom y194=8/y195=0, interior 26 */
         ui_rect(g_work, 83, 80, 167, 117, 26);
@@ -524,6 +492,77 @@ static void draw_map_buttons(void) {
         ui_rect(g_work, x1 - 3, y0 + 4, 1, h - 7, 8);
         ui_text_centered(g_work, x0 + w / 2, y0 + 4, b == 0 ? txt0 : txt1, 15);
     }
+}
+
+
+/* full map screen: MAP.CBM + territory flood-fills + buttons + unit icons.
+   Outline: flood-fill colour 104 (MAP border line) -> 9 (blue) from DS:3C52 seeds,
+   for each province with status byte (save +0x15) != 0 (VERIFIED: 583 -> 293 px).
+   Units: legions from save CSV 0x3A4 (DS:1924, 20-byte records, byte0 = zone);
+   fleets from CSV 0x48E (DS:1114, 12-byte records, byte2 == 0xFF = empty). */
+static void draw_map_full(const char *save_path) {
+    if (assets_load_luts("OVL0.OVL") != 0) return;
+    if (assets_load_font("OVL0.OVL") != 0) return;
+    {
+        FILE *f = fopen("OVL0.OVL", "rb");
+        static uint8_t ovl0[0x20000];
+        if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
+    }
+    img_entry_t imgs[256];
+    int n = assets_scan_images(".", imgs, 256);
+    for (int i = 0; i < n; i++)
+        if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
+    /* territory outline: seeds DS:3C52, status from save province records */
+    {
+        static uint8_t csv[2048];
+        const char *sv = save_path ? save_path : "tools/dosbox/results/saves/fresh_275BC.csv";
+        FILE *f = fopen(sv, "rb");
+        if (!f && !save_path) f = fopen("3.CSV", "rb");
+        if (!f && !save_path) f = fopen("0.CSV", "rb");
+        int have = f && fread(csv, 1, sizeof(csv), f) > 0x4D5;
+        if (f) fclose(f);
+        for (int p = 0; p < 27 && g_ovl0; p++) {
+            int status = have ? csv[0x3C + p * 32 + 0x15] : (p == 0 ? 4 : 0);
+            if (status != 0) {
+                uint16_t sx = g_ovl0[0xB400 + 0x3C52 + 4*p] | (g_ovl0[0xB400 + 0x3C52 + 4*p + 1] << 8);
+                uint16_t sy = g_ovl0[0xB400 + 0x3C52 + 4*p + 2] | (g_ovl0[0xB400 + 0x3C52 + 4*p + 3] << 8);
+                flood_fill(sx, sy, 104, 9);
+            }
+        }
+        /* unit icons: legions then fleets (icons drawn after the outline, as the original) */
+        if (assets_load("MINIT.DIR", "MINIT.DAT") == 0 && g_ovl0) {
+            sprite_ent_t ents[16];
+            int ne = 0;
+            uint8_t *pix = NULL;
+            size_t npix = 0;
+            if (assets_load_sheet("INITHDR.LZW", "INITDAT.LZW", ents, &ne, &pix, &npix) == 0) {
+                for (int pass = 0; pass < 2; pass++) {
+                    for (int i = 0; i < 8; i++) {
+                        int z, ent;
+                        if (pass == 0) {  /* legions: CSV 0x3A4, 20-byte records */
+                            if (!have) break;
+                            z = csv[0x3A4 + i * 20];
+                            ent = 2;
+                        } else {          /* fleets: CSV 0x48E, 12-byte records, byte2==0xFF empty */
+                            if (!have) break;
+                            if (csv[0x48E + i * 12 + 2] == 0xFF) continue;
+                            z = csv[0x48E + i * 12];
+                            ent = 8;
+                        }
+                        if (z == 0xFF || z >= 37 || ent >= ne) continue;
+                        uint16_t ax = g_ovl0[0xB400 + 0x1AB8 + 4*z] | (g_ovl0[0xB400 + 0x1AB8 + 4*z + 1] << 8);
+                        uint16_t ay = g_ovl0[0xB400 + 0x1AB8 + 4*z + 2] | (g_ovl0[0xB400 + 0x1AB8 + 4*z + 3] << 8);
+                        const uint8_t *t = assets_lut(ents[ent].lut ? ents[ent].lut : 11);
+                        if (!t) t = assets_lut(11);
+                        assets_blit_sprite(pix, &ents[ent], t, g_work, SCREEN_W, SCREEN_H,
+                                           ax + 4 - ents[ent].xhot, ay - ents[ent].yhot);
+                    }
+                }
+                free(pix);
+            }
+        }
+    }
+    draw_map_buttons();
 }
 
 /* ---- playable slice: map <-> province <-> back (no game logic yet) ---- */

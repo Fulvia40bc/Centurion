@@ -446,3 +446,8 @@ table to locate the image loader instead of grepping the linear sweep.
   province border data + draw routine, not yet located statically).
 - Map now 583 px with fresh_275BC.csv as input. Buttons 0 px. Remaining: territory fill (~470),
   legion marker detail, cursor, ship pixels (~112).
+
+## Stage 51: territory outline + units from save
+- Outline = 4-connected flood fill of MAP.CBM border colour 104 -> 9 (blue), seeded per owned
+  province from DS:3C52 (VERIFIED). Legions: save CSV 0x3A4 (DS:1924, 20-byte records, byte0=zone).
+  Fleets: CSV 0x48E (byte2==0xFF empty). Map 583 -> 379 px; game_menu 3810 -> 2254 (map bg behind menu).
