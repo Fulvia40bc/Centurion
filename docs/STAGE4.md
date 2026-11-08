@@ -465,7 +465,11 @@ table to locate the image loader instead of grepping the linear sweep.
   0 Legions -> 0x4065; 1 Plunder -> 0x6db2 (walks legion records); 2 Tribute -> 0x7ce0;
   3 Hold Games -> 0x3342; 4 Build Fleet -> 0x2458; 5 See Province List -> 0x69cc; 6 Continue -> exit.
 
-## Stage 54: See Province List + Legions movement
+## Stage 54: See Province List + Legions movement (PLACEHOLDERS, not full translations)
+- NOTE (per Claude): these are placeholders, not translations of 0x69cc/0x4065. The real 0x69cc
+  sizes the box from the count + font metrics and pages at 14 rows; the real 0x4065 is ~330
+  instructions with two menus and battle entry. The port's list box and click-to-move are
+  approximations and should be replaced when those routines are translated.
 - Province list screen (0x69cc): owned provinces (status!=0) listed by name (DS:5222).
 - Legions (0x4065): legion array from save CSV 0x3A4; move to adjacent zone via DS:50EC
   (37 zones x 8 neighbours, 0xFF = none). In-memory; map redraws with the moved legion.
