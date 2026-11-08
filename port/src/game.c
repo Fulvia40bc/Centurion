@@ -729,7 +729,7 @@ static void draw_province_list(const char *save_path) {
     ui_rect(g_work, x0, y0 + 2, 2, h - 4, 8);
     ui_rect(g_work, x0 + w - 2, y0 + 2, 2, h - 4, 8);
     ui_rect(g_work, x0, y0 + h - 2, w, 2, 0);
-    ui_text_centered(g_work, x0 + w / 2, y0 + 4, "Provinces", 15);
+    ui_text_centered(g_work, x0 + w / 2, y0 + 4, "Province List", 15);
     int row = 0;
     for (int p = 0; p < 27 && row < 12; p++) {
         int status = have ? csv[0x3C + p * 32 + 0x15] : (p == 0 ? 4 : 0);
