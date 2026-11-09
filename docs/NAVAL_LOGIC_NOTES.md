@@ -530,8 +530,11 @@ rng(3).
 2. **Boarding bonus to the wrong side (G, looks inverted).** `bb99: and al,2 / je / add byte [0xc36e],0xa` gives +10 to the
    ENEMY's courage when the Romans board (value 2 = 95D2[1]; the text for value 2 is "Your sailors cheer lustily as they
    swing across and board the enemy flagship"), and the enemy's boarding (value 1) helps the Romans. In a head-on ram both
-   values are set and the bonuses cancel. Proposed fix: value 2 -> C36F, value 1 -> C36E. Ask Erik: it could be meant as a
-   defender's advantage.
+   values are set and the bonuses cancel. **FIXED by default (10 Nov, Erik deferred the ruling to Claude):** value 2 ->
+   C36F, value 1 -> C36E; `--original` keeps the swap. Reasons: 95D2 = {1, 2} is bit 1 << s, and the code pairs bit 2 with
+   index 0 - the usual bit-order/array-order slip; the corvus is the Roman side's only boarding weapon (the enemy never
+   throws hooks), so a penalty for using it would undo its point; and the text for value 2 is a morale line ("cheer
+   lustily"). A defender's advantage would more likely be written as a bonus in BD41 for the side not boarding.
 3. **Hull below zero is not "sunk" (D, rare).** B376 and B422/B436 test `== 0`; only C71B (in the redraw, every 3 ticks)
    clamps negative hulls to 0. A pot hit or ram in a pass without a redraw leaves e.g. -3, the duel goes on for up to 3
    ticks, and if it ends in that window ('r', D242) the flagship counts as afloat: no flag bit, and B45F gives it back to
@@ -597,5 +600,5 @@ rng(3).
   against the sheets when porting.
 - Which key code 03AA returns for Insert (0x10 per BATTLE_UI_NOTES) and whether `R` (upper case) is ever seen (only 0x72 is
   tested).
-- 13.2 (boarding bonus) needs Erik's ruling.
+- 13.2 (boarding bonus): fixed by default on 10 Nov (see 13.2).
 - Music ids 13..16 -> CN9A..CN9D is not checked against the music table.

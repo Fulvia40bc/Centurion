@@ -54,9 +54,10 @@
  * port cancels the battle; --original takes the trireme, G), the second shark's start (naval_gfx.c D60C), the
  * cycled water colours never restored (C18C has no caller; naval_gfx.c), the MEN line printed in the big box font after
  * "No" to re-engage (b3db sets A05C, nothing puts A3B4 back before b479's C71B; NAVAL_SCREEN_NOTES 9.2) and a battle
- * started by B0E0 / 4ADA with a Roman fleet already gone (FLEET_NOTES 9.3; fleet.c). NOT changed, for Erik to rule (13.2, G): when
- * the Romans board (value 2), BB7E gives the +10 courage to the ENEMY (C36E), and the enemy's boarding helps the Romans
- * - it looks inverted but could be a defender's advantage. Also kept: a sunk flagship's 1% rolls in DA50 (13.4), the
+ * started by B0E0 / 4ADA with a Roman fleet already gone (FLEET_NOTES 9.3; fleet.c), and 13.2: BB7E gave the boarding
+ * +10 courage to the side that was boarded (bits 95D2[s] = 1 << s, but bit 2 raised C36E[0]) - a bit-to-index swap, not
+ * a defender's advantage: the corvus is Rome's own boarding weapon and the text cheers "Your sailors cheer lustily"
+ * (ruled 10 Nov; Erik deferred to Claude). Also kept: a sunk flagship's 1% rolls in DA50 (13.4), the
  * fled admiral's ship rejoining its fleet (b45f before b493), the enemy's fixed Senator row 99C2, D242's double push.
  * Easter eggs kept: the witless commander, "In spite of their admiral's bath" (won after YOUR flagship sank: bit 0 is
  * the Roman, so "their" is the fleet's own admiral), "Neptune's locker without a sword", "together forever in a deadly
@@ -669,16 +670,19 @@ static uint16_t melee_BD41(uint8_t courage, int s) {
         if (nv_rng(0x64) < courage && nv_rng(0x64) < 0x19) k++;
     return k;
 }
-/* BB7E(bits, e, r): the boarding fight: a pause of 36 ticks, +10 courage (13.2, kept: value 2 = the ROMAN boarded gives
-   it to the enemy, C36E), both crews fight in rounds rng(108) ticks apart until one is gone and 20 frames have passed
+/* BB7E(bits, e, r): the boarding fight: a pause of 36 ticks, +10 courage to the side that boarded (13.2: the 1990 code,
+   kept under --original, gave it to the other side: value 2 = the ROMAN boarded raised C36E, the enemy's), both crews fight in rounds rng(108) ticks apart until one is gone and 20 frames have passed
    (a frame every 9 ticks: both ships, smoke rng(3), the panel); then the message */
 static void board_BB7E(uint16_t bits) {
     uint8_t n = 0x14;                                                /* [bp-1] */
     key_flush();                                                     /* 04ED */
     B(SPEEDMSG) = 0;
     nv_wait_011F(0x24);
-    if (bits & 2) B(COUR(0)) = (uint8_t)(B(COUR(0)) + 0x0A);
-    if (bits & 1) B(COUR(1)) = (uint8_t)(B(COUR(1)) + 0x0A);
+    {   /* bit 95D2[s] = 1 << s marks side s as the boarder; 1990 bug 13.2 gave the +10 to the other side */
+        int sw = g_original_bugs ? 1 : 0;
+        if (bits & 2) B(COUR(1 ^ sw)) = (uint8_t)(B(COUR(1 ^ sw)) + 0x0A);
+        if (bits & 1) B(COUR(0 ^ sw)) = (uint8_t)(B(COUR(0 ^ sw)) + 0x0A);
+    }
     B(OARF(1)) = 6; B(OARF(0)) = 6;
     setW(ROUNDT, 0x48);
     int16_t cx = (int16_t)((int16_t)(SW(PX(1)) + SW(PX(0))) / 2);    /* [bp-4] */
