@@ -202,6 +202,7 @@ static void box(int x, int y, int w, int h, int sep_rows) {
 
 /* ---- province screen, driven by game data (EXE func_0x6f0c + menu DS:573C) ---- */
 static const uint8_t *g_ovl0;
+
 /* load a DS menu record from OVL0 into a menu_t */
 static void load_menu(menu_t *m, uint16_t rec_ds) {
     ui_menu_load(m, g_ovl0, rec_ds);
@@ -222,9 +223,21 @@ typedef struct {
     const char *bg, *fg;     /* layered strip: NEGBG?/NEGFG? (non-city) */
     int sky;                 /* sky fill color for layered strips */
     int swap_plunder;        /* Rome: item 1 "Plunder" -> "Tribute Policy" (DS:59AB), documented exception */
-    const char *status, *courage, *rank;
+    int status_idx, courage_idx;   /* resolved via DS:57B2 / DS:7486 at draw */
+    const char *rank;
     int tribute, manpower, talents, mood;  /* mood = func_0x6c26 index 0..3 */
 } province_t;
+
+
+/* DS name tables: status DS:57B2 (index = record +0x15), mood DS:5734, courage DS:7486 */
+static const char *ds_table_str(uint16_t table_ds, int idx) {
+    static char buf[96];
+    if (!g_ovl0 || idx < 0) return "?";
+    uint16_t p = g_ovl0[0xB400 + table_ds + idx * 2] | (g_ovl0[0xB400 + table_ds + idx * 2 + 1] << 8);
+    const char *s = ds_str(p);
+    snprintf(buf, sizeof(buf), "%s", s);
+    return buf;
+}
 
 static void draw_province(const province_t *p) {
     memset(g_work, 116, sizeof(g_work));
@@ -277,14 +290,13 @@ static void draw_province(const province_t *p) {
     /* status panel (func_0x6f0c): mood line centred (239,86), rest left x=171 */
     box(164, 63, 151, 134, 3);
     {
-        static const char *moods[4] = {"Rebellious", "Angry", "Restless", "Content"};  /* DS:5734 */
         char line[128];
-        snprintf(line, sizeof(line), "The people are %s", moods[p->mood & 3]);
+        snprintf(line, sizeof(line), "The people are %s", ds_table_str(0x5734, p->mood & 3));
         ui_text_centered(g_work, 239, 86, line, 0);
-        snprintf(line, sizeof(line), "Status: %s", p->status);   ui_text(g_work, 171, 106, line, 0);
+        snprintf(line, sizeof(line), "Status: %s", ds_table_str(0x57B2, p->status_idx));   ui_text(g_work, 171, 106, line, 0);
         snprintf(line, sizeof(line), "Tribute: %d", p->tribute); ui_text(g_work, 171, 117, line, 0);
         snprintf(line, sizeof(line), "Manpower: %d", p->manpower); ui_text(g_work, 171, 128, line, 0);
-        snprintf(line, sizeof(line), "Courage: %s", p->courage); ui_text(g_work, 171, 139, line, 0);
+        snprintf(line, sizeof(line), "Courage: %s", ds_table_str(0x7486, p->courage_idx)); ui_text(g_work, 171, 139, line, 0);
         snprintf(line, sizeof(line), "Rank: %s", p->rank);       ui_text(g_work, 171, 156, line, 0);
         snprintf(line, sizeof(line), "Talents: %d", p->talents);  ui_text(g_work, 171, 167, line, 0);
         ui_text_centered(g_work, 239, 180, "Galley Slave level", 0);
@@ -333,8 +345,7 @@ static int load_province_csv(const char *path, int idx, province_t *p) {
     const uint8_t *rec = buf + 0x3C + idx * 32;   /* CSV 0x38 == DS 0x526C; records at +4 (VERIFIED) */
     p->manpower = rec[0x04] | (rec[0x05] << 8);
     p->tribute = rec[0x11];
-    p->status = (rec[0x15] == 1) ? "Occupied" : (rec[0x15] == 2) ? "Ally" :
-                (rec[0x15] == 3) ? "Colony" : "Citizens";
+    p->status_idx = rec[0x15];
     p->mood = 0;  /* func_0x6c26 formula UNVERIFIED in port */
     p->name = (idx == 0) ? ds_str(0x5A42) : prov_name(idx);  /* ROME special case DS:5A42 (UNVERIFIED rule) */
     p->strip = (idx == 0) ? "ROME.CBM" : NULL;
@@ -342,7 +353,7 @@ static int load_province_csv(const char *path, int idx, province_t *p) {
     p->fg = (idx != 0) ? "NEGFGX.CBM" : NULL;
     p->sky = (idx != 0) ? 23 : 0;
     p->swap_plunder = 0;
-    p->courage = "Fierce"; p->rank = "Officer"; p->talents = 20;  /* UNVERIFIED from save */
+    p->courage_idx = 3; p->rank = "Officer"; p->talents = 20;  /* courage/rank/talents UNVERIFIED from save */
     free(buf);
     return 0;
 }
@@ -350,7 +361,7 @@ static int load_province_csv(const char *path, int idx, province_t *p) {
 static void draw_province_rome(void) {
     (void)load_province_csv;  /* save-driven play mode comes next; dump frames use capture state */
     static const province_t rome = {"ROME", "ROME.CBM", NULL, NULL, 0, 1,
-        "Citizens", "Fierce", "Officer", 8, 5000, 20, 0};
+        4, 3, "Officer", 8, 5000, 20, 0};
     draw_province(&rome);
 }
 
@@ -439,7 +450,7 @@ int game_dump_frame(const char *outpath, const char *screen, const char *save_pa
         g_ovl0 = ovl0;
         if (strcasecmp(screen, "province_narbonensis") == 0) {
             static const province_t narb = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, 0,
-                "Occupied", "Good", "Officer", 0, 5279, 20, 0};
+                1, 2, "Officer", 0, 5279, 20, 0};
             draw_province(&narb);
         } else {
             draw_province_rome();
@@ -618,11 +629,11 @@ static void draw_province_screen(int prov) {
         /* no save: capture-matching defaults */
         if (prov == 0) {
             static const province_t def = {"ROME", "ROME.CBM", NULL, NULL, 0, 1,
-                "Citizens", "Fierce", "Officer", 8, 5000, 20, 0};
+                4, 3, "Officer", 8, 5000, 20, 0};
             p = def;
         } else {
             static const province_t def = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, 0,
-                "Occupied", "Good", "Officer", 0, 5279, 20, 0};
+                1, 2, "Officer", 0, 5279, 20, 0};
             p = def;
         }
     }

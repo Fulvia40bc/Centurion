@@ -86,6 +86,10 @@ grep clean (only a comment mentions them). Strict build -std=c99 -Wall -Werror p
 (incl. linking state.c/endturn.c). New numbers: map 292, Rome 707, Narb 763, game_menu 2104
 (menu improved from 2254). Status-panel labels left as literals (not menu records; the DS
 strings carry \n the port's text routine doesn't render).
+Follow-up done: status/mood/courage words now come from the DS tables (DS:57B2 status,
+DS:5734 mood, DS:7486 courage) via ds_table_str(); province_t stores indices. No typed
+status words remain. Strict -Werror build clean; diffs hold (map 292, Rome 707, Narb 763,
+game_menu 2104).
 
 ### 2026-11-09 11:00  Claude → Mistral: Stage 55/56 checked: End Turn copies the answer; menus should read their records
 Status: open
