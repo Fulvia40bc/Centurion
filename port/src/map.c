@@ -10,9 +10,8 @@
  *
  * Not ported here (as screen.c): the mouse cursor (0x1D55 / 0x1D8A / 0x1CCE), the music driver (the file loading of
  * 0x5D73 / 0x5EB5 and the driver calls of 0x5D29 / 0x5D20; their DS writes, the slot table DS:A6B0 and [3EEE], are done)
- * and the disk swap prompts (0x1E21). Fleet select / move
- * (0x2C6F, 0x2F5A, 0x2B40) and the victory sequence (section 4 DF58, not disassembled) are not ported: a message box
- * says so and the DS is left as it is.
+ * and the disk swap prompts (0x1E21). The fleet orders (0x2C6F, 0x2F5A, 0x2B40) are in fleet.c. The victory sequence
+ * (section 4 DF58, not disassembled) is not ported: a message box says so and the DS is left as it is.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +21,7 @@
 #include "state.h"
 #include "assets.h"
 #include "legions.h"
+#include "fleet.h"
 
 static const char *dstr(uint16_t a) { return (const char *)&g_ds[a]; }
 
@@ -144,6 +144,7 @@ static void sprite8e62(uint8_t *fb, uint16_t spr, int x, int y) {
         }
     }
 }
+void map_sprite_8e62(uint8_t *fb, uint16_t spr, int x, int y) { sprite8e62(fb, spr, x, y); }   /* fleet.c: 2B40's markers */
 
 /* ---- the flood fill (0x22CC alloc of a 500-entry ring of {x, y}, 0x22EA fill, 0x22E2 free) ---- */
 /* 0x83BD get_pixel(x, y) of the work buffer. Outside the picture the original reads past its row table; the port
@@ -252,7 +253,7 @@ static void army_icons(void) {
    the load as successful (G: the file is in its archive and 863E finds the memory). From OVL0 [3EEC] is 0 (V), so in a
    port game started with --play or a .CSV only the 0 handle is written, as in the original with the sound off; DS
    images captured in DOSBox have [3EEC] = FFFF (V) and then the slot is taken as in the original. */
-static void music_load_5D73(uint8_t m) {
+void music_load_5D73(uint8_t m) {                  /* also naval.c (BF50 loads cn9a..cn9d) */
     for (int i = 0; i < 4; i++)
         if (B(0xA6B2 + 4 * i) != 0 && B(0xA6B3 + 4 * i) == m) return;
     int k = 0;
@@ -371,8 +372,11 @@ void map_loop(void) {
                     if (f == 0xFF) zone_info(z);
                     else if (btn != 1) right_button(btn, z);
                     else if (f >= 3) zone_info(z);
-                    else                                  /* 0x08C9: 2C6F select, 3F23, 2F5A info, 2B40 move */
-                        message_box("Fleet orders (Select Fleet, moving a fleet)\nare not ported yet.");
+                    else {                                /* 0x08C9: 2C6F select, 3F23, 2F5A info, 2B40 move */
+                        f = fleet_select_2c6f(z);
+                        legions_close_box();
+                        if (f < 3) { fleet_info_2f5a(f); fleet_move_2b40(f); }
+                    }
                 }
             }
         } else {                                          /* 0x091B: toupper([C07F]) (9DDC) */

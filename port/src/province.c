@@ -27,6 +27,7 @@
 #include "state.h"
 #include "assets.h"
 #include "legions.h"
+#include "fleet.h"
 
 #define P(z)   ((uint16_t)((uint16_t)(uint8_t)(z) << 5))      /* + 0x5270..: province record 5270 + 32z */
 #define AC60   0xAC60u
@@ -660,7 +661,7 @@ void zone_info(int zi) {
 
 /* ---- Complete Fleet List 0x2FD6 ---- */
 /* 0x2D60 fleets_in(z): A69C = free fleets in z, A6A1 = fleets in service, A69E[] = the fleets in z; returns their count */
-static uint8_t fleets_in2d60(uint8_t z) {
+uint8_t fleets_in2d60(uint8_t z) {                                    /* also fleet.c (2C6F, 2DB2) */
     uint8_t n = 0;
     B(0xA69C) = 0; B(0xA6A1) = 0;
     uint8_t dl = 0;
@@ -695,6 +696,8 @@ static void fleet_row2e96(int y, uint8_t f) {
     text8be4(0x100, y, buf);
     text8be4(0x127, y, dstr(W(0x1B54 + 2 * B(b + 0x1116))));
 }
+/* 0x2E96 for fleet.c (2DB2, 2F5A): drawn on fb */
+void province_fleet_row(uint8_t *fb, int y, uint8_t f) { uint8_t *s = g_fb; g_fb = fb; fleet_row2e96(y, f); g_fb = s; }
 void fleet_list(void) {                                               /* 0x2FD6 */
     fleets_in2d60(B(0xC080));                                         /* after 1D55(0) */
     if (B(0xA6A1) != 0) {

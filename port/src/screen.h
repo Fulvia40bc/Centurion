@@ -25,7 +25,8 @@ int  yes_no(const char *s);      /* 0x5C20 with the Yes/No record DS:3E5A: 1 yes
 int  menu_choose(menu_t *m, int mode, int pre);  /* 5614 draw + 54C8 until chosen (585B highlight + release wait); -1 Esc */
 void screen_shot(const char *name);              /* headless: write g_scr to <shotdir>/<name>.bin */
 /* scripted input (headless tests): screen_script(path, shotdir) loads lines "click X Y", "rclick X Y", "key C" (C = a char,
-   or esc/enter/space/ins), "shot NAME", "battle F T", "orders T:ops;...", "end"; wait_input/key_poll consume them in order;
+   or esc/enter/space/ins), "shot NAME", "battle F T", "orders T:ops;...", "hold KEY N", "wait N" (real-time loops, see
+   screen.c), "end"; wait_input/key_poll consume them in order;
    when they run out, screen_quit() becomes true, wait_input returns 0 with B(0xC07F) = 0, and every loop must then exit. */
 void screen_script(const char *path, const char *shotdir);
 /* battle_ui_attach(1) makes battle_auto() fight on screen through battle_ui.c (menus, ticks, orders, report) instead of
@@ -77,5 +78,13 @@ void mouse_warp(int x, int y);          /* 0x066A: W(0xB6)/W(0xB8) = x, y and IN
 void wait_click(void);                  /* 0x35F9: 35DB, 359B, 35DB */
 int  mouse_poll(void);                  /* 0x0644 for the loops that poll: W(0xB2) after it. In a script it takes the next line
                                            when that is a click (as 0x359B's poll); in the window it reads the window. */
+/* For real-time loops (naval.c; see screen.c's header: script lines "hold KEY N" and "wait N") */
+int  key_read(void);                    /* 0x03AA without showing the screen (the loop presents its own frames) */
+int  mouse_poll_input(void);            /* mouse_poll without showing the screen (the window's events only) */
+void key_flush(void);                   /* 0x04ED: the window's key buffer */
+void screen_tick(void);                 /* one tick of the loop has passed (the script's wait / hold lines run down) */
+int  screen_held_dirs(void);            /* held direction keys as DS:00A2 bits: Up 8, Down 4, Left 2, Right 1 */
+void screen_dac(int i, int r, int g, int b);   /* 0x01B6: palette entry i, 6-bit r, g, b */
+void screen_dac_restore(int i);         /* palette entry i back to CMAP.BIN's */
 
 #endif

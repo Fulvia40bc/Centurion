@@ -12,6 +12,19 @@
  * mouse: W(0x00BA) = FFFF in every snapshot, and the keyboard-only paths (the keyboard cursor of 0x3603, 0x5901) are
  * not ported. Not ported either: the mouse cursor sprite 0x1BE6 / 0x1D55 / 0x1D8A (the window shows the system
  * pointer) and the music toggle that the INT 9 hook does on Ctrl+S (03FF; the key itself is swallowed as 0x03AA does).
+ *
+ * Real-time loops (the naval battle, naval.c) add three things, none of which changes how an older script runs:
+ *   - script lines "hold KEY N" (KEY = up, down, left, right, home, pgup, end, pgdn): that direction key is held for the
+ *     next N ticks of the loop, from the tick after the one in which the line is taken (so "hold KEY 1" is a tap that
+ *     exactly one duel pass sees, as the original's C366 remembers one; "hold KEY 0" lets go; several holds overlap; the
+ *     keypad diagonals hold two bits), and "wait N": the line takes this tick's input slot and no key, click or later
+ *     line is taken until N ticks have passed (a loop that blocks for input, 0x359B, lets the wait pass at once). Both
+ *     are taken in order with the other lines, when the input reaches them. A tick is one screen_tick() call;
+ *   - screen_held_dirs(): the held direction keys as the INT 9 hook's bits DS:00A2 (Up 8, Down 4, Left 2, Right 1), from
+ *     the script's holds or from the window's keyboard (arrows, keypad 8/2/4/6, Home/PgUp/End/PgDn = the diagonals);
+ *   - key_read() (0x03AA without showing the screen, for loops that present their own frames), key_flush() (0x04ED: the
+ *     window's key buffer; a script's lines are future input and are not dropped) and screen_dac() / screen_dac_restore()
+ *     (0x01B6: one palette entry, 6-bit; restore = the CMAP.BIN value).
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,7 +39,7 @@ uint8_t g_scr[64000];
 uint8_t g_wrk[64000];
 int g_battle_ui_attached;
 
-static rgb_t g_pal[256];
+static rgb_t g_pal[256], g_cmap[256];       /* the DAC as set now, and CMAP.BIN as loaded */
 static uint8_t *g_ovl0;
 static int g_headless = 1, g_window, g_quit;
 
@@ -38,10 +51,13 @@ static uint8_t g_kbuf[KBUF];
 static int g_kn;
 
 /* script */
-enum { EV_CLICK, EV_RCLICK, EV_KEY, EV_SHOT, EV_BATTLE, EV_ORDERS, EV_END };
+enum { EV_CLICK, EV_RCLICK, EV_KEY, EV_SHOT, EV_BATTLE, EV_ORDERS, EV_END, EV_HOLD, EV_WAIT };
 typedef struct { int kind, a, b, used; char s[256]; } sev_t;
 static sev_t *g_ev;
 static int g_nev, g_pos, g_scripted;
+static sev_t g_waitev = { EV_WAIT, 0, 0, 0, "" }; /* what script_next returns while a "wait" runs */
+static int g_wait;                           /* ticks left of the running "wait" line */
+static int g_hold[4];                        /* ticks left of each held direction: [A2] bits 8, 4, 2, 1 */
 static char g_shotdir[512];
 static int g_sx, g_sy, g_sb;                 /* the script's mouse: x, y, buttons ([B2] form) */
 static char g_orders[1024];
@@ -69,6 +85,7 @@ int screen_open(int headless) {
     for (size_t i = 0; cmap && i < 250 && 3 * i + 2 < n; i++) {
         g_pal[i].r = (uint8_t)(cmap[3 * i] << 2); g_pal[i].g = (uint8_t)(cmap[3 * i + 1] << 2); g_pal[i].b = (uint8_t)(cmap[3 * i + 2] << 2);
     }
+    memcpy(g_cmap, g_pal, sizeof(g_cmap));
     if (!cmap) fprintf(stderr, "screen: CMAP.BIN not found in CENT.DAT (grey palette)\n");
     free(cmap);
     assets_load_luts("OVL0.OVL");
@@ -106,10 +123,23 @@ void screen_shot(const char *name) {
 /* The next input line at g_pos: "shot" lines on the way are taken (the screen as it is now), "battle" / "orders" lines are
    left for screen_script_choices, "end" or the end of the lines ends the run (g_quit). NULL = nothing left. */
 static sev_t *script_next(void) {
+    if (g_wait > 0) return &g_waitev;
     for (; g_pos < g_nev; g_pos++) {
         sev_t *e = &g_ev[g_pos];
         if (e->used || e->kind == EV_BATTLE || e->kind == EV_ORDERS) continue;
         if (e->kind == EV_SHOT) { e->used = 1; screen_shot(e->s); continue; }
+        if (e->kind == EV_HOLD) {
+            e->used = 1;
+            /* + 1: the line is taken by the pass's key read, after that pass has read the held keys, and the tick at the
+               end of the pass counts down once before the next read: "hold KEY N" = held for the next N passes */
+            for (int i = 0; i < 4; i++) if (e->a & (8 >> i)) g_hold[i] = e->b + 1;
+            continue;
+        }
+        if (e->kind == EV_WAIT) {
+            e->used = 1;
+            if ((g_wait = e->a) > 0) { g_pos++; return &g_waitev; }
+            continue;
+        }
         if (e->kind == EV_END) { e->used = 1; break; }
         return e;
     }
@@ -129,8 +159,17 @@ static int key_name(const char *s) {
     return (uint8_t)s[0];
 }
 
+/* "hold" key names -> [A2] bits (the INT 9 hook's table DS:00A6: the keypad diagonals set two bits) */
+static int hold_bits(const char *s) {
+    static const char *n[8] = { "up", "down", "left", "right", "home", "pgup", "end", "pgdn" };
+    static const int b[8] = { 8, 4, 2, 1, 8 | 2, 8 | 1, 4 | 2, 4 | 1 };
+    for (int i = 0; i < 8; i++) if (!strcmp(s, n[i])) return b[i];
+    return 0;
+}
+
 void screen_script(const char *path, const char *shotdir) {
     free(g_ev); g_ev = NULL; g_nev = g_pos = 0;
+    g_wait = 0; memset(g_hold, 0, sizeof(g_hold));
     snprintf(g_shotdir, sizeof(g_shotdir), "%s", shotdir ? shotdir : "");
     g_scripted = 1; g_quit = 0;
     g_sx = SW(0xB6); g_sy = SW(0xB8); g_sb = 0;
@@ -163,6 +202,13 @@ void screen_script(const char *path, const char *shotdir) {
             e.kind = EV_ORDERS; snprintf(e.s, sizeof(e.s), "%s", arg);
         } else if (!strcmp(cmd, "end")) {
             e.kind = EV_END;
+        } else if (!strcmp(cmd, "hold")) {
+            char k[16] = "";
+            e.kind = EV_HOLD;
+            if (sscanf(arg, "%15s %d", k, &e.b) != 2 || !(e.a = hold_bits(k)) || e.b < 0) { fprintf(stderr, "script: bad line '%s'\n", p); continue; }
+        } else if (!strcmp(cmd, "wait")) {
+            e.kind = EV_WAIT;
+            if (sscanf(arg, "%d", &e.a) != 1 || e.a < 0) { fprintf(stderr, "script: bad line '%s'\n", p); continue; }
         } else { fprintf(stderr, "script: unknown line '%s'\n", p); continue; }
         if (g_nev == cap) { cap = cap ? 2 * cap : 64; g_ev = realloc(g_ev, (size_t)cap * sizeof(*g_ev)); }
         g_ev[g_nev++] = e;
@@ -198,9 +244,14 @@ static int us_shift(int k) {
 
 /* show g_scr and read the window's events: pointer, buttons, keys into the key buffer (as the BIOS would give them
    to INT 16h AH=0: AL = the ASCII code; extended keys reach the platform's key_down[] only as Insert = 10h) */
+static void pump_input(void);
 static void pump(void) {
     if (!g_window) return;
     platform_present(g_scr, g_pal);
+    pump_input();
+}
+/* the events part of pump(), without showing the screen (a present waits for the display's vsync) */
+static void pump_input(void) {
     platform_poll_input(&g_in);
     if (g_in.quit_requested) g_quit = 1;
     g_wx = g_in.mouse_x; g_wy = g_in.mouse_y;
@@ -224,7 +275,9 @@ void screen_present(void) { pump(); }
 /* 0x0644 mouse poll: [B2] = buttons, [B6] = x, [B8] = y (INT 33h fn 3). take = the poll of 0x359B, which may take the
    script's next click; 0x35DB's polls only see the button go up again. The driver keeps the pointer in the range set
    by 0x06E4 / 0x0709 ([BC]..[C0], [BE]..[C2]). The port always has a mouse (the [BA] = 0 path is not ported). */
-static void poll0644(int take) {
+static void poll0644_show(int take, int show);
+static void poll0644(int take) { poll0644_show(take, 1); }
+static void poll0644_show(int take, int show) {
     int x, y, b;
     if (g_scripted) {
         g_sb = 0;
@@ -237,7 +290,7 @@ static void poll0644(int take) {
         }
         x = g_sx; y = g_sy; b = g_sb;
     } else if (g_window) {
-        pump();
+        if (show) pump(); else pump_input();
         x = g_wx; y = g_wy; b = g_wb;
     } else {                                   /* headless without a script: nothing will ever come */
         g_quit = 1;
@@ -252,6 +305,12 @@ static void poll0644(int take) {
 /* 0x0644 for the loops that poll (nego.c: the delay 0x0143, the bedchamber's wait 0x642A): [B2] */
 int mouse_poll(void) {
     poll0644(1);
+    return W(0xB2);
+}
+/* 0x0644 for real-time loops that show their frames themselves (the naval intro): the window's events are read without
+   presenting the screen, so a 60 Hz vsync does not slow the 72.8 Hz ticks; a script behaves as mouse_poll */
+int mouse_poll_input(void) {
+    poll0644_show(1, 0);
     return W(0xB2);
 }
 
@@ -292,6 +351,44 @@ int key_poll(void) {
     return key03aa();
 }
 
+/* 0x03AA for real-time loops that show their frames themselves (no pump: the keys typed since the last frame) */
+int key_read(void) { return key03aa(); }
+
+/* 0x04ED key flush: the window's key buffer (a script's key lines are future input, not buffered keys) */
+void key_flush(void) { g_kn = 0; }
+
+/* one tick of a real-time loop has passed: the script's "wait" and "hold" lines run down */
+void screen_tick(void) {
+    if (g_wait > 0) g_wait--;
+    for (int i = 0; i < 4; i++) if (g_hold[i] > 0) g_hold[i]--;
+}
+
+/* the held direction keys as the INT 9 hook keeps them in DS:00A2: Up 8, Down 4, Left 2, Right 1 */
+int screen_held_dirs(void) {
+    int b = 0;
+    if (g_scripted) {
+        for (int i = 0; i < 4; i++) if (g_hold[i] > 0) b |= 8 >> i;
+    } else if (g_window) {
+        const Uint8 *k = SDL_GetKeyboardState(NULL);
+        if (k[SDL_SCANCODE_UP] || k[SDL_SCANCODE_KP_8]) b |= 8;
+        if (k[SDL_SCANCODE_DOWN] || k[SDL_SCANCODE_KP_2]) b |= 4;
+        if (k[SDL_SCANCODE_LEFT] || k[SDL_SCANCODE_KP_4]) b |= 2;
+        if (k[SDL_SCANCODE_RIGHT] || k[SDL_SCANCODE_KP_6]) b |= 1;
+        if (k[SDL_SCANCODE_HOME] || k[SDL_SCANCODE_KP_7]) b |= 8 | 2;
+        if (k[SDL_SCANCODE_PAGEUP] || k[SDL_SCANCODE_KP_9]) b |= 8 | 1;
+        if (k[SDL_SCANCODE_END] || k[SDL_SCANCODE_KP_1]) b |= 4 | 2;
+        if (k[SDL_SCANCODE_PAGEDOWN] || k[SDL_SCANCODE_KP_3]) b |= 4 | 1;
+    }
+    return b;
+}
+
+/* 0x01B6(i, r, g, b): one DAC entry, 6-bit values; screen_dac_restore(i) puts CMAP.BIN's value back */
+void screen_dac(int i, int r, int g, int b) {
+    if (i < 0 || i > 255) return;
+    g_pal[i].r = (uint8_t)((r & 63) << 2); g_pal[i].g = (uint8_t)((g & 63) << 2); g_pal[i].b = (uint8_t)((b & 63) << 2);
+}
+void screen_dac_restore(int i) { if (i >= 0 && i < 256) g_pal[i] = g_cmap[i]; }
+
 /* 0x3603 with a mouse ([BA] != 0, 361B jmp 36E4): the key from 0x03AA as it is */
 static int key3603(void) { return key03aa(); }
 
@@ -304,6 +401,7 @@ int wait_input(void) {
             return (W(0xB2) & 1) ? 1 : (W(0xB2) & 2) ? 2 : 0;
         }
         if (g_quit) { B(0xC07F) = 0; return 0; }
+        if (g_wait > 0) g_wait = 0;                            /* script: a "wait" passes while the game blocks for input */
         poll0644(1);                                           /* 0x35A5 (+ 0x1BE6 cursor, not ported) */
         int k = (g_scripted && W(0xB2)) ? 0 : key3603();       /* script: a click and a key are never taken in one poll */
         if (k) { B(0xC07F) = (uint8_t)k; return 0; }
@@ -410,6 +508,7 @@ int yes_no(const char *s) {
 }
 
 void screen_close(void) {
+    g_wait = 0;
     if (g_scripted) script_next();             /* take the "shot" lines left at the end */
     if (g_window) platform_shutdown();
     g_window = 0;

@@ -5,14 +5,19 @@
  *   A+0 mode (1 = wanders at random, 0 = only into weaker zones), A+1 current zone, A+2 home zone (word),
  *   A+4 / A+6 strengths (grow toward the home province's +0x02 / +0x00), A+8 active (0xFFFF), A+0x0A..0x0C from home +0x10/+0x0F/+0x0E.
  * Fleet record k (0..5) at F = DS:110E + 12*k: F+0..5 three ship counts (by type), F+6 zone, F+7 home province, F+8 0xFF = none
- *   (Roman fleets: 0 = may move), F+0x0A ships shown. Fleets 3-5 are the enemy's.
+ *   (Roman fleets: 0 = may move), F+9 legion aboard / the marines' army record, F+0x0A men per ship. Fleets 3-5 are the
+ *   enemy's (docs/FLEET_NOTES.md section 1).
  *
- * NOT YET PORTED (reported on stderr, and g_enemy_unported is set): the naval battle (0xB0C2) with its set-up 0x531F and
- * fleet retreat 0x5244 (with a screen open a "not ported yet" box follows the 4BAC message); a land battle (0xB06E) when
- * no battle choices are available; and the two places where the original reads an uninitialised local (noted below). Messages (0x4BAC, 0x59D4, the tail of 0x4733) go through game_message() (endturn.c):
+ * The naval path of 0x4F27 (0x51C5..0x523C) calls fleet.c (0x531F, 0x5244) and naval.c (0xB0C2 -> section 5 B12A: fought
+ * on screen; with no screen, --end-turn, it returns 0 = cancelled and sets g_enemy_unported). NOT YET PORTED (reported on
+ * stderr, and g_enemy_unported is set): a land battle
+ * (0xB06E) when no battle choices are available; and the two places where the original reads an uninitialised local
+ * (noted below). Messages (0x4BAC, 0x59D4, the tail of 0x4733) go through game_message() (endturn.c):
  * a message box when a screen is open, else stderr. Disk swaps (0x1E21) are not needed.
  */
 #include "state.h"
+#include "fleet.h"
+#include "naval.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -25,7 +30,7 @@ static char *dsp(uint16_t a) { return (char *)&g_ds[a]; }
    battle. | rolling waves of destiny.>": the word table DS:3D7A..3D8A gets its variable slots ([3D7C] = home name 5222[army
    +2], [3D80] = zone name, [3D86] = name, [3D8A] = 3D8C on land / 3D8E at sea; [3D84] is C072, filled by 6738(numeral)),
    then AC60 = [3D7A] + the words 3D7C..3D8A; 59D4(AC60). */
-static void army_meets_4bac(uint16_t name, unsigned numeral, unsigned zone, unsigned army) {
+void army_meets_4bac(uint16_t name, unsigned numeral, unsigned zone, unsigned army) {   /* also fleet.c 4ADA */
     setW(0x3D7C, W(0x5222 + 2 * W(0xC114 + 14 * army)));
     setW(0x3D80, W(0x5222 + 2 * zone));
     {
@@ -183,16 +188,18 @@ static void army_move(int i) {
     }
     unsigned t = list[pick];
 
-    if (t >= 0x1B) {   /* 0x51C5: out to sea; Roman fleets there must fight */
+    if (t >= 0x1B) {   /* 0x51C5: out to sea (the army is there whatever follows); Roman fleets there must fight */
         B(a + 1) = (uint8_t)t;
-        for (int k = 0; k < 3; k++) {
+        for (int k = 0; k < 3; k++) {                                        /* [bp-1] */
             uint16_t f = FLEET(k);
             if (B(f + 8) == 0xFF || B(f + 6) != t) continue;
             army_meets_4bac(W(0x1100 + 2 * k), 0, t, (unsigned)i);   /* 0x520E: fleet name, numeral 0 */
-            unported("0x531F + naval battle 0xB0C2 (+ retreat 0x5244)", i, k);
-            game_not_ported("The naval battle");   /* a box when a screen is open; the DS stays as it is */
-            return;    /* outcome unknown without the battle; stop here */
-        }
+            /* 1E21 */
+            fleet_army_to_record6_531f((uint16_t)i);                 /* 0x5217: a new die for every Roman fleet */
+            uint16_t r = naval_battle_b12a(6, (uint8_t)k);           /* 0x5221 thunk B0C2: push k, 6 */
+            if (r & 2) return;                                       /* 0x5226: the army is beaten (2) or both gone (3) */
+            if (r & 4) fleet_retreat_5244((uint8_t)k);               /* 0x522C `test al, 4`: both afloat, Rome retreats */
+        }                                                            /* 0 (cancelled, FLEET_NOTES 9.4) or 1 (lost): next fleet */
         return;
     }
 
