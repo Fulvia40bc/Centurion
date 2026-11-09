@@ -124,6 +124,22 @@ static int play_game(int argc, char **argv) {
     return 0;
 }
 
+/* Started by a double-click, the console window is ours alone and closes with us: on an error, keep it open until Enter
+   so the message can be read. From a terminal (other processes share the console) this returns at once. */
+#ifdef _WIN32
+#include <windows.h>
+#endif
+static int keep_console(int rc) {
+#ifdef _WIN32
+    DWORD pids[2];
+    if (rc != 0 && GetConsoleProcessList(pids, 2) == 1) {
+        fprintf(stderr, "\nPress Enter to close.\n");
+        getchar();
+    }
+#endif
+    return rc;
+}
+
 /* --zone-check: 0x6C67 on the static DS: every zone anchor DS:1AB8[z] must hit z, and the Asterix pixels (FEh) */
 static int zone_check(void) {
     if (state_init("OVL0.OVL") != 0) return 1;
@@ -150,10 +166,10 @@ int main(int argc, char **argv) {
         if (argc > 2 && strcmp(argv[1], "--choices") == 0) { g_choices = argv[2]; battle_choices = choices_next; argv += 2; argc -= 2; continue; }
         break;
     }
-    /* the game: --play | --load SAVE, [--script FILE SHOTDIR] [--ds-out FILE] [--seed N] (see play_game) */
-    if (argc > 1 && (strcmp(argv[1], "--play") == 0 || strcmp(argv[1], "--load") == 0 || strcmp(argv[1], "--script") == 0 ||
-                     strcmp(argv[1], "--seed") == 0))
-        return play_game(argc, argv);
+    /* the game: no arguments (a double-click) | --play | --load SAVE, [--script FILE SHOTDIR] [--ds-out FILE] [--seed N] */
+    if (argc == 1 || strcmp(argv[1], "--play") == 0 || strcmp(argv[1], "--load") == 0 || strcmp(argv[1], "--script") == 0 ||
+        strcmp(argv[1], "--seed") == 0)
+        return keep_console(play_game(argc, argv));
     if (argc > 1 && strcmp(argv[1], "--zone-check") == 0) return zone_check();
     if (argc > 3 && strcmp(argv[1], "--end-turn") == 0)
         return game_end_turn(argv[2], argv[3]);
@@ -246,8 +262,14 @@ int main(int argc, char **argv) {
             return game_dump_frame(argv[i + 1], screen, save);
         }
     }
-    if (platform_init() != 0) return 1;
-    game_run();
-    platform_shutdown();
-    return 0;
+    /* --viewer: the asset viewer (game.c), which every unknown option used to open */
+    if (strcmp(argv[1], "--viewer") == 0) {
+        if (platform_init() != 0) return 1;
+        game_run();
+        platform_shutdown();
+        return 0;
+    }
+    fprintf(stderr, "unknown option %s\n"
+                    "usage: centurion [--play] [--load SAVE.CSV] [--seed N]   (no arguments: a new game)\n", argv[1]);
+    return keep_console(2);
 }
