@@ -95,9 +95,14 @@ DS:048E..0491 (a save block) = difficulty per module: [0] land battle, [1] chari
 The land battle reads [0x48E] at 0xB354 and 0xC178.
 
 ## Overlay sections (EXE table at 0xAFFA, 16-byte entries {load seg 1331, end seg, 0x75, file para, size para})
-Thunks at EXE 0xB06E.. are `lcall 129B:02EC; dw section; jmp 0823:entry`. Section n = entry n-1: 1 = file 0x0000-0x09A0,
-2 = 0x09A0-0x3EF0 **land battle** (disasm/OVL_BATTLE.asm, entry 0xDF24), 3 = 0x3EF0-0x51A0, **5 = naval battle (entry 0xB0E0)** [CORRECTED: naval is section 5, not 3], 4 = 0x51A0-0x8550,
-5 = 0x8550-0xB3F0; then DS from file 0xB3F0. All load at 1331:0000 = 0823:B0E0.
+Thunks at EXE 0xB06E.. are 12 bytes each, `lcall 129B:02EC; dw section; jmp 0823:entry` (an earlier reading in 14-byte steps
+was wrong). Section n = table entry n-1, all loaded at 1331:0000 = 0823:B0E0:
+1 = file 0x0000-0x09A0 (start-up: B07A -> B18A command line, B086 -> B0E0 init, B0CE -> B9A1 credits);
+2 = 0x09A0-0x3EF0 **land battle** (B06E -> DF24; disasm/OVL_BATTLE.asm);
+3 = 0x3EF0-0x51A0 **gladiators** (B0B6 -> B0E0);
+4 = 0x51A0-0x8550 **chariot race** (B0AA -> D08A) and the **victory sequence** (B092 -> DF58);
+5 = 0x8550-0xB3F0 **naval battle** (B09E -> B0E0, and B0C2 -> B12A, the one End Turn calls with (6, fleet)).
+Then DS from file 0xB3F0. (Corrected 2026-11-09 by Claude after Mistral's doc pass; GAMELOOP_NOTES section 0 agrees.)
 
 ## Province commands (EXE menu switch at 0x6D76)
 0 Legions 0x4065 (~330 instr, 20 subroutines; DECODED outline only) | 1 Plunder inline 0x6DB2 | 2 Tribute 0x7CE0 (DECODED, spec in HANDOFF) |
