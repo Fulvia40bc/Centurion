@@ -600,7 +600,8 @@ Corrections and additions:
    exact replay of the memory overwrite is not possible. Not ported yet; for Erik to decide.
 2. **Scythia can never become an ally** although TEXTY has three alliance variants: 40CA[25] = 0 refuses even Low tribute.
    Possibly a data slip (all other provinces with a tribute row have >= 1). The alliance text itself says "I cannot guarantee
-   what the Scythians will do". G whether intentional; it is data, so the port shows it as is unless Erik wants it changed.
+   what the Scythians will do". FIXED in the port (Erik, 9 Nov: the alliance speeches show it was not meant): a tolerance of 0
+   accepts Low (nego.c, bug 3); --original keeps the refusal. Italia's 40CA[0] = 0 is never read (no negotiation with Italia).
 3. Carthago, Parthia, Dacia, Narbonensis and Sarmatia cannot be allied at all (no tribute row; text 2 is " "). Intentional (the
    texts say so: "Hannibal does not surrender").
 4. 2-variant texts pick the second variant 2/3 of the time (6501).

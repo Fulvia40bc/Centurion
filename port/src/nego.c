@@ -30,6 +30,8 @@
  *       copies whatever the offsets give: G a crash or garbage) and says so on stderr.
  *    2. The scout report's three word tables (5F52 wealth, 5F5A army, 5F62 courage) have 4 entries and the index is not
  *       clamped: Aegyptus (wealth 200) is "ordinary". Fixed: index at most 3.
+ *    3. Scythia's tribute tolerance 40CA[25] is 0: it reaches the tribute menu (state 12) but refuses even Low, so its
+ *       three alliance speeches in TEXTY could never be heard. Fixed (Erik, 9 Nov): a tolerance of 0 accepts Low.
  *  - Not ported: the mouse cursor (1D55 / 1D8A / 1CCE), the disk check 0x1E21 (legions_ui LEV_DISK_SWAP, nothing in the
  *    port), the Tandy / EGA paths of 67E4 / 680F / 6837.
  */
@@ -486,8 +488,11 @@ uint16_t nego_run(uint8_t L, uint8_t z, uint16_t (*b06e)(int army, int L, int z)
         }
         /* 0x61F4 */
         delay_143(0x48);
-        if (x >= 0x0E)                                         /* Low / Medium / High */
-            state = B(0x40CA + z) > (uint8_t)(x - 0x0E) ? 2 : 3;
+        if (x >= 0x0E) {                                       /* Low / Medium / High */
+            uint8_t tol = B(0x40CA + z);
+            if (!g_original_bugs && tol == 0) tol = 1;         /* 1990 bug 3: Scythia (40CA[25] = 0) refused even Low */
+            state = tol > (uint8_t)(x - 0x0E) ? 2 : 3;
+        }
         else
             state = B((uint16_t)(A + (uint16_t)(c * mood) * 2 + (uint8_t)(B(0x4124 + code) + weak)));
         if (state == 2) {
