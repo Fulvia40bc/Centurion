@@ -17,8 +17,13 @@ that, then fought the battle (BATTLE, below), which the port stops at.
 
 ## Land battle (PORTED 2026-11-09, port/src/battle.c; map in docs/BATTLE_NOTES.md)
 OVL0 section 2, entry DF24(army or 0xFF, legion or 12 = garrison, zone), returns 0xFFFF when Rome wins. The simulation, setup,
-result and write-back are ported; graphics and the orders mode (per-cohort commands, "Release The Legion!", "Run Away!") are not
-yet: orders can be fed in through battle_orders_hook at the tick where the original polls for them.
+result, write-back and the **orders** are ported (graphics and the orders-mode screen/input are not): battle_order_legion_melee
+("Release The Legion!", D21E), battle_order_legion_retreat ("Run Away!
+Run Away!", D299), and per cohort (D33A) battle_cmd_begin
+(refused for enemies, routed units and units outside the general's voice, D8AD) + target (drag, CBEE: one straight leg along the
+dominant axis) / hold (clears the route but not an attack) / melee ("Release Cohort n", D7E8) / retreat ("Run Away!", D77C) / end.
+They run from battle_orders_hook after the tick's end_of_tick (where D0F2 polls). Replays: `centurion --orders "T:ops;..."`.
+Checked with a real battle with orders (battle/README.md, b11): identical, and End Turn 11 0 bytes off.
 Wired into End Turn (enemy.c, 0x501E legions in the zone, 0x508D garrison with EXE 0x4733 assign_commander and the 0x50E3 copy of
 Rome's troops), with the player's choices from `--choices "F,T;..."` in headless runs.
 Checks (all byte-identical to DOSBox): Macedonia's battle from the formation menu and from the entry (tools/cmp_battle.py,

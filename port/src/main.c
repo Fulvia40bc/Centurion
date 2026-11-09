@@ -25,10 +25,50 @@ static int choices_next(uint8_t *f, uint8_t *t) {
     return 1;
 }
 
+/* --orders "T:ops;T:ops": orders given in the orders mode after battle tick T, for replays. ops, separated by spaces:
+   M = Release The Legion, R = Run Away (both leave the orders mode), uI = pick unit I (cursor at its cell), uI@X,Y = pick
+   unit I by clicking cell X,Y, tX,Y = drag/cursor to cell X,Y, h = hold, m = cohort melee, r = cohort retreat, e = done
+   with the unit. */
+static const char *g_orders;
+static int orders_hook(int tick) {
+    const char *p = g_orders;
+    while (p && *p) {
+        int t, n = 0;
+        if (sscanf(p, "%d:%n", &t, &n) != 1) return 0;
+        p += n;
+        const char *end = strchr(p, ';'); if (!end) end = p + strlen(p);
+        if (t == tick) {
+            fprintf(stderr, "orders at tick %d\n", tick);
+            while (p < end) {
+                unsigned i, x, y; int k = 0, ok;
+                while (*p == ' ') p++;
+                if (p >= end) break;
+                if (*p == 'M') { battle_order_legion_melee(); p++; }
+                else if (*p == 'R') { battle_order_legion_retreat(); p++; }
+                else if (*p == 'u') {
+                    if (sscanf(p, "u%u@%u,%u%n", &i, &x, &y, &k) == 3) ok = battle_cmd_begin((int)i, (uint8_t)x, (uint8_t)y);
+                    else { sscanf(p, "u%u%n", &i, &k); ok = battle_cmd_begin((int)i, 0xFF, 0xFF); }
+                    if (!ok) fprintf(stderr, "orders: unit %u can't take orders\n", i);
+                    p += k ? k : 1;
+                }
+                else if (*p == 't' && sscanf(p, "t%u,%u%n", &x, &y, &k) == 2) { battle_cmd_target((uint8_t)x, (uint8_t)y); p += k; }
+                else if (*p == 'h') { battle_cmd_hold(); p++; }
+                else if (*p == 'm') { battle_cmd_melee(); p++; }
+                else if (*p == 'r') { battle_cmd_retreat(); p++; }
+                else if (*p == 'e') { battle_cmd_end(); p++; }
+                else p++;
+            }
+        }
+        p = *end ? end + 1 : end;
+    }
+    return 0;
+}
+
 int main(int argc, char **argv) {
     /* --original (first argument): keep the original game's bugs, for byte-exact comparison with DOSBox */
     for (;;) {
         if (argc > 1 && strcmp(argv[1], "--original") == 0) { g_original_bugs = 1; argv++; argc--; continue; }
+        if (argc > 2 && strcmp(argv[1], "--orders") == 0) { g_orders = argv[2]; battle_orders_hook = orders_hook; argv += 2; argc -= 2; continue; }
         if (argc > 2 && strcmp(argv[1], "--choices") == 0) { g_choices = argv[2]; battle_choices = choices_next; argv += 2; argc -= 2; continue; }
         break;
     }

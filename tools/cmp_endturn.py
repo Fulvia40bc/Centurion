@@ -1,7 +1,8 @@
 """Compare the port's End Turn with the real game's.
 
 usage: python cmp_endturn.py mem_X_in.bin mem_X_out.bin [CHOICES]   (run from the game folder, which holds OVL0.OVL)
-CHOICES = "formation,tactic;..." for the battles fought during the turn (menu indexes from 0), as played in DOSBox.
+CHOICES = "formation,tactic;..." for the battles fought during the turn (menu indexes from 0), as played in DOSBox;
+an optional 4th argument gives the orders given during the battle ("T:ops;...", see main.c --orders).
 mem_X_in/out = 640K DOSBox snapshots at End Turn entry (0823:09BA) and exit (0823:0D0D), from hunt/turn.ps1.
 Runs `centurion --original --end-turn mem_X_in.bin port_ds.bin` and compares the DS images: every save block, plus the state a
 save leaves out (dice DS:00C8-00CB, war chance DS:3D9C, Rome's garrison pseudo-legion DS:1A08-1A1B).
@@ -23,6 +24,7 @@ def main():
     pin, pout = sys.argv[1], sys.argv[2]
     port_path = os.path.join(tempfile.gettempdir(), 'port_ds.bin')
     ch = ['--choices', sys.argv[3]] if len(sys.argv) > 3 else []
+    if len(sys.argv) > 4: ch += ['--orders', sys.argv[4]]   # orders given during the battle, see centurion --orders
     r = subprocess.run([EXE, '--original'] + ch + ['--end-turn', pin, port_path], capture_output=True, text=True)
     sys.stdout.write(r.stderr)
     port, real, before = open(port_path, 'rb').read(), ds_of(pout), ds_of(pin)

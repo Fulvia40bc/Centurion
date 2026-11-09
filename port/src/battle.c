@@ -610,6 +610,11 @@ uint16_t battle(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tact
     for (int s = 0; s < 0x14; s++) border(s + 0x18, 0x2F - s);
     for (int s = 0x13; s <= 0x15; s++) border(0, s);
     border(0x13, 0);
+    {   /* BB97 0xBC9B: barbarian enemies (home 11-14, 23-26) get the 'b' general/infantry sprites and music 9/10 */
+        uint16_t h = W(0xC29A);
+        int barb = (h >= 0xB && h <= 0xE) || (h >= 0x17 && h <= 0x1A);
+        B(0xC2A6) = barb ? 9 : 0xB; B(0xC2A7) = barb ? 0xA : 0xC;
+    }
     if (tactics) {
         if (tactics_len > 0x400) tactics_len = 0x400;
         memcpy(&g_ds[DS_TACTICS], tactics, tactics_len); setW(0x76EA, DS_TACTICS);
@@ -617,6 +622,115 @@ uint16_t battle(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tact
     if (!build_units(L)) return 0;
     roll_enemy_formation();
     return battle_from_formation(A, L, Z, pf, pt);
+}
+
+/* ---- the player's orders (orders mode D0F2/D198/D33A; the screen and input are the caller's) ----
+   The battle is frozen while the player gives orders: call these from battle_orders_hook. */
+
+/* D21E "Melee": "Release The Legion!" (message 74B6 + 74B8). Units already attacking are re-aimed, everyone holding
+   charges the nearest enemy, the general halts. Leaves the orders mode. */
+void battle_order_legion_melee(void) {
+    fprintf(stderr, "message: %s%s\n", dstr(W(0x74B6)), dstr(W(0x74B8)));
+    for (int i = 1; i < NUNITS; i++) {
+        uint16_t u = U(i);
+        if (B(u + 0xB) != 0) continue;
+        if (B(u + 0xD) == 2) { B(u + 6) &= 0xC0; B(u + 0xD) = 1; }
+        if (B(u + 0xD) != 1) continue;
+        if (B(u + 0xA) != 3) { B(u + 0xD) = 2; target_nearest(i); }
+        else B(u + 6) &= 0xC0;
+    }
+}
+/* D299 "Retreat": "Run Away!\nRun Away!" (74D4). Every Roman unit marches back to its edge (state 1, units that walk off
+   keep their men). Leaves the orders mode. */
+void battle_order_legion_retreat(void) {
+    fprintf(stderr, "message: %s\n", dstr(0x74D4));
+    for (int i = 1; i < NUNITS; i++) {
+        uint16_t u = U(i);
+        if (B(u + 0xB) != 0 || B(u + 0xD) == 4) continue;
+        if (B(u + 0xD) == 2) B(u + 0xD) = 1;
+        flee(i);
+    }
+}
+/* D8AD: is unit i within the general's voice? (commander alive and on duty, dx^2+dy^2 <= voice^2) */
+int battle_in_voice(int i) {
+    if (B(CMDR + 4) != 0) return 0;
+    uint16_t u = U(i), g = U(B(0xC298));
+    int16_t dx = (int16_t)(SB(g + 2) - SB(u + 2)), dy = (int16_t)(SB(g + 3) - SB(u + 3));
+    uint16_t d = (uint16_t)((uint16_t)(dx * dx) + (uint16_t)(dy * dy));
+    return (uint16_t)(B(CMDR + 3) * B(CMDR + 3)) >= d;
+}
+/* CBEE: one order leg from unit i toward cell (x, y): the dominant axis, Chebyshev length */
+static uint8_t leg_to(int i, uint8_t x, uint8_t y) {
+    uint16_t u = U(i);
+    int16_t dx = (int16_t)(SB(u + 2) - x), dy = (int16_t)(SB(u + 3) - y);
+    int16_t ax = dx < 0 ? -dx : dx, ay = dy < 0 ? -dy : dy;
+    uint8_t steps = (uint8_t)(ay >= ax ? ay : ax), dir = 0;
+    if (steps) {
+        if (ay > ax) dir = ay == dy ? 3 : 1;
+        else dir = ax == dx ? 2 : 0;
+    }
+    return (uint8_t)(dir << 6 | steps);
+}
+/* D33A: editing one unit's orders. battle_cmd_begin(i) after the player picked unit i on the field (cell under the
+   cursor or a neighbour, D2DD) - returns 0 if it can't take orders (enemy, routed, out of the general's voice);
+   then any of target/hold/melee/retreat; then battle_cmd_end(). melee and retreat end the editing themselves.
+   from_x/from_y = the cell where the drag starts (mouse: the clicked cell; keyboard: the unit's position). */
+static struct { int i; uint8_t leg, px, py; int changed; } g_cmd;
+int battle_cmd_begin(int i, uint8_t from_x, uint8_t from_y) {
+    uint16_t u = U(i);
+    g_cmd.i = 0;                                                 /* refused: the editing calls below do nothing */
+    if (i < 1 || i >= NUNITS || B(u + 0xB) != 0 || B(u + 0xD) == 3 || !battle_in_voice(i)) return 0;
+    uint8_t o = B(u + 6);
+    g_cmd.i = i; g_cmd.leg = (uint8_t)(((o >> 6) & 3) << 6 | ((o & 0x3F) ? 1 : 0));
+    if (from_x == 0xFF) { from_x = B(u + 2); from_y = B(u + 3); }   /* keyboard: the cursor starts on the unit */
+    g_cmd.px = from_x; g_cmd.py = from_y; g_cmd.changed = 0;
+    return 1;
+}
+void battle_cmd_target(uint8_t x, uint8_t y) {                  /* drag / cursor moved to cell (x, y) */
+    if (!g_cmd.i) return;
+    if (x == g_cmd.px && y == g_cmd.py) return;
+    uint16_t u = U(g_cmd.i);
+    g_cmd.changed = 1;
+    B(u + 6) = leg_to(g_cmd.i, x, y); B(u + 7) = 0x80; B(u + 8) = 0x80;
+    g_cmd.px = x; g_cmd.py = y;
+}
+void battle_cmd_hold(void) {                                    /* Space: no orders (the state is left as it is) */
+    if (!g_cmd.i) return;
+    uint16_t u = U(g_cmd.i);
+    g_cmd.px = B(u + 2); g_cmd.py = B(u + 3);
+    B(u + 6) = B(u + 7) = B(u + 8) = 0x80;
+}
+void battle_cmd_end(void) {
+    if (!g_cmd.i) return;
+    if (!g_cmd.changed) return;
+    uint16_t u = U(g_cmd.i);
+    setW(u + 4, 0xFFFF); B(u + 0xD) = 1;
+}
+void battle_cmd_melee(void) {                                   /* D7E8 "Release Cohort <n>" */
+    if (!g_cmd.i) return;
+    int i = g_cmd.i; uint16_t u = U(i);
+    if (B(u + 0xA) != 3) {
+        uint8_t steps = B(u + 6) & 0x3F;
+        fprintf(stderr, "message: %s%s%s%d\n", dstr(W(0x74B6)), dstr(W(0x74BA)), dstr(0x74F2), i);
+        if (B(u + 0xD) == 2) { B(u + 6) &= 0xC0; B(u + 0xD) = 1; }
+        if (B(u + 0xD) == 1) {
+            B(u + 0xD) = 2; target_nearest(i);
+            if (steps) { B(u + 7) = B(u + 6); B(u + 6) = g_cmd.leg; }
+        }
+    }
+    battle_cmd_end();
+}
+void battle_cmd_retreat(void) {                                 /* D77C "Run Away!" */
+    if (!g_cmd.i) return;
+    int i = g_cmd.i; uint16_t u = U(i);
+    uint8_t steps = B(u + 6) & 0x3F;
+    fprintf(stderr, "message: %s\n", dstr(0x74E8));
+    if (B(u + 0xD) != 4) {
+        if (B(u + 0xD) == 2) B(u + 0xD) = 1;
+        flee(i);
+        if (steps) { B(u + 7) = B(u + 6); B(u + 6) = g_cmd.leg; }
+    }
+    battle_cmd_end();
 }
 
 /* EXE 0x4733: assign a free commander (status 1) to legion L at random; if none is free, every commander not on duty

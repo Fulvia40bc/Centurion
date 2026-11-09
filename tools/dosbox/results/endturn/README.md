@@ -17,3 +17,4 @@ and compares every save block plus the dice (DS:00C8), war chance (DS:3D9C) and 
 | 8 | 267 BC | into Mare Adriaticum; Macedonia declares war | 0 bytes off |
 | 9 | 266 BC | Carthage lands at Rome: garrison battle (fought: Scipio's Defense, a glorious victory) | 0 bytes off with `--choices "0,1"` (battle ported) |
 | 10 | 265 BC | Macedonia meets the garrison; battle fought (Balanced Army + Frontal Assault vs Frontal Assault: victory, Rome 1583 lost / 4201 left, Macedonia 2610 / 1990); then "The people of Rome are bored" | 0 bytes off with `--choices "0,0"` |
+| 11 | 264 BC | Sarmatia (Malodor the Impaler) attacks legion I Ital: battle with orders (Strong Right + Stand Fast, cohorts sent forward, then Release The Legion): victory 1326 / 1734 | 0 bytes off with choices "2,4" and the orders (see battle/README.md) |

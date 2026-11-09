@@ -36,6 +36,15 @@ uint16_t battle(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tact
 uint16_t battle_from_formation(int A, int L, int Z, uint8_t pf, uint8_t pt);
 extern int (*battle_orders_hook)(int tick);
 extern int g_battle_quirks;
+void     battle_order_legion_melee(void);     /* orders mode: "Release The Legion!" */
+void     battle_order_legion_retreat(void);   /* "Run Away! Run Away!" */
+int      battle_in_voice(int i);
+int      battle_cmd_begin(int i, uint8_t from_x, uint8_t from_y);   /* from_x 0xFF = keyboard (cursor on the unit) */
+void     battle_cmd_target(uint8_t x, uint8_t y);
+void     battle_cmd_hold(void);
+void     battle_cmd_melee(void);
+void     battle_cmd_retreat(void);
+void     battle_cmd_end(void);
 void     assign_commander(int L);        /* EXE 0x4733 */
 extern int (*battle_choices)(uint8_t *formation, uint8_t *tactic);
 int      battle_auto(int A, int L, int Z, uint16_t *won);   /* 0 = no choices available (not fought) */
