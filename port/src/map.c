@@ -88,9 +88,17 @@ static void init_sheet_load(void) {
  *    DS:CE48 + 14*i (heap, beyond the static image), with the offset word +0x0A = the offset in INITDAT and the segment
  *    word +0x0C = 371Bh as in the snapshots (the port reads the pixels from g_init_pix, not through that segment).
  *  - [3E40] = 3E2E "Click to continue" (ui_mouse_init, the start-up's mouse branch).
+ *  - the font record DS:9B56..9B5F and the graphics mode [9B26] (a new game had them at 0).
  * Running it on a DOSBox DS image changes nothing (the same values are already there). */
 void map_startup(void) {
     setW(0x6344, 0x74); setW(0x6346, 0x1A); setW(0x6348, 0x10C);
+    /* section 1 0xB1A1 (OVL0 file 0xC1): rep movsw 5 words DS:A05C -> DS:9B56, the font record: three table pointers,
+       line height [9B5C] = 8 and line gap [9B5D] = 3. Every box laid out by line (legion box and list, move header,
+       fleet list, number fields) reads them; at 0 the rows collapse onto each other. */
+    memcpy(&g_ds[0x9B56], &g_ds[0xA05C], 10);
+    /* EXE 0x7DCE: mov [9B26], ax, the graphics mode the start-up chose; 2 = VGA in every DOSBox capture. The province
+       strips (0x70BA: sky colour 0x17, not 0x0B) and the screen copies (6 = Tandy paths) read it. */
+    setW(0x9B26, 2);
     ui_mouse_init();
     init_sheet_load();
     map_image_load();

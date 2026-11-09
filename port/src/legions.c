@@ -64,15 +64,17 @@ static uint16_t menu_run(uint16_t menu, uint16_t pre) {                         
     return (uint16_t)legions_menu(menu, pre);
 }
 
-static void unported(const char *what, int a, int b) {
+void game_not_ported(const char *what);   /* endturn.c: "<what>\nis not ported yet." box when a screen is open */
+static void unported(const char *what, const char *plain, int a, int b) {
     g_enemy_unported = 1;
     fprintf(stderr, "legions: %s (%d, %d) NOT YET PORTED\n", what, a, b);
+    game_not_ported(plain);
 }
 
 /* B06E: land battle thunk -> overlay DF24(army, L, Z) */
 static uint16_t battle_b06e(int A, int L, int Z) {
     uint16_t won = 0;
-    if (!battle_auto(A, L, Z, &won)) { unported("land battle 0xB06E (no battle choices)", A, L); return 0; }
+    if (!battle_auto(A, L, Z, &won)) { unported("land battle 0xB06E (no battle choices)", "This battle", A, L); return 0; }
     return won;
 }
 
@@ -541,7 +543,7 @@ uint16_t legions_enter_foreign(uint8_t L, uint8_t z) {
     }
     ui(LEV_CURSOR_PUSH, 0, 0, NULL);
     /* 603C: nego_screen 6570(z, &buf) and the negotiation 604B..64F9 */
-    unported("negotiation 0x6570 (5F82 from 0x602E)", L, z);
+    unported("negotiation 0x6570 (5F82 from 0x602E)", "Negotiating with a foreign province", L, z);
     ui(LEV_CURSOR_POP, 0, 0, NULL);                                               /* as when 6570 returns 0 */
     return 0;
 }
