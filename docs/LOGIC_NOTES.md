@@ -34,6 +34,15 @@ image and compare the save. (The port seeds from the clock in play, like the ori
 
 So turn 5+ = dice + enemy AI + garrison battles + random events: port it together with the battle code.
 
+### Enemy army records (DECODED 2026-11-09 from 0x4C24/0x4EC1/0x4F27)
+Record i (0..10) at R = DS:C112 + 14*i: R+0 byte mode (1 = wanders at random, 0 = only into weaker zones), R+1 byte current zone,
+R+2 word home zone (name for "The Marauding Army of <name>", strength caps), R+4 word strength (grows +20/turn to home's DS:526E),
+R+6 word strength (grows +100/turn to home's DS:526C), R+8 word active (0xFFFF), R+0x0A..0x0C bytes copied from home +0x0C/+0x0B/+0x0A.
+Records 0-6 = fixed powers spawned by 0x4DB5 (zone DS:3D58[i], home DS:3D60[i]; which one by the cumulative table DS:3D2E, 7 bytes per
+era, era = min((turn-5)/8, 4)); 7-10 = rebels spawned by 0x4E2D in a random non-Roman province (mode 1 if roll(10) <= 4).
+Army entering a zone with Roman legions: 0x4BAC + 0x1E21 + **0xB06E** (likely the battle module); entering Rome's garrison: message
+DS:3D9D + name + DS:3DB4, then 0x4733 (garrison battle, 12) and 0xB06E. Enemy fleets 3-5 also grow here (cap 8000, DS:3D90/3D96).
+
 ## Province commands (EXE menu switch at 0x6D76)
 0 Legions 0x4065 (~330 instr, 20 subroutines; DECODED outline only) | 1 Plunder inline 0x6DB2 | 2 Tribute 0x7CE0 (DECODED, spec in HANDOFF) |
 3 Hold Games 0x3342 | 4 Build Fleet 0x2458 | 5 See Province List 0x69CC (layout DECODED) | 6 Continue.
