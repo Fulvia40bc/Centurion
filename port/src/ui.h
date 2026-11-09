@@ -22,6 +22,7 @@ typedef struct {
     struct { char text[64]; char hotkey; int x0, y0, x1, y1; } items[16];
 } menu_t;
 
+void ui_frame(uint8_t *fb, int x, int y, int w, int h);              /* bevelled box (menus, messages) */
 void ui_menu_load(menu_t *m, const uint8_t *ovl0, uint16_t rec_ds);   /* read record from OVL0 */
 void ui_menu_draw(uint8_t *fb, const menu_t *m, int preselect);
 int  ui_menu_run(const menu_t *m, const input_t *in, int *last_click);  /* index, -1 cancel, -2 none */

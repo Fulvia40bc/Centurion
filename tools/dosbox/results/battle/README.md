@@ -20,3 +20,11 @@ Played by Erik and Claude, recorded by C:\DOSBox-X\hunt\watch.ps1 (snapshots at 
 - Result: A Glorious Victory, Rome 1326 casualties / 2874 survivors, Sarmatia 1734 / 2166.
 Check: `python tools/cmp_battle.py --entry b11_entry.bin b11_exit.bin 7 0 0 2 4 "0:u1 t22,18 e u2 t24,26 e u3 t20,26 e u10 t24,31 e;245:M"`
 (identical), and End Turn 11: `cmp_endturn.py t11_in.bin t11_out.bin "2,4" "<same orders>"` (0 bytes off).
+
+## Battle pictures
+- `b11_frame_tick0.bin`, `b11_frame_tick245.bin`: the game's frame buffer (320x200 palette indices, from the 640K snapshots at
+  linear 0x26870; the clean field is at 0x39420) when the orders mode opened; DS at the same moments = b11_orders1_open.bin /
+  b11_orders2_open.bin. `python tools/cmp_battle_frame.py b11_orders1_open.bin 0 b11_frame_tick0.bin` -> 0 differing pixels
+  (same for tick 245). port/src/battle_gfx.c.
+- The report: `centurion --report-shot endturn/t9_out.bin 12 1 641 3146 5659 1534 ../scr_battle_report.bin out.bin` draws
+  Carthage's report over the captured screen: 0 differing pixels against scr_battle_report.bin.

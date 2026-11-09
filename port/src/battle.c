@@ -468,7 +468,20 @@ static void roll_enemy_formation(void) {                       /* BE3C 0xBF40: b
     B(0xC2A9) = 0xFF;
     do { B(0xC2A9)++; sum = (uint16_t)(sum + B(0x77F0 + row + B(0xC2A9))); } while (sum <= r);
 }
-static void setup_after_formation(uint8_t pf, uint8_t pt) {   /* BE3C 0xBFA2..0xC10C */
+/* Interactive hooks (battle_ui.c); all NULL in headless runs. */
+int  (*battle_menu_hook)(int which);         /* 0 = Choose Formation, 1 = Choose Tactic: index, or -1 = Esc (cancel) */
+void (*battle_setup_hook)(int Z);            /* BB97: load the field and sprites (DS:C29A = enemy home is set) */
+void (*battle_message_hook)(const char *s);  /* 59D4 message box ("Release The Legion!" ...) */
+void (*battle_report_hook)(int won, const char *title, const char *text, unsigned rcas, unsigned ecas, unsigned rsurv, unsigned esurv);
+static void message(const char *s) { if (battle_message_hook) battle_message_hook(s); else fprintf(stderr, "message: %s\n", s); }
+
+/* BB4D (+ BA2C): the sprite list of every unit, frames not advanced (for screens drawn outside a tick) */
+void battle_sprites_build(void) {
+    setW(0xA928, 0);
+    for (int i = 1; i < NUNITS; i++) sprite_step(0, i);
+}
+
+static int setup_after_formation(uint8_t pf, uint8_t pt) {    /* BE3C 0xBFA2..0xC10C; 0 = cancelled */
     B(0xC2AA) = pf;
     place(pf, 0, 2);
     place(B(0xC2A9), 1, 0);
@@ -479,9 +492,15 @@ static void setup_after_formation(uint8_t pf, uint8_t pt) {   /* BE3C 0xBFA2..0x
         do { B(0xC2AB)++; sum = (uint16_t)(sum + B(p + B(0xC2AA) * 5 + B(0xC2AB))); } while (sum <= r);
     } else B(0xC2AB) = (uint8_t)rng_roll(4);
     B(0xC2AD) = B(0x76FE + (B(0xC2A9) * 5 + B(0xC2AB)) * 10);
+    if (battle_menu_hook) {
+        int r = battle_menu_hook(1);
+        if (r < 0) return 0;
+        pt = (uint8_t)r;
+    }
     B(0xC2AC) = pt;
     initial_orders((uint16_t)(0x76F6 + (pf * 5 + pt) * 10), 0);
     initial_orders((uint16_t)(0x76F6 + (B(0xC2A9) * 5 + B(0xC2AB)) * 10), 1);
+    return 1;
 }
 static void fight(void) {                                       /* DF24 main loop 0xE07D..0xE19C */
     for (int tick = 0; !battle_over(); tick++) {
@@ -515,6 +534,27 @@ static void fight(void) {                                       /* DF24 main loo
     }
 }
 static const char *dstr(uint16_t a) { return (const char *)&g_ds[a]; }
+
+/* EXE 0x6738: number -> Roman numeral from the DS tables (hundreds 4F82, tens 4F6E, units 4F5A); > 999 = "OOPS" (4F54) */
+void roman_numeral(unsigned n, char *out) {
+    if (n > 999) { strcpy(out, dstr(0x4F54)); return; }
+    strcpy(out, dstr(W(0x4F82 + 2 * (n / 100))));
+    strcat(out, dstr(W(0x4F6E + 2 * (n / 10 % 10))));
+    strcat(out, dstr(W(0x4F5A + 2 * (n % 10))));
+}
+
+/* E3ED..E4AA: the report's text, title first (7ADC + the pieces 7ADE..7B04; numeral = 6738 of legion +0x0A) */
+void battle_report_text(int L, int won, char *out, size_t n) {
+    uint16_t leg = LEG(L), zn = W(0x5222 + 2 * W(0xC29A));
+    uint16_t et = (uint16_t)(0x76F6 + (B(0xC2A9) * 5 + B(0xC2AB)) * 10), rt = (uint16_t)(0x76F6 + (B(0xC2AA) * 5 + B(0xC2AC)) * 10);
+    char num[16]; roman_numeral(B(leg + 0xA), num);
+    const char *p[] = { won ? dstr(0x7A02) : dstr(0x7A16), dstr(0x7A2C), num, dstr(leg), dstr(0x7A43), dstr(zn), dstr(0x7A5A),
+                        dstr(W(0x5F1C + 2 * W(0xC29A))), dstr(0x7A75), dstr(W(et)), dstr(0x7A87), dstr(W(rt)), dstr(0x7A9C),
+                        dstr(W(CMDR)), dstr(0x7AA1), won ? dstr(0x79E3) : dstr(0x79C2), num, dstr(leg), dstr(0x7AB7), dstr(zn),
+                        dstr(0x7ABE) };
+    out[0] = 0;
+    for (size_t k = 0; k < sizeof(p) / sizeof(p[0]); k++) strncat(out, p[k], n - strlen(out) - 1);
+}
 
 static uint16_t result(int L, int Z) {                          /* E21A */
     uint16_t rc = 0, ri = 0, ec = 0, ee = 0, ei = 0, won = 0;
@@ -556,10 +596,15 @@ static uint16_t result(int L, int Z) {                          /* E21A */
     /* report (0xE3ED..0xE58B) */
     uint16_t et = (uint16_t)(0x76F6 + (B(0xC2A9) * 5 + B(0xC2AB)) * 10), rt = (uint16_t)(0x76F6 + (B(0xC2AA) * 5 + B(0xC2AC)) * 10);
     uint16_t zn = W(0x5222 + 2 * W(0xC29A));
-    fprintf(stderr, "battle: %s Legion %s met the army of %s. %s used %s against %s of %s.\n"
-                    "battle: casualties Rome %u, %s %u; survivors %u, %u\n",
-            won ? dstr(0x7A02) : dstr(0x7A16), dstr(leg), dstr(zn), dstr(W(0x5F1C + 2 * W(0xC29A))),
-            dstr(W(et)), dstr(W(rt)), dstr(W(CMDR)), rcas, dstr(zn), ecas, rsurv, esurv);
+    {
+        static char text[600];
+        battle_report_text(L, won != 0, text, sizeof(text));
+        if (battle_report_hook) battle_report_hook(won != 0, NULL, text, rcas, ecas, rsurv, esurv);
+        fprintf(stderr, "battle: %s Legion %s met the army of %s. %s used %s against %s of %s.\n"
+                        "battle: casualties Rome %u, %s %u; survivors %u, %u\n",
+                won ? dstr(0x7A02) : dstr(0x7A16), dstr(leg), dstr(zn), dstr(W(0x5F1C + 2 * W(0xC29A))),
+                dstr(W(et)), dstr(W(rt)), dstr(W(CMDR)), rcas, dstr(zn), ecas, rsurv, esurv);
+    }
     if (won) setW(0xC0FA, (uint16_t)(W(0xC0FA) + 1));
     uint32_t t = ((uint32_t)W(0xC088) << 16 | W(0xC086)) + rcas; setW(0xC086, (uint16_t)t); setW(0xC088, (uint16_t)(t >> 16));
     t = ((uint32_t)W(0xC084) << 16 | W(0xC082)) + ecas; setW(0xC082, (uint16_t)t); setW(0xC084, (uint16_t)(t >> 16));
@@ -586,7 +631,7 @@ static uint16_t finish(int A, int L, int Z) {                  /* DF24 0xE000..0
 
 /* Resume a battle captured at the Choose Formation menu (units built, enemy formation already rolled). */
 uint16_t battle_from_formation(int A, int L, int Z, uint8_t pf, uint8_t pt) {
-    setup_after_formation(pf, pt);
+    if (!setup_after_formation(pf, pt)) return 0;    /* Esc in the tactic menu: nothing written back */
     return finish(A, L, Z);
 }
 
@@ -619,8 +664,14 @@ uint16_t battle(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tact
         if (tactics_len > 0x400) tactics_len = 0x400;
         memcpy(&g_ds[DS_TACTICS], tactics, tactics_len); setW(0x76EA, DS_TACTICS);
     }
+    if (battle_setup_hook) battle_setup_hook(Z);
     if (!build_units(L)) return 0;
     roll_enemy_formation();
+    if (battle_menu_hook) {
+        int r = battle_menu_hook(0);
+        if (r < 0) return 0;                           /* Esc in the formation menu: nothing written back */
+        pf = (uint8_t)r;
+    }
     return battle_from_formation(A, L, Z, pf, pt);
 }
 
@@ -630,7 +681,7 @@ uint16_t battle(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tact
 /* D21E "Melee": "Release The Legion!" (message 74B6 + 74B8). Units already attacking are re-aimed, everyone holding
    charges the nearest enemy, the general halts. Leaves the orders mode. */
 void battle_order_legion_melee(void) {
-    fprintf(stderr, "message: %s%s\n", dstr(W(0x74B6)), dstr(W(0x74B8)));
+    { char m[64]; snprintf(m, sizeof(m), "%s%s", dstr(W(0x74B6)), dstr(W(0x74B8))); message(m); }
     for (int i = 1; i < NUNITS; i++) {
         uint16_t u = U(i);
         if (B(u + 0xB) != 0) continue;
@@ -643,7 +694,7 @@ void battle_order_legion_melee(void) {
 /* D299 "Retreat": "Run Away!\nRun Away!" (74D4). Every Roman unit marches back to its edge (state 1, units that walk off
    keep their men). Leaves the orders mode. */
 void battle_order_legion_retreat(void) {
-    fprintf(stderr, "message: %s\n", dstr(0x74D4));
+    message(dstr(0x74D4));
     for (int i = 1; i < NUNITS; i++) {
         uint16_t u = U(i);
         if (B(u + 0xB) != 0 || B(u + 0xD) == 4) continue;
@@ -711,7 +762,7 @@ void battle_cmd_melee(void) {                                   /* D7E8 "Release
     int i = g_cmd.i; uint16_t u = U(i);
     if (B(u + 0xA) != 3) {
         uint8_t steps = B(u + 6) & 0x3F;
-        fprintf(stderr, "message: %s%s%s%d\n", dstr(W(0x74B6)), dstr(W(0x74BA)), dstr(0x74F2), i);
+        { char m[64], n[16]; roman_numeral((unsigned)i, n); snprintf(m, sizeof(m), "%s%s%s%s", dstr(W(0x74B6)), dstr(W(0x74BA)), dstr(0x74F2), n); message(m); }
         if (B(u + 0xD) == 2) { B(u + 6) &= 0xC0; B(u + 0xD) = 1; }
         if (B(u + 0xD) == 1) {
             B(u + 0xD) = 2; target_nearest(i);
@@ -724,7 +775,7 @@ void battle_cmd_retreat(void) {                                 /* D77C "Run Awa
     if (!g_cmd.i) return;
     int i = g_cmd.i; uint16_t u = U(i);
     uint8_t steps = B(u + 6) & 0x3F;
-    fprintf(stderr, "message: %s\n", dstr(0x74E8));
+    message(dstr(0x74E8));
     if (B(u + 0xD) != 4) {
         if (B(u + 0xD) == 2) B(u + 0xD) = 1;
         flee(i);

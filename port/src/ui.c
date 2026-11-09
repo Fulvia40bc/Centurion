@@ -90,16 +90,20 @@ void ui_menu_load(menu_t *m, const uint8_t *ovl0, uint16_t rec_ds) {
     }
 }
 
-static void ui_frame(uint8_t *fb, int x, int y, int w, int h) {
+void ui_frame(uint8_t *fb, int x, int y, int w, int h) {   /* the game's grey bevelled box */
+    /* VERIFIED pixel by pixel on the battle report box (2026-11-09): mitred 2-px edges (top 15, sides 8, bottom 0),
+       an inner line of 8 three pixels in, fill 26 */
     ui_rect(fb, x, y, w, h, 26);
     ui_rect(fb, x, y, w, 2, 15);
-    ui_rect(fb, x, y + 2, 2, h - 4, 8);
-    ui_rect(fb, x + w - 2, y + 2, 2, h - 4, 8);
     ui_rect(fb, x, y + h - 2, w, 2, 0);
+    ui_rect(fb, x, y + 1, 1, h - 2, 8);
+    ui_rect(fb, x + 1, y + 2, 1, h - 4, 8);
+    ui_rect(fb, x + w - 1, y + 1, 1, h - 2, 8);
+    ui_rect(fb, x + w - 2, y + 2, 1, h - 4, 8);
     ui_rect(fb, x + 3, y + 3, w - 6, 1, 8);
-    ui_rect(fb, x + 3, y + h - 3, w - 6, 1, 8);
-    ui_rect(fb, x + 3, y + 4, 1, h - 7, 8);
-    ui_rect(fb, x + w - 4, y + 4, 1, h - 7, 8);
+    ui_rect(fb, x + 3, y + h - 4, w - 6, 1, 8);
+    ui_rect(fb, x + 3, y + 3, 1, h - 6, 8);
+    ui_rect(fb, x + w - 4, y + 3, 1, h - 6, 8);
 }
 
 void ui_menu_draw(uint8_t *fb, const menu_t *m, int preselect) {

@@ -29,6 +29,15 @@ Checks (all byte-identical to DOSBox): Macedonia's battle from the formation men
 tools/dosbox/results/battle); End Turn 9 (Carthage vs the garrison, Balanced Army + Scipio's Defense: Rome 641 / Carthage 3146
 casualties) and 10 (Macedonia, Balanced Army + Frontal Assault) including the battles: `cmp_endturn.py t9_in t9_out "0,1"`,
 `... t10_in t10_out "0,0"`. Hannibal used Outflank, Philip Frontal Assault.
+- **Battle screen (2026-11-09):** port/src/battle_gfx.c draws the field and units pixel-exact (two real frames, 0 differing
+  pixels): BATTLENW (LUT 23, nibble 0 transparent) + WATER (LUT 25, nibble 0 transparent, at x 220) or DESERT; seven sprite
+  sheets from table DS:727E (enemy ones loaded through the nibble remap DS:7252 with [4] = DS:7262[enemy home]; barbarians
+  use BG/BI); sprite list A92A sorted by BA4F/BD67 (ported literally, same order as the game's), drawn at C7B0's isometric
+  position + the anim offset table 719C - 4, minus the sprite hotspot; DAT offsets count from 2 bytes before the data.
+  port/src/battle_ui.c: menus, ticks of 165 ms, orders mode (buttons DS:748E, labels 74AE, click/drag/keys), messages, and the
+  report (pixel-exact against scr_battle_report). `centurion --play-battle DS army legion zone` plays one;
+  `--battle-shots` saves the screens headless. Still approximate: the menu engine's item font/ornament (shared with the
+  province menus), the unit panel (DC72), order-path drawing (DA35) and the general's voice circle.
 - 0xB0C2 = the naval battle (overlay 3, args (6, fleet)); result bit 2 = stop, bit 4 = the fleet retreats (0x5244). NOT YET PORTED.
 
 ## Dice: EXE 0x076B (PORTED, enemy.c)

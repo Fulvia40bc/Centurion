@@ -105,6 +105,51 @@ int main(int argc, char **argv) {
         fwrite(g_ds, 1, 0x10000, f); fclose(f);
         return 0;
     }
+    /* --battle-frame SNAP ZONE OUT: draw the battle frame from a 640K snapshot taken during a battle (run in the game
+       folder); re-sorts the sprite list and reports whether the sort matches the game's */
+    if (argc > 4 && strcmp(argv[1], "--battle-frame") == 0) {
+        if (state_load_mem(argv[2]) != 0) return 1;
+        if (assets_load_luts("OVL0.OVL") != 0 || assets_load("BATL.DIR", "BATL.DAT") != 0) return 1;
+        if (battle_gfx_load(atoi(argv[3])) != 0) return 1;
+        uint8_t before[0x50];
+        memcpy(before, &g_ds[0xAA02], sizeof(before));
+        battle_sort_sprites();
+        fprintf(stderr, "sprites %u, sort %s\n", W(0xA928),
+                memcmp(before, &g_ds[0xAA02], 2u * W(0xA928)) ? "DIFFERS from the game's" : "same as the game's");
+        static uint8_t fb[SCREEN_W * SCREEN_H];
+        battle_draw(fb);
+        FILE *f = fopen(argv[4], "wb");
+        if (!f) return 1;
+        fwrite(fb, 1, sizeof(fb), f); fclose(f);
+        return 0;
+    }
+    /* --play-battle SNAP army legion zone [OUT]: fight a battle on screen from a DS image or 640K snapshot taken at
+       (or before) the battle's start, e.g. tools/dosbox/results/battle/b11_entry.bin 7 0 0. Run in the game folder. */
+    if (argc > 5 && strcmp(argv[1], "--play-battle") == 0) {
+        if (state_load_mem(argv[2]) != 0) return 1;
+        if (platform_init() != 0) return 1;
+        uint16_t r = battle_play(atoi(argv[3]), atoi(argv[4]), atoi(argv[5]));
+        platform_shutdown();
+        fprintf(stderr, "battle returned %04X\n", r);
+        if (argc > 6) { FILE *f = fopen(argv[6], "wb"); if (f) { fwrite(g_ds, 1, 0x10000, f); fclose(f); } }
+        return 0;
+    }
+    /* --battle-shots SNAP army legion zone formation tactic tick PREFIX: the battle's screens as pictures, headless */
+    if (argc > 9 && strcmp(argv[1], "--battle-shots") == 0) {
+        if (state_load_mem(argv[2]) != 0) return 1;
+        uint16_t r = battle_ui_shots(atoi(argv[3]), atoi(argv[4]), atoi(argv[5]), atoi(argv[6]), atoi(argv[7]), atoi(argv[8]), argv[9]);
+        fprintf(stderr, "battle returned %04X\n", r);
+        return 0;
+    }
+    /* --report-shot DS L won rc ec rs es BG OUT: the battle report drawn over picture BG (64000 bytes, or "-") */
+    if (argc > 10 && strcmp(argv[1], "--report-shot") == 0) {
+        if (state_load_mem(argv[2]) != 0) return 1;
+        static uint8_t bg[64000]; int have = 0;
+        if (strcmp(argv[9], "-") != 0) { FILE *f = fopen(argv[9], "rb"); if (f) { have = fread(bg, 1, sizeof(bg), f) == sizeof(bg); fclose(f); } }
+        battle_report_shot(atoi(argv[3]), atoi(argv[4]), (unsigned)atoi(argv[5]), (unsigned)atoi(argv[6]), (unsigned)atoi(argv[7]),
+                           (unsigned)atoi(argv[8]), have ? bg : NULL, argv[10]);
+        return 0;
+    }
     /* --tactics-dump OUT: TACTICS.LZW decoded */
     if (argc > 2 && strcmp(argv[1], "--tactics-dump") == 0) {
         size_t n = 0; int k; uint8_t *tac = NULL;

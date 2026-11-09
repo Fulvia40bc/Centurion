@@ -45,7 +45,23 @@ void     battle_cmd_hold(void);
 void     battle_cmd_melee(void);
 void     battle_cmd_retreat(void);
 void     battle_cmd_end(void);
-void     assign_commander(int L);        /* EXE 0x4733 */
+void     assign_commander(int L);
+extern int  (*battle_menu_hook)(int which);
+extern void (*battle_setup_hook)(int Z);
+extern void (*battle_message_hook)(const char *s);
+extern void (*battle_report_hook)(int won, const char *title, const char *text, unsigned rcas, unsigned ecas, unsigned rsurv, unsigned esurv);
+void     battle_sprites_build(void);     /* BB4D */
+void     roman_numeral(unsigned n, char *out);
+void     battle_report_text(int L, int won, char *out, size_t n);   /* EXE 0x6738 */
+/* battle_ui.c */
+uint16_t battle_play(int A, int L, int Z);   /* on screen (platform_init first) */
+uint16_t battle_ui_shots(int A, int L, int Z, int pf, int pt, int shot_tick, const char *prefix);
+void     battle_report_shot(int L, int won, unsigned rc, unsigned ec, unsigned rs, unsigned es, const uint8_t *bg, const char *out);
+/* battle_gfx.c */
+int      battle_gfx_load(int Z);         /* BB97: field + sprite sheets (BATL.DAT loaded, LUTs loaded) */
+void     battle_sort_sprites(void);      /* BA4F */
+void     battle_draw(uint8_t *fb);       /* BB7E + BA72 */
+void     battle_grid_to_screen(int x, int y, int *sx, int *sy);        /* EXE 0x4733 */
 extern int (*battle_choices)(uint8_t *formation, uint8_t *tactic);
 int      battle_auto(int A, int L, int Z, uint16_t *won);   /* 0 = no choices available (not fought) */
 

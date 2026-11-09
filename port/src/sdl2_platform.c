@@ -82,12 +82,17 @@ void platform_poll_input(input_t *in) {
             in->key_special[KEY_RIGHT] = 1;
         else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_LEFT)
             in->key_special[KEY_LEFT] = 1;
-        else if (e.type == SDL_MOUSEMOTION) {
-            in->mouse_x = e.motion.x / 2;
-            in->mouse_y = e.motion.y / 2;
-        } else if (e.type == SDL_MOUSEBUTTONDOWN)
-            in->mouse_buttons |= 1 << (e.button.button - 1);
+        else if (e.type == SDL_MOUSEBUTTONDOWN)
+            in->mouse_buttons |= 1 << (e.button.button - 1);   /* a press shorter than a frame still counts */
     }
+    /* position and held buttons every frame (drags need them), scaled from the window to 320x200 */
+    int mx, my, ww = SCREEN_W * 2, wh = SCREEN_H * 2;
+    uint32_t b = SDL_GetMouseState(&mx, &my);
+    if (g_win) SDL_GetWindowSize(g_win, &ww, &wh);
+    in->mouse_x = ww > 0 ? mx * SCREEN_W / ww : 0;
+    in->mouse_y = wh > 0 ? my * SCREEN_H / wh : 0;
+    if (b & SDL_BUTTON_LMASK) in->mouse_buttons |= 1;
+    if (b & SDL_BUTTON_RMASK) in->mouse_buttons |= 4;
 }
 
 void platform_sleep_ms(uint32_t ms) { SDL_Delay(ms); }
