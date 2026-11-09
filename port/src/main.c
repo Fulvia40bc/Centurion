@@ -1,5 +1,6 @@
 #include "platform.h"
 #include <string.h>
+#include "state.h"
 
 void game_run(void);
 
@@ -11,6 +12,8 @@ void game_play(void);
 void game_init(void);
 
 int main(int argc, char **argv) {
+    /* --original (first argument): keep the original game's bugs, for byte-exact comparison with DOSBox */
+    if (argc > 1 && strcmp(argv[1], "--original") == 0) { g_original_bugs = 1; argv++; argc--; }
     /* headless screen dump: centurion --dump-screen NAME out.bin */
     if (argc > 1 && strcmp(argv[1], "--play") == 0) {
         if (platform_init() != 0) return 1;

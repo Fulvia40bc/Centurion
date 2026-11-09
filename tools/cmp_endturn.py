@@ -2,7 +2,7 @@
 
 usage: python cmp_endturn.py mem_X_in.bin mem_X_out.bin   (run from the game folder, which holds OVL0.OVL)
 mem_X_in/out = 640K DOSBox snapshots at End Turn entry (0823:09BA) and exit (0823:0D0D), from hunt/turn.ps1.
-Runs `centurion --end-turn mem_X_in.bin port_ds.bin` and compares the DS images: every save block, plus the state a
+Runs `centurion --original --end-turn mem_X_in.bin port_ds.bin` and compares the DS images: every save block, plus the state a
 save leaves out (dice DS:00C8-00CB, war chance DS:3D9C, Rome's garrison pseudo-legion DS:1A08-1A1B).
 """
 import subprocess, sys, os, tempfile
@@ -21,7 +21,7 @@ def ds_of(path):
 def main():
     pin, pout = sys.argv[1], sys.argv[2]
     port_path = os.path.join(tempfile.gettempdir(), 'port_ds.bin')
-    r = subprocess.run([EXE, '--end-turn', pin, port_path], capture_output=True, text=True)
+    r = subprocess.run([EXE, '--original', '--end-turn', pin, port_path], capture_output=True, text=True)
     sys.stdout.write(r.stderr)
     port, real, before = open(port_path, 'rb').read(), ds_of(pout), ds_of(pin)
     w = lambda a: before[a] | before[a + 1] << 8

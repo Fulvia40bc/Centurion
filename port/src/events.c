@@ -120,12 +120,22 @@ void random_events(uint16_t tribute) {
     case 2:     /* text + rank name + "." */
         msg_cat(W(0x0F48 + 2 * idx)); msg_cat(W(0x5974 + 2 * B(0x5971))); msg_cat(0x0ED1);
         break;
-    case 3: {   /* disease: every legion in the zone of legion 0 loses a tenth of its +6 troops */
-        int any = 0;
-        for (uint16_t b = 0x1925; b < 0x1A15; b += 0x14) if (B(b) != 0xFF) any = 1;
-        if (!any) return;
-        rng_roll(0);   /* the original rolls with n = 0, so it always picks legion record 0 */
-        uint8_t zone = B(0x1924);
+    case 3: {   /* disease: every legion in the zone of one random legion loses a tenth of its +6 troops */
+        uint16_t n = 0;
+        for (uint16_t b = 0x1925; b < 0x1A15; b += 0x14) if (B(b) != 0xFF) n++;
+        if (!n) return;
+        uint16_t pick = 0;
+        if (g_original_bugs) {
+            /* 1990 code: rolls with n = 0 instead of the count, and its pick loop never skips empty records,
+               so the disease always strikes the zone of legion record 0 */
+            rng_roll(0);
+        } else {
+            /* what it meant: the k-th active legion, k = roll(count). Same single roll, so the dice stay in step */
+            uint16_t k = rng_roll(n);
+            for (pick = 0; pick < 12; pick++)
+                if (B(0x1925 + 0x14 * pick) != 0xFF && k-- == 0) break;
+        }
+        uint8_t zone = B(0x1924 + 0x14 * pick);
         for (uint16_t si = 0x191E; si < 0x1A0E; si += 0x14)
             if (B(si + 6) == zone) setW(si, (uint16_t)(W(si) - W(si) / 10));
         msg_cat(W(0x0F44)); msg_cat(W(0x5222 + 2 * zone)); msg_cat(W(0x0F46));

@@ -37,8 +37,11 @@ image and compare the save. (The port seeds from the clock in play, like the ori
 First 0x21A4, the crises: Rome is bored (DS:0ED8, chance DS:0ED4 +5 per turn) or a governor wants games (DS:0EDA, province DS:0ED6,
 chance DS:0ED5, starts at -20); either one blocks the events. Otherwise 20% per turn: one of 19 events (DS:0F02 {kind, score, talents};
 kind 0 = once per game, 1 = repeatable). 0/1 storms sink 10-19% / 0-9% of the ships of each Roman fleet in the Mediterranean (0x3A32
-then trims a legion aboard); 3 disease takes a tenth of the troops in the zone of **legion record 0** (the original rolls with n = 0, so it
-never picks another legion); the rest are texts with a score and/or talents change (-128 = half the tribute, 127 = all of it).
+then trims a legion aboard); 3 disease takes a tenth of the troops in the zone of one legion. **Bug in the original, fixed in the port (Erik, 2026-11-09):** it
+counts the active legions (0x1F88) but then rolls with n = 0 (0x1FDE `sub ax,ax; push ax; call 0x76b`), and its pick loop (0x1FEE)
+never skips empty records, so the disease always strikes **legion record 0**. The port picks the k-th active legion with
+k = roll(count) (still one roll, so the dice stay in step); `centurion --original ...` keeps the 1990 behaviour, and
+cmp_endturn.py uses it. Test: 16 outbreaks with four legions hit records 0/2/5/9 four times each (original: record 0 every time); the rest are texts with a score and/or talents change (-128 = half the tribute, 127 = all of it).
 Original quirks kept as they are: an undefended province taken by an army raises DS:634E by a quarter (the status is read after it was
 zeroed); places that read uninitialised locals are logged and skipped (enemy.c).
 
@@ -68,6 +71,16 @@ Records 0-6 = fixed powers spawned by 0x4DB5 (zone DS:3D58[i], home DS:3D60[i]; 
 era, era = min((turn-5)/8, 4)); 7-10 = rebels spawned by 0x4E2D in a random non-Roman province (mode 1 if roll(10) <= 4).
 Army entering a zone with Roman legions: 0x4BAC + 0x1E21 + **0xB06E** (likely the battle module); entering Rome's garrison: message
 DS:3D9D + name + DS:3DB4, then 0x4733 (garrison battle, 12) and 0xB06E. Enemy fleets 3-5 also grow here (cap 8000, DS:3D90/3D96).
+
+## Difficulty
+DS:048E..0491 (a save block) = difficulty per module: [0] land battle, [1] chariot race, [2] gladiators, [3] naval battle;
+0 Galley Slave, 1 Legionnaire, 2 Senator, 3 Emperor (names via DS:0484). The menu shows "Fine Tuning" when they differ (0x702A).
+The land battle reads [0x48E] at 0xB354 and 0xC178.
+
+## Overlay sections (EXE table at 0xAFFA, 16-byte entries {load seg 1331, end seg, 0x75, file para, size para})
+Thunks at EXE 0xB06E.. are `lcall 129B:02EC; dw section; jmp 0823:entry`. Section n = entry n-1: 1 = file 0x0000-0x09A0,
+2 = 0x09A0-0x3EF0 **land battle** (disasm/OVL_BATTLE.asm, entry 0xDF24), 3 = 0x3EF0-0x51A0 (naval, entry 0xB0E0), 4 = 0x51A0-0x8550,
+5 = 0x8550-0xB3F0; then DS from file 0xB3F0. All load at 1331:0000 = 0823:B0E0.
 
 ## Province commands (EXE menu switch at 0x6D76)
 0 Legions 0x4065 (~330 instr, 20 subroutines; DECODED outline only) | 1 Plunder inline 0x6DB2 | 2 Tribute 0x7CE0 (DECODED, spec in HANDOFF) |

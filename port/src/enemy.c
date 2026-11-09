@@ -15,6 +15,7 @@
 #include <stdio.h>
 
 int g_enemy_unported;
+int g_original_bugs;
 
 /* 0x075A: seed from the BIOS tick count (int 1Ah: CX = high word, DX = low word) */
 void rng_seed(uint32_t ticks) { setW(0xC8, (uint16_t)(ticks >> 16)); setW(0xCA, (uint16_t)ticks); }
