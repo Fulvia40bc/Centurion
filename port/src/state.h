@@ -36,5 +36,8 @@ uint16_t battle(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tact
 uint16_t battle_from_formation(int A, int L, int Z, uint8_t pf, uint8_t pt);
 extern int (*battle_orders_hook)(int tick);
 extern int g_battle_quirks;
+void     assign_commander(int L);        /* EXE 0x4733 */
+extern int (*battle_choices)(uint8_t *formation, uint8_t *tactic);
+int      battle_auto(int A, int L, int Z, uint16_t *won);   /* 0 = no choices available (not fought) */
 
 #endif

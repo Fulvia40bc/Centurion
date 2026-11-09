@@ -14,9 +14,24 @@ int game_save_game(const char *in_path, const char *out_path);
 void game_play(void);
 void game_init(void);
 
+/* --choices "F,T;F,T": formation/tactic for each battle in a headless run, in order */
+static const char *g_choices;
+static int choices_next(uint8_t *f, uint8_t *t) {
+    unsigned a, b; int n = 0;
+    if (!g_choices || sscanf(g_choices, "%u,%u%n", &a, &b, &n) != 2) return 0;
+    *f = (uint8_t)a; *t = (uint8_t)b; g_choices += n;
+    if (*g_choices == ';') g_choices++;
+    fprintf(stderr, "battle: formation %u, tactic %u\n", a, b);
+    return 1;
+}
+
 int main(int argc, char **argv) {
     /* --original (first argument): keep the original game's bugs, for byte-exact comparison with DOSBox */
-    if (argc > 1 && strcmp(argv[1], "--original") == 0) { g_original_bugs = 1; argv++; argc--; }
+    for (;;) {
+        if (argc > 1 && strcmp(argv[1], "--original") == 0) { g_original_bugs = 1; argv++; argc--; continue; }
+        if (argc > 2 && strcmp(argv[1], "--choices") == 0) { g_choices = argv[2]; battle_choices = choices_next; argv += 2; argc -= 2; continue; }
+        break;
+    }
     /* headless screen dump: centurion --dump-screen NAME out.bin */
     if (argc > 1 && strcmp(argv[1], "--play") == 0) {
         if (platform_init() != 0) return 1;

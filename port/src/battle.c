@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "state.h"
+#include "assets.h"
 
 #define UNITS   W(0xC292)
 #define NUNITS  W(0xC294)
@@ -616,4 +617,36 @@ uint16_t battle(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tact
     if (!build_units(L)) return 0;
     roll_enemy_formation();
     return battle_from_formation(A, L, Z, pf, pt);
+}
+
+/* EXE 0x4733: assign a free commander (status 1) to legion L at random; if none is free, every commander not on duty
+   (status 1 or 2: the dead come back) is made free first. Message: "<name> is assigned to command <legion>". */
+void assign_commander(int L) {
+    uint16_t leg = LEG(L);
+    if (B(leg + 0xD) == 0xFF) return;
+    uint8_t list[24]; uint16_t n = 0;
+    for (uint8_t c = 0; c < 0x18; c++) if (B(0x1A20 + 6 * c) == 1) list[n++] = c;
+    if (n == 0)
+        for (uint8_t c = 0; c < 0x18; c++)
+            if (B(0x1A20 + 6 * c) != 0) { B(0x1A20 + 6 * c) = 1; list[n++] = c; }
+    uint8_t c = list[rng_roll(n)];   /* n == 0 (all 24 on duty) would read a stale local in the original */
+    B(leg + 0x10) = c;
+    B(0x1A20 + 6 * c) = 0;
+    fprintf(stderr, "message: %s%s%s\n", (const char *)&g_ds[W(0x1A1C + 6 * c)], (const char *)&g_ds[0x1F89], (const char *)&g_ds[leg]);
+}
+
+/* Battles started by End Turn. battle_choices supplies the player's formation and tactic (headless runs: from the command
+   line); NULL = not available, the caller stops as before. Tactics come from BATL.DAT in the current folder. */
+int (*battle_choices)(uint8_t *formation, uint8_t *tactic);
+int battle_auto(int A, int L, int Z, uint16_t *won) {
+    static uint8_t *tac; static size_t tac_n;
+    uint8_t pf, pt;
+    if (!battle_choices || !battle_choices(&pf, &pt)) return 0;
+    if (!tac) {
+        int k;
+        if (assets_load("BATL.DIR", "BATL.DAT") == 0 && (k = assets_find("TACTICS.LZW")) >= 0) tac = assets_decode(k, &tac_n);
+        if (!tac) { fprintf(stderr, "battle: TACTICS.LZW not found (BATL.DAT in the current folder)\n"); return 0; }
+    }
+    *won = battle(A, L, Z, pf, pt, tac, tac_n);
+    return 1;
 }

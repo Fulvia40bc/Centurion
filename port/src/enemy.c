@@ -162,14 +162,19 @@ static void army_move(int i) {
         uint16_t s = (uint16_t)(0x1925 + 20 * j);
         if (B(s) == 0xFF || B(s - 1) != t) continue;
         fprintf(stderr, "message 0x4BAC: army %d meets legion %d in zone %u\n", i, j, t);
-        unported("land battle 0xB06E", i, j);
-        return;
+        uint16_t won;
+        if (!battle_auto(i, j, (int)t, &won)) { unported("land battle 0xB06E", i, j); return; }
+        if (won) { setW(a + 8, 0); break; }   /* 0x5063 */
     }
     if (t == 0 && W(a + 8) != 0 && B(0x5285) != 0) {   /* 0x508D */
         fprintf(stderr, "message: %s%s%s\n", (const char *)&g_ds[0x3D9D], (const char *)&g_ds[W(0x5222 + 2 * W(a + 2))],
                 (const char *)&g_ds[0x3DB4]);
-        unported("garrison 0x4733 + land battle 0xB06E", i, 12);
-        return;
+        uint8_t c = B(0x1A18);
+        if (c == 0xFF || B(0x1A20 + 6 * c) != 0) assign_commander(12);
+        setW(0x1A0E, W(0x5270)); setW(0x1A10, W(0x5272));   /* 0x50E3: Rome's troops into the garrison */
+        uint16_t won;
+        if (!battle_auto(i, 12, 0, &won)) { unported("land battle 0xB06E (garrison)", i, 12); return; }
+        if (won) { setW(0x5270, W(0x1A0E)); setW(0x5272, W(0x1A10)); setW(a + 8, 0); }
     }
     if (W(a + 8) == 0) return;
     for (int j = 0; j < 12; j++)   /* 0x5125 */

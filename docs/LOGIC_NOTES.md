@@ -15,13 +15,17 @@ exit are in tools/dosbox/results/endturn (tN_in.bin / tN_out.bin); rerun with
 Turns 9 and 10: the port predicted "The Marauding Army of Carthago / Macedonia Meets the Roman Garrison", and the real game showed exactly
 that, then fought the battle (BATTLE, below), which the port stops at.
 
-## Battles reached from End Turn (NOT YET PORTED)
-- 0xB06E = overlay thunk (`lcall 129B:02EC`, overlay 2, entry DF24): the land battle. Args (army, legion or 12 = garrison, zone);
-  ax != 0 = the enemy army is destroyed. Before the garrison battle 0x4733 assigns a commander ("Albertus Discreditus is assigned to
-  command Rome"). Screens: Choose Formation (Balanced Army / Wedge / Strong Right / Strong Left), then Choose Tactic (Frontal Assault /
-  Scipio's Defense / Drive a Wedge / Outflank / Stand Fast), the battle plays out, then a report ("A Glorious Victory!", casualties and
-  survivors). Captures: tools/dosbox/results/scr_battle_formation.*, scr_battle_report.*.
-- 0xB0C2 = the naval battle (overlay call, args (6, fleet)); result bit 2 = stop, bit 4 = the fleet retreats (0x5244).
+## Land battle (PORTED 2026-11-09, port/src/battle.c; map in docs/BATTLE_NOTES.md)
+OVL0 section 2, entry DF24(army or 0xFF, legion or 12 = garrison, zone), returns 0xFFFF when Rome wins. The simulation, setup,
+result and write-back are ported; graphics and the orders mode (per-cohort commands, "Release The Legion!", "Run Away!") are not
+yet: orders can be fed in through battle_orders_hook at the tick where the original polls for them.
+Wired into End Turn (enemy.c, 0x501E legions in the zone, 0x508D garrison with EXE 0x4733 assign_commander and the 0x50E3 copy of
+Rome's troops), with the player's choices from `--choices "F,T;..."` in headless runs.
+Checks (all byte-identical to DOSBox): Macedonia's battle from the formation menu and from the entry (tools/cmp_battle.py,
+tools/dosbox/results/battle); End Turn 9 (Carthage vs the garrison, Balanced Army + Scipio's Defense: Rome 641 / Carthage 3146
+casualties) and 10 (Macedonia, Balanced Army + Frontal Assault) including the battles: `cmp_endturn.py t9_in t9_out "0,1"`,
+`... t10_in t10_out "0,0"`. Hannibal used Outflank, Philip Frontal Assault.
+- 0xB0C2 = the naval battle (overlay 3, args (6, fleet)); result bit 2 = stop, bit 4 = the fleet retreats (0x5244). NOT YET PORTED.
 
 ## Dice: EXE 0x076B (PORTED, enemy.c)
 ```
