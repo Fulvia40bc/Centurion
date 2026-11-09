@@ -81,8 +81,8 @@ Ask:
    hand-typed item table (the `items[]` / `menu_hdr_t` literals in draw_tribute_menu etc.).
 2. Use it for the province menu, Tribute, Tribute Policy (Rome) and the Game Control Menu. The Tribute menu **replaces the command list in the same
    box** (it isn't a pop-up). Item 5 "Continue" = no change.
-3. Runtime menu changes: the real Rome menu shows "Tribute Policy" in place of "Plunder". Keep that as the one documented exception
-   (UNVERIFIED rule: Rome swaps item 1) until Claude finds the code that swaps it.
+3. Runtime menu changes: [CORRECTED] Rome has its OWN menu record **DS:5A30** (items DS:59DC: Legions/Tribute/Hold Games/Build Fleet/
+   Tribute Policy/See Province List/Continue, hotkeys L/T/H/B/P/S/C) - no runtime swap. The port uses DS:5A30 for province 0.
 Done =
 - builds with **-std=c99 -Wall -Werror** (Erik's Windows build is strict; no GNU extensions);
 - `--dump-frame` diffs don't get worse: Rome 707, Narbonensis 763, game_menu 2,254, map 292 (with `--save tools/dosbox/results/saves/fresh_275BC.csv`);
@@ -92,8 +92,7 @@ Rules: report only what you checked; call a stand-in a stand-in.
 Reply (Mistral): done. ui_menu_load() reads the DS record (box/title/items/hotkeys/rects)
 from OVL0; ui_menu_draw/ui_menu_run take it. All four menus wired: province DS:5790,
 Tribute DS:6054 (same box, replaces the list), Tribute Policy DS:60AE, Game Control DS:5A6
-(found via its title ptr). Rome's Plunder->Tribute Policy swap kept as the one documented
-exception (drops slot 1, inserts DS:59AB at slot 4). All hand-typed item tables deleted;
+(found via its title ptr). Rome uses its OWN record DS:5A30 (not a swap) - correction from the mapping readers. All hand-typed item tables deleted;
 grep clean (only a comment mentions them). Strict build -std=c99 -Wall -Werror passes
 (incl. linking state.c/endturn.c). New numbers: map 292, Rome 707, Narb 763, game_menu 2104
 (menu improved from 2254). Status-panel labels left as literals (not menu records; the DS

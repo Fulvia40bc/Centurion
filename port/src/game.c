@@ -222,7 +222,7 @@ typedef struct {
     const char *strip;       /* CBM city strip (cities) or NULL */
     const char *bg, *fg;     /* layered strip: NEGBG?/NEGFG? (non-city) */
     int sky;                 /* sky fill color for layered strips */
-    int swap_plunder;        /* Rome: item 1 "Plunder" -> "Tribute Policy" (DS:59AB), documented exception */
+    int is_rome;             /* Rome (citizen) uses its own menu record DS:5A30, not DS:5790 */
     int status_idx, courage_idx;   /* resolved via DS:57B2 / DS:7486 at draw */
     const char *rank;
     int tribute, manpower, talents, mood;  /* mood = func_0x6c26 index 0..3 */
@@ -266,17 +266,7 @@ static void draw_province(const province_t *p) {
        documented exception (UNVERIFIED rule) until the swap code is found. */
     {
         menu_t m;
-        load_menu(&m, 0x5790);
-        if (p->swap_plunder) {
-            /* Rome (citizen): record has Plunder at slot 1; the real menu drops it and shows
-               "Tribute Policy" (DS:59AB) at slot 4 - documented exception (UNVERIFIED rule) */
-            char tmp[64];
-            for (int i = 1; i < m.count - 2; i++) {
-                snprintf(tmp, sizeof(tmp), "%s", m.items[i + 1].text);
-                snprintf(m.items[i].text, sizeof(m.items[i].text), "%s", tmp);
-            }
-            snprintf(m.items[m.count - 3].text, sizeof(m.items[m.count - 3].text), "%s", ds_str(0x59AB));
-        }
+        load_menu(&m, p->is_rome ? 0x5A30 : 0x5790);   /* Rome has its OWN menu record (DS:5A30) */
         /* province screen uses the window frame (title band); record gives title+items+rects.
            Record box is (6,79)-(156,197); items at (6+x0, 79+y0); capture-matched text x = 6+17. */
         box(6, 63, 151, 134, 2);
@@ -352,7 +342,7 @@ static int load_province_csv(const char *path, int idx, province_t *p) {
     p->bg = (idx != 0) ? "NEGBGA.CBM" : NULL;
     p->fg = (idx != 0) ? "NEGFGX.CBM" : NULL;
     p->sky = (idx != 0) ? 23 : 0;
-    p->swap_plunder = 0;
+    p->is_rome = (idx == 0);   /* Rome (province 0) uses its own menu record DS:5A30 */
     p->courage_idx = 3; p->rank = "Officer"; p->talents = 20;  /* courage/rank/talents UNVERIFIED from save */
     free(buf);
     return 0;
@@ -360,8 +350,7 @@ static int load_province_csv(const char *path, int idx, province_t *p) {
 
 static void draw_province_rome(void) {
     (void)load_province_csv;  /* save-driven play mode comes next; dump frames use capture state */
-    static const province_t rome = {"ROME", "ROME.CBM", NULL, NULL, 0, 1,
-        4, 3, "Officer", 8, 5000, 20, 0};
+    static const province_t rome = {"ROME", "ROME.CBM", NULL, NULL, 0, 1, 4, 3, "Officer", 8, 5000, 20, 0};
     draw_province(&rome);
 }
 
@@ -458,8 +447,7 @@ int game_dump_frame(const char *outpath, const char *screen, const char *save_pa
         fclose(f);
         g_ovl0 = ovl0;
         if (strcasecmp(screen, "province_narbonensis") == 0) {
-            static const province_t narb = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, 0,
-                1, 2, "Officer", 0, 5279, 20, 0};
+            static const province_t narb = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, 0, 1, 2, "Officer", 0, 5279, 20, 0};
             draw_province(&narb);
         } else {
             draw_province_rome();
@@ -637,12 +625,10 @@ static void draw_province_screen(int prov) {
         load_province_csv("0.CSV", prov, &p) != 0) {
         /* no save: capture-matching defaults */
         if (prov == 0) {
-            static const province_t def = {"ROME", "ROME.CBM", NULL, NULL, 0, 1,
-                4, 3, "Officer", 8, 5000, 20, 0};
+            static const province_t def = {"ROME", "ROME.CBM", NULL, NULL, 0, 1, 4, 3, "Officer", 8, 5000, 20, 0};
             p = def;
         } else {
-            static const province_t def = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, 0,
-                1, 2, "Officer", 0, 5279, 20, 0};
+            static const province_t def = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, 0, 1, 2, "Officer", 0, 5279, 20, 0};
             p = def;
         }
     }

@@ -484,3 +484,22 @@ table to locate the image loader instead of grepping the linear sweep.
 - ui.c: ui_menu_draw (0x3134-style frame + items + title + preselect) and ui_menu_run
   (mouse hit 0x552b, hotkey 0x5593, Esc=0xFF). Tribute sub-menu runs through it.
 - Diffs hold: map 292, Rome 707, Narb 763, game_menu 2254. C99 clean.
+
+## Corrections from the mapping workflow (readers' independent check)
+- **Naval battle = overlay section 5, not 3** (LOGIC_NOTES.md fixed).
+- **Rome has its own menu record DS:5A30** (items DS:59DC, "Tribute Policy" slot 4 hotkey P) -
+  the port uses it for province 0; no runtime item swap. (Earlier "swap_plunder" exception removed.)
+- **Menu engine geometry:** item text starts 11 px in from the item record position; the title
+  sits at +6 and its centring counts each letter's trailing spacing; a small column ornament is
+  drawn beside the items. ("Choose Formation" + Game Control rebuilt 0 px with these rules.)
+- **Message boxes:** "Click to continue" is white, below the black text lines; the box sizes
+  itself around the text. Rebuilt pixel-exact vs 3 screenshots.
+- **Battle screen:** order buttons pixel-exact; order paths = chains of 3x3 dots in colour 1;
+  the general gets a circle showing voice range; cohort panels sit on the side away from the unit.
+- **Legions command:** Raise costs 20/30/60 talents by type (cavalry needs rank 2, consular
+  rank 6); Strengthen/Move/Upgrade. Moving onto a sea zone with a free fleet boards it
+  (50/100/200 men per ship by type; a horse takes 4 places). Moving into a rebel province
+  starts a battle; other foreign provinces open negotiations (special Cleopatra branch in Egypt).
+- **Main loop:** map waits for a click; Esc or the year button opens Game Control; losing all
+  provinces = "Sic Transit Gloria Mundi"; rank Caesar = victory sequence. 9-step porting plan in
+  LOGIC_NOTES.
