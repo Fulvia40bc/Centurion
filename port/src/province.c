@@ -252,6 +252,11 @@ static void strips_load708a(uint8_t z) {
     g_fb = g_wrk;
     strips_draw70ba(z);
 }
+/* For nego.c (0x6570, with archive 7 already loaded by its caller): 0x70BA, 0x71BB and 0x1273 + 0x8E62 + 0x86A0 drawn
+   on the given target (the target this file keeps is restored after) */
+void province_strips70ba(uint8_t *fb, uint8_t z) { uint8_t *s = g_fb; g_fb = fb; strips_draw70ba(z); g_fb = s; }
+void province_lines71bb(uint8_t *fb) { uint8_t *s = g_fb; g_fb = fb; strip_lines71bb(); g_fb = s; }
+int  province_cbm(uint8_t *fb, const char *name, int x, int y) { uint8_t *s = g_fb; g_fb = fb; int r = cbm_draw(name, x, y); g_fb = s; return r; }
 /* 0x3512 panel_frame: 0x30E6(79, 164), then "Rank: " + rank name + "\nTalents: " + treasury at (171, 156) */
 static void panel_frame3512(void) {
     frame30e6(0xA4, 0x4F);

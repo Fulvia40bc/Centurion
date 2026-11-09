@@ -249,6 +249,12 @@ static void poll0644(int take) {
     setW(0xB2, (uint16_t)b); setW(0xB6, (uint16_t)x); setW(0xB8, (uint16_t)y);
 }
 
+/* 0x0644 for the loops that poll (nego.c: the delay 0x0143, the bedchamber's wait 0x642A): [B2] */
+int mouse_poll(void) {
+    poll0644(1);
+    return W(0xB2);
+}
+
 /* 0x066A(x, y): [B6] = x, [B8] = y, INT 33h fn 4 (set the pointer), then 0x0644 */
 void mouse_warp(int x, int y) {
     setW(0xB6, (uint16_t)x); setW(0xB8, (uint16_t)y);

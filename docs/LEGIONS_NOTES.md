@@ -374,14 +374,15 @@ cursor_pop(); return result;
 ```
 Tables (D, dumped): replies 4028 = Withdraw, Go to War, Ultimatum, Offer Alliance, Aggressive, Friendly, Diplomatic, Warm, Sarcastic,
 Gentle, Pushy, Rude, Approach, Leave, Low, Medium, High; 4092 min rank per zone; 40AE min [634E] per zone; 40CA tribute tolerance;
-4322 row width c. The full negotiation (texts, Cleopatra) is its own porting task; it is listed here because the Legions move reaches it.
+4322 row width c. The full negotiation (texts, Cleopatra) is decoded in NEGO_LOGIC_NOTES.md / NEGO_SCREEN_NOTES.md /
+NEGO_DATA_NOTES.md and ported in port/src/nego.c (section 9).
 
 ## 4. All dice (076B) reachable from Legions
 | where | call | when |
 |---|---|---|
 | 4733 (raise) | roll(number of free commanders) | each raised legion; if none is free every non-assigned one (status 1 **or 2 dead**) is made free first (ported) |
 | 6501 (negotiation) | roll(3) | every text the province speaks |
-| 6443 (Cleopatra animation) | roll(12) | loop while waiting for a click |
+| 6443 (Cleopatra animation) | roll(12) | loop while waiting for a click, once per > 72 ticks (NEGO_LOGIC_NOTES 4; none in headless runs) |
 | B06E battle | many | BATTLE_NOTES 3 (formation, tactics, casualties) |
 No dice in select / raise (besides 4733) / strengthen / upgrade / board / list.
 
@@ -457,15 +458,21 @@ commented with its address: 4065 `legions_cmd`, 3F44 `legions_scan_zone`, 3BAF `
   `legions_script()`; when the answers run out, menus return 0xFF, yes/no 0, clicks Esc, so every loop ends as in the game.
 - Battles: `battle_auto(A, L, Z, &won)` at 4B85 and 6006 (B06E); without battle choices it counts as not won, reported on stderr
   with `g_enemy_unported = 1`.
-- **NOT PORTED**: the negotiation (5F82 from 0x602E: 6570 and the dialogue, incl. Cleopatra). 5F82 reports it at the 6570 call and
-  returns as when 6570 fails (cursor pop, 0: the legion does not enter, it stays Moved). Not wired to any screen yet (province menu
-  item 0 at EXE 6DA4 / 73CD and the map's right click 08F5 are the callers).
+- The negotiation (5F82 from 0x602E: 6570, the dialogue 604B..64DD, Cleopatra) is ported in **port/src/nego.c** (`nego_run`,
+  2026-11-09, from NEGO_LOGIC_NOTES / NEGO_SCREEN_NOTES / NEGO_DATA_NOTES): `legions_enter_foreign` does the cursor push, calls
+  `nego_run(L, z, battle_b06e)` and, when it returns nonzero, 53F8 (64E0), then the cursor pop. "Go to War" fights through
+  `battle_b06e(0xFF, L, z)` as the rebels' battle. nego.c draws and reads its input itself (screen.c / ui.c, not the legions_ui
+  hooks); headless runs answer its menus and "Click to continue" waits with script lines. The first pass above (section 3, 5F82)
+  is superseded by NEGO_LOGIC_NOTES section 1 (its corrections are listed in its section 7; the file letter is '@' + z, not
+  'A' + z). Port decisions and the two 1990 bugs fixed by default (mood past the A table, the scout report's table indices; both
+  kept with --original) are in nego.c's header.
 - `legions_selftest(path)` (default `tools/dosbox/results/endturn/t10_in.bin`, run from C:\work\cent_play for BATL.DAT) runs
   nine scripted sub-commands and prints the DS bytes each changed: refused raise at rank 0; Consular Army raised in Italia (rank
   poked to 6: inf 6000 / cav 600, numeral II, treasury 100 -> 40, recruits 6750 -> 150, commander roll); Upgrade of a Consular Army
   + Legion List data (rect 2,72-317,127, rows at y 104/112); Strengthen of I Ital at 3000 infantry in Narbonensis (+1200, courage
   99 -> 85, treasury -5, recruits 6000 -> 4800, Forming); Upgrade to Cavalry (rank 2: -10) then refused; Move to Hispania
-  (negotiation reported unported, legion Moved, stays); Move to Alpes with +0x17 poked (rebel battle won: Alpes Occupied, +0x12 =
+  (written when the negotiation was not ported: reported unported, legion Moved, stays; nego.c runs there now, and without a screen
+  or script it should end at its first menu as Withdraw does: G, not re-run, the self-test has no command-line entry); Move to Alpes with +0x17 poked (rebel battle won: Alpes Occupied, +0x12 =
   [5FC0], +0x19 = 0, score +5, legion moves); boarding fleet 0 (poked: 50 small ships in zone 33): 1700 left behind, No then Yes,
   inf 2500, F+0A 50, then landing in Narbonensis (fleet freed); raise in Italia and attack army 1 in Dalmatia (army message, battle
   won, army +8 = 0, then the negotiation is reached); and (10) the map loop's path 08F5..0919 (3BAF, 3F23, 3EA3, 382A).

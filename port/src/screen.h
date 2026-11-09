@@ -35,6 +35,7 @@ void battle_ui_attach(int on);
 /* Entry points owned by the parallel agents (defined in map.c, province.c, gamectl.c; NOT in screen.c) */
 void map_loop(void);                    /* map.c: 0x07EF..0x09B9 on g_ds; returns when quitting */
 void map_build(int z);                  /* 0x494A: the map screen from g_ds (+ pointer warp to DS:1AB8[z]) */
+void music_play_5D29(uint8_t m);        /* map.c: 0x5D29 (with 0x5D73), the DS part: slot table DS:A6B0 and [3EEE] */
 int  zone_at(int x, int y);             /* 0x6C67 incl. the Asterix village message; 0..36 or 0xFF */
 void province_screen(int z);            /* province.c: 0x6CB8 (z 1..26) */
 void rome_screen(void);                 /* province.c: 0x7366 */
@@ -43,6 +44,9 @@ void province_list(void);               /* province.c: 0x69CC (key P / menu) */
 void legion_list(void);                 /* province.c: 0x4280 (key L), uses legions.c */
 void fleet_list(void);                  /* province.c: 0x2FD6 (key F) */
 void legions_ui_install(void);          /* province.c: fills the legions.h UI hooks with screen.c calls */
+void province_strips70ba(uint8_t *fb, uint8_t z);   /* province.c: 0x70BA on fb (archive 7 MNEGO loaded by the caller) */
+void province_lines71bb(uint8_t *fb);               /* province.c: 0x71BB on fb */
+int  province_cbm(uint8_t *fb, const char *name, int x, int y);   /* province.c: 0x1273 + 0x8E62 + 0x86A0 on fb; 0 = drawn */
 int  game_control_menu(void);           /* gamectl.c: 0x1A8B; returns -1 = quit the game, else 0 */
 int  new_game(void);                    /* gamectl.c: 0x752E (NEWGAME.LZW) into g_ds */
 
@@ -71,5 +75,7 @@ const rgb_t *screen_palette(void);      /* the CMAP.BIN palette (250 x 6-bit RGB
 void menu_load_ds(menu_t *m, uint16_t rec);   /* ui_menu_load from the live g_ds (records patched at run time, e.g. 3E5A) */
 void mouse_warp(int x, int y);          /* 0x066A: W(0xB6)/W(0xB8) = x, y and INT 33h fn 4 (the window pointer / script mouse) */
 void wait_click(void);                  /* 0x35F9: 35DB, 359B, 35DB */
+int  mouse_poll(void);                  /* 0x0644 for the loops that poll: W(0xB2) after it. In a script it takes the next line
+                                           when that is a click (as 0x359B's poll); in the window it reads the window. */
 
 #endif

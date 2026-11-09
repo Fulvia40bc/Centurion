@@ -53,16 +53,24 @@ int assets_load(const char *dir_path, const char *dat_path) {
     }
     free(dir);
 
+    /* One archive is open at a time: the previous image is freed here (the original closes each archive with 0x11A9,
+       e.g. 0x672A at the end of the negotiation screen 6570). Before this, every assets_load leaked the previous
+       image (MNEGO.DAT 196,775 bytes per negotiation or province screen). On a failure no entry stays usable. */
+    free(g_dat);
+    g_dat = NULL;
+    g_dat_len = 0;
     f = fopen(dat_path, "rb");
-    if (!f) return -1;
+    if (!f) { g_entry_count = 0; return -1; }
     fseek(f, 0, SEEK_END);
     g_dat_len = ftell(f);
     fseek(f, 0, SEEK_SET);
-    g_dat = malloc(g_dat_len);
-    if (fread(g_dat, 1, g_dat_len, f) != (size_t)g_dat_len) { fclose(f); return -1; }
+    g_dat = malloc(g_dat_len > 0 ? g_dat_len : 1);
+    if (!g_dat || fread(g_dat, 1, g_dat_len, f) != (size_t)g_dat_len) { fclose(f); g_entry_count = 0; return -1; }
     fclose(f);
-    if (g_dat_len < 4 || g_dat[0] != 0xCA || g_dat[1] != 0xCA || g_dat[2] != 0xD0 || g_dat[3] != 0xD0)
+    if (g_dat_len < 4 || g_dat[0] != 0xCA || g_dat[1] != 0xCA || g_dat[2] != 0xD0 || g_dat[3] != 0xD0) {
+        g_entry_count = 0;
         return -1;
+    }
     return 0;
 }
 

@@ -8,8 +8,9 @@
  *   zone_at       0x6C67          zone under a point, run-length rows DS:3A96, the Asterix village (0xFE) message
  *   map_startup   resident overlay 0x0146..0x0152 (VGA colours) and 0x019E..0x01D5 (INIT sprite descriptors)
  *
- * Not ported here (as screen.c): the mouse cursor (0x1D55 / 0x1D8A / 0x1CCE), the music driver (0x5D73's loading and the
- * driver calls of 0x5D29 / 0x5D20; their [3EEE] writes are done) and the disk swap prompts (0x1E21). Fleet select / move
+ * Not ported here (as screen.c): the mouse cursor (0x1D55 / 0x1D8A / 0x1CCE), the music driver (the file loading of
+ * 0x5D73 / 0x5EB5 and the driver calls of 0x5D29 / 0x5D20; their DS writes, the slot table DS:A6B0 and [3EEE], are done)
+ * and the disk swap prompts (0x1E21). Fleet select / move
  * (0x2C6F, 0x2F5A, 0x2B40) and the victory sequence (section 4 DF58, not disassembled) are not ported: a message box
  * says so and the DS is left as it is.
  */
@@ -243,10 +244,30 @@ static void army_icons(void) {
     }
 }
 
-/* 0x5D29 music_play(m): 5D73(m) first (loads music m into a free slot of the table DS:A6B0 {handle, loaded, id} when no
-   loaded slot has it: file + driver, not ported); then, when [3EEE] != m, every slot i 0..3 whose id DS:A6B3[4i] is m is
-   started (072E, the driver: not ported) and [3EEE] = m. The port does the DS part (the table as the start-up left it). */
-static void music_play(uint8_t m) {
+/* 0x5D73 music_load(m), its DS part (D): the table DS:A6B0 has 4 slots {u16 handle, u8 loaded, u8 id}. Nothing when a
+   loaded slot (loaded != 0) has id m (0x5D7D); else the first slot with loaded == 0 (0x5DB1; none: nothing) gets
+   handle = 5EB5(m) (0x5DEE), and only when that is nonzero also id = m (0x5E02) and loaded = 0xFF (0x5E0F). 5EB5 loads
+   name[m] + ".lzw" (table 3EF0) and returns its DOS segment, or returns 0 at once when the sound is off ([3EEC] == 0,
+   word compare) and m < 0x11 (unsigned). The port loads nothing: it writes handle = 1 in place of the segment and takes
+   the load as successful (G: the file is in its archive and 863E finds the memory). From OVL0 [3EEC] is 0 (V), so in a
+   port game started with --play or a .CSV only the 0 handle is written, as in the original with the sound off; DS
+   images captured in DOSBox have [3EEC] = FFFF (V) and then the slot is taken as in the original. */
+static void music_load_5D73(uint8_t m) {
+    for (int i = 0; i < 4; i++)
+        if (B(0xA6B2 + 4 * i) != 0 && B(0xA6B3 + 4 * i) == m) return;
+    int k = 0;
+    while (k < 4 && B(0xA6B2 + 4 * k) != 0) k++;
+    if (k == 4) return;
+    uint16_t h = (W(0x3EEC) != 0 || m >= 0x11) ? 1 : 0;
+    setW(0xA6B0 + 4 * k, h);
+    if (h == 0) return;
+    B(0xA6B3 + 4 * k) = m;
+    B(0xA6B2 + 4 * k) = 0xFF;
+}
+/* 0x5D29 music_play(m): 5D73(m) first; then, when [3EEE] != m, every slot i 0..3 whose id DS:A6B3[4i] is m (the loaded
+   byte is not tested) is started (072E, the driver: not ported) and [3EEE] = m. Also used by nego.c (CN6, music 8). */
+void music_play_5D29(uint8_t m) {
+    music_load_5D73(m);
     if (B(0x3EEE) == m) return;
     for (int i = 0; i < 4; i++)
         if (B(0xA6B3 + 4 * i) == m) B(0x3EEE) = m;
@@ -271,7 +292,7 @@ void map_build(int z) {
     legion_icons();
     army_icons();
     memcpy(g_scr, g_wrk, sizeof(g_scr));
-    music_play(1);
+    music_play_5D29(1);
     screen_present();
 }
 

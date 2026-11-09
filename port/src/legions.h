@@ -89,7 +89,8 @@ void     legions_move(uint8_t L);                    /* 382A (clicks from legion
 uint16_t legions_fleet_fit(uint8_t f, uint16_t L, uint16_t *cav, uint16_t *inf);   /* 3A32: men left behind */
 uint16_t legions_board(uint8_t z0, uint8_t L, uint8_t f);   /* 3AE4: 0xFFFF boarded, 0 refused */
 uint16_t legions_fight_armies(uint16_t L, uint16_t z);      /* 4B3F: 0xFFFF no battle lost, 0 a battle lost */
-uint16_t legions_enter_foreign(uint8_t L, uint8_t z);       /* 5F82: nonzero = province taken (negotiation not ported) */
+uint16_t legions_enter_foreign(uint8_t L, uint8_t z);       /* 5F82: nonzero = province taken or allied (rebels' battle
+                                                                here, the negotiation in nego.c) */
 void     legions_list(void);                         /* 4280 */
 void     legions_list_data(legions_list_t *out);     /* 4280's layout and rows, without the DS writes or drawing */
 void     legions_row_data(uint8_t L, int y, uint16_t select, legions_row_t *r);   /* 3DB7 row as data (no DS writes) */

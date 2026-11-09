@@ -13,10 +13,12 @@
  *
  * Battles: battle_auto() (battle.c) where the original calls the thunk 0xB06E. When no battle choices are available it
  * returns 0: reported on stderr, g_enemy_unported = 1, and the battle counts as not won (nothing else changes).
- * NOT PORTED: the negotiation (5F82 from 0x602E on: 6570 and the dialogue, Cleopatra). It is reported at the point where
- * the original calls 6570 and 5F82 then returns as when 6570 fails (cursor pop, 0 = province not entered).
+ * The negotiation (5F82 from 0x602E: 6570 the screen, the dialogue 604B..64DD, the Cleopatra scenes) is nego.c's
+ * nego_run(); this file does 5F82's rebel branch, the cursor push / pop around it and 64E0's 53F8. Unlike this file, nego.c
+ * draws and reads its input itself (screen.c / ui.c), and its "Go to War" battle comes back here through battle_b06e.
  */
 #include "legions.h"
+#include "nego.h"
 #include "state.h"
 #include <stdio.h>
 #include <string.h>
@@ -541,11 +543,11 @@ uint16_t legions_enter_foreign(uint8_t L, uint8_t z) {
         }
         return r;
     }
-    ui(LEV_CURSOR_PUSH, 0, 0, NULL);
-    /* 603C: nego_screen 6570(z, &buf) and the negotiation 604B..64F9 */
-    unported("negotiation 0x6570 (5F82 from 0x602E)", "Negotiating with a foreign province", L, z);
-    ui(LEV_CURSOR_POP, 0, 0, NULL);                                               /* as when 6570 returns 0 */
-    return 0;
+    ui(LEV_CURSOR_PUSH, 0, 0, NULL);                                              /* 602E: 1D55(0) */
+    uint16_t r = nego_run(L, z, battle_b06e);                                     /* 603C: 6570, the dialogue 604B..64DD (nego.c) */
+    if (r) province_won(z);                                                       /* 64E0: 53F8 */
+    ui(LEV_CURSOR_POP, 0, 0, NULL);                                               /* 64EC: 1D8A (64EF "tab" freed in nego.c) */
+    return r;
 }
 
 /* ---------------------------------------------------------------- 382A move_legion(L) */
