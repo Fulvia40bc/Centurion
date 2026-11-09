@@ -39,6 +39,12 @@ So turn 5+ = dice + enemy AI + garrison battles + random events: port it togethe
 3 Hold Games 0x3342 | 4 Build Fleet 0x2458 | 5 See Province List 0x69CC (layout DECODED) | 6 Continue.
 Tribute Policy (Rome only) 0x7D42 (DECODED).
 
+## Easter egg: the indomitable village (DECODED, not yet seen live)
+Map click (0x0839) → hit test 0x6C67(x = [B6], y = [B8]): per-row run-length zone table, row pointers at DS:3A96 ({zone, run length} pairs).
+Code 0xFE marks 6 pixels on the north coast of Armorica: (50,74), (51,75), (52..55,76). Clicking there shows message DS:[57BC] → DS:5676
+("Gaul was divided into three parts... No, four parts. One indomitable village still held out against the Roman invaders.") via 0x59D4,
+then returns 0xFF (no zone). Marked image: tools/dosbox/results/asterix_village_marked.png. The port must keep it.
+
 ## Data
 - Save = 24 DS blocks (table DS:5BDE), see SAVE_FORMAT.md. Province records 27 x 32 from DS:5270; legion records 12 x 20 from DS:1918;
   fleets 6 x 12 from DS:1114. Zone names DS:5222; map anchors DS:1AB8; outline seeds DS:3C52; adjacency DS:50EC (8 per zone, 0xFF = none).
