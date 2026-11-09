@@ -38,7 +38,7 @@ casualties) and 10 (Macedonia, Balanced Army + Frontal Assault) including the ba
   report (pixel-exact against scr_battle_report). `centurion --play-battle DS army legion zone` plays one;
   `--battle-shots` saves the screens headless. Still approximate: the menu engine's item font/ornament (shared with the
   province menus), the unit panel (DC72), order-path drawing (DA35) and the general's voice circle.
-- 0xB0C2 = the naval battle (overlay 3, args (6, fleet)); result bit 2 = stop, bit 4 = the fleet retreats (0x5244). NOT YET PORTED.
+- 0xB0C2 = the naval battle (overlay **5**, args (6, fleet)) [CORRECTED: was "section 3"]; result bit 2 = stop, bit 4 = the fleet retreats (0x5244). NOT YET PORTED.
 
 ## Dice: EXE 0x076B (PORTED, enemy.c)
 ```
@@ -96,7 +96,7 @@ The land battle reads [0x48E] at 0xB354 and 0xC178.
 
 ## Overlay sections (EXE table at 0xAFFA, 16-byte entries {load seg 1331, end seg, 0x75, file para, size para})
 Thunks at EXE 0xB06E.. are `lcall 129B:02EC; dw section; jmp 0823:entry`. Section n = entry n-1: 1 = file 0x0000-0x09A0,
-2 = 0x09A0-0x3EF0 **land battle** (disasm/OVL_BATTLE.asm, entry 0xDF24), 3 = 0x3EF0-0x51A0 (naval, entry 0xB0E0), 4 = 0x51A0-0x8550,
+2 = 0x09A0-0x3EF0 **land battle** (disasm/OVL_BATTLE.asm, entry 0xDF24), 3 = 0x3EF0-0x51A0, **5 = naval battle (entry 0xB0E0)** [CORRECTED: naval is section 5, not 3], 4 = 0x51A0-0x8550,
 5 = 0x8550-0xB3F0; then DS from file 0xB3F0. All load at 1331:0000 = 0823:B0E0.
 
 ## Province commands (EXE menu switch at 0x6D76)
