@@ -4,15 +4,17 @@
  *
  * Event table DS:0F02, 19 x {kind, score change, talents change}: kind 0 = once per game (DS:0EDC marks used), 1 = repeatable.
  * Talents change: -128 = half this turn's tribute, 127 = all of it, else a fixed amount. Texts: DS:0F48[i] (or built, 0/1/3).
- * Messages (0x59D4) are UI; here they are logged on stderr.
+ * Messages (0x59D4) go through game_message() (endturn.c): a message box when a screen is open, else stderr.
  */
 #include "state.h"
 #include <stdio.h>
 #include <string.h>
 
+void game_message(const char *s);   /* endturn.c */
+
 static char g_msg[640];
 static void msg_cat(uint16_t a) { strncat(g_msg, (const char *)&g_ds[a], sizeof(g_msg) - strlen(g_msg) - 1); }
-static void msg_show(void) { fprintf(stderr, "message: %s\n", g_msg); g_msg[0] = 0; }
+static void msg_show(void) { game_message(g_msg); g_msg[0] = 0; }   /* 0x59D4 */
 
 /* 0x21A4: the crises. DS:0ED8 = Rome is bored, DS:0EDA = a governor (province DS:0ED6) wants games; chances DS:0ED4/0ED5 */
 static void crises(void) {

@@ -562,10 +562,12 @@ static void shot_orders_screens(void) {                             /* headless:
     shot("select"); RESTORE(0, 0, 319, 199);                                        /* D9EF */
     message_box(dstr(0x74D4));                                                      /* D299's message */
 }
+static int (*g_ext_orders)(int tick);      /* battle_ui_script: the script's orders, given where D0F2 polls */
 static int tick_hook(int tick) {
     draw_field();
     if (g_headless) {
         if (tick == g_shot_tick) shot_orders_screens();
+        if (g_ext_orders) g_ext_orders(tick);
         return 0;
     }
     present();
@@ -605,6 +607,17 @@ uint16_t battle_ui_shots(int A, int L, int Z, int pf, int pt, int shot_tick, con
     return r;
 }
 
+/* The battle of a scripted (headless) game run (battle_auto with battle_ui_attach(1) and a script): the same screens as
+   battle_play, drawn but not shown, with the menu choices pf / pt and the orders given by `orders` after each tick
+   (main.c's --orders replayer fed with the script's "orders" lines; NULL = none). */
+uint16_t battle_ui_script(int A, int L, int Z, int pf, int pt, int (*orders)(int tick));
+uint16_t battle_ui_script(int A, int L, int Z, int pf, int pt, int (*orders)(int tick)) {
+    g_headless = 1; g_shot_prefix = NULL; g_pick[0] = pf; g_pick[1] = pt; g_shot_tick = -1; g_ext_orders = orders;
+    uint16_t r = battle_play(A, L, Z);
+    g_headless = 0; g_ext_orders = NULL;
+    return r;
+}
+
 /* Fight battle (A, L, Z) on screen from the current DS. Returns the battle's result (0xFFFF = Rome won). */
 uint16_t battle_play(int A, int L, int Z) {
     /* palette: CMAP.BIN in CENT.DAT (250 x 6-bit RGB) */
@@ -621,11 +634,13 @@ uint16_t battle_play(int A, int L, int Z) {
     if (f) { fseek(f, 0, SEEK_END); long len = ftell(f); fseek(f, 0, SEEK_SET); g_ovl0 = malloc((size_t)len); if (fread(g_ovl0, 1, (size_t)len, f) != (size_t)len) {} fclose(f); }
     size_t tn = 0; uint8_t *tac = NULL;
     if (assets_load("BATL.DIR", "BATL.DAT") == 0 && (k = assets_find("TACTICS.LZW")) >= 0) tac = assets_decode(k, &tn);
+    int (*saved_orders)(int) = battle_orders_hook;      /* a caller's hook (main.c --orders) is put back afterwards */
     battle_menu_hook = menu_hook; battle_setup_hook = setup_hook; battle_message_hook = msg_hook;
     battle_report_hook = report_hook; battle_orders_hook = tick_hook;
     g_tick_start = platform_ticks_ms();
     uint16_t r = battle(A, L, Z, 0, 0, tac, tn);
-    battle_menu_hook = NULL; battle_setup_hook = NULL; battle_message_hook = NULL; battle_report_hook = NULL; battle_orders_hook = NULL;
+    battle_menu_hook = NULL; battle_setup_hook = NULL; battle_message_hook = NULL; battle_report_hook = NULL;
+    battle_orders_hook = saved_orders;
     free(tac); free(g_ovl0); g_ovl0 = NULL;
     return r;
 }

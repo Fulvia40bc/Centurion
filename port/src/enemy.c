@@ -7,12 +7,55 @@
  * Fleet record k (0..5) at F = DS:110E + 12*k: F+0..5 three ship counts (by type), F+6 zone, F+7 home province, F+8 0xFF = none
  *   (Roman fleets: 0 = may move), F+0x0A ships shown. Fleets 3-5 are the enemy's.
  *
- * NOT YET PORTED (reported on stderr, and g_enemy_unported is set): the land battle (overlay call 0xB06E), the naval battle
- * (0xB0C2), garrison setup 0x4733, 0x531F, fleet retreat 0x5244; and the two places where the original reads an
- * uninitialised local (noted below). Messages (0x4BAC, 0x59D4) and disk swaps (0x1E21) are UI only; they are logged.
+ * NOT YET PORTED (reported on stderr, and g_enemy_unported is set): the naval battle (0xB0C2) with its set-up 0x531F and
+ * fleet retreat 0x5244 (with a screen open a "not ported yet" box follows the 4BAC message); a land battle (0xB06E) when
+ * no battle choices are available; and the two places where the original reads an uninitialised local (noted below). Messages (0x4BAC, 0x59D4, the tail of 0x4733) go through game_message() (endturn.c):
+ * a message box when a screen is open, else stderr. Disk swaps (0x1E21) are not needed.
  */
 #include "state.h"
 #include <stdio.h>
+#include <string.h>
+
+void game_message(const char *s);   /* endturn.c */
+void game_not_ported(const char *what);   /* endturn.c: "<what>\nis not ported yet." box when a screen is open */
+
+static char *dsp(uint16_t a) { return (char *)&g_ds[a]; }
+
+/* 0x4BAC(name, numeral, zone, army) "An army from <home>\ninvades <zone>\n<numeral><name> meets the enemy on\nthe <field of
+   battle. | rolling waves of destiny.>": the word table DS:3D7A..3D8A gets its variable slots ([3D7C] = home name 5222[army
+   +2], [3D80] = zone name, [3D86] = name, [3D8A] = 3D8C on land / 3D8E at sea; [3D84] is C072, filled by 6738(numeral)),
+   then AC60 = [3D7A] + the words 3D7C..3D8A; 59D4(AC60). */
+static void army_meets_4bac(uint16_t name, unsigned numeral, unsigned zone, unsigned army) {
+    setW(0x3D7C, W(0x5222 + 2 * W(0xC114 + 14 * army)));
+    setW(0x3D80, W(0x5222 + 2 * zone));
+    {
+        char num[32];
+        roman_numeral(numeral, num);                                 /* 6738 -> C072 */
+        strcpy(dsp(0xC072), num);
+    }
+    setW(0x3D86, name);
+    setW(0x3D8A, zone >= 0x1B ? W(0x3D8E) : W(0x3D8C));
+    strcpy(dsp(0xAC60), dsp(W(0x3D7A)));                             /* 9E32 */
+    for (uint16_t si = 0x3D7C; si < 0x3D8C; si += 2) strcat(dsp(0xAC60), dsp(W(si)));   /* 9DF2 */
+    game_message(dsp(0xAC60));
+}
+
+/* 0x4733's message (47C6..480B), after battle.c's assign_commander() made the choice: AC60 = commander name [1A1C + 6c] +
+   1F89 " is assigned\nto command " + 6738(legion +0x0A) (C072) + legion name; 59D4(AC60). Nothing when the legion's
+   +0x0D is FFh (474C). As legions.c's commander_msg_4733. */
+static void commander_msg_4733(unsigned L) {
+    uint16_t rec = (uint16_t)(20 * L);
+    if (B(rec + 0x1925) == 0xFF) return;
+    uint8_t c = B(rec + 0x1928);
+    char num[32];
+    roman_numeral(B(rec + 0x1922), num);
+    strcpy(dsp(0xC072), num);
+    strcpy(dsp(0xAC60), dsp(W(0x1A1C + 6 * c)));
+    strcat(dsp(0xAC60), dsp(0x1F89));
+    strcat(dsp(0xAC60), dsp(0xC072));
+    strcat(dsp(0xAC60), dsp((uint16_t)(rec + 0x1918)));
+    game_message(dsp(0xAC60));
+}
 
 int g_enemy_unported;
 int g_original_bugs;
@@ -50,7 +93,7 @@ void legion_lost(int j) {
 }
 
 /* 0x541F: province p left Roman hands; an enemy fleet based there is restored */
-static void fleets_province_lost(unsigned p) {
+void fleets_province_lost(unsigned p) {   /* also called by endturn.c's revolt handler */
     for (int k = 0; k < 3; k++) {
         uint16_t f = FLEET(3 + k);
         if (B(f + 7) != p) continue;
@@ -145,8 +188,9 @@ static void army_move(int i) {
         for (int k = 0; k < 3; k++) {
             uint16_t f = FLEET(k);
             if (B(f + 8) == 0xFF || B(f + 6) != t) continue;
-            fprintf(stderr, "message 0x4BAC: army %d meets Roman fleet %d in zone %u\n", i, k, t);
+            army_meets_4bac(W(0x1100 + 2 * k), 0, t, (unsigned)i);   /* 0x520E: fleet name, numeral 0 */
             unported("0x531F + naval battle 0xB0C2 (+ retreat 0x5244)", i, k);
+            game_not_ported("The naval battle");   /* a box when a screen is open; the DS stays as it is */
             return;    /* outcome unknown without the battle; stop here */
         }
         return;
@@ -161,16 +205,19 @@ static void army_move(int i) {
     for (int j = 0; j < 12; j++) {   /* 0x501E: every legion in the zone fights */
         uint16_t s = (uint16_t)(0x1925 + 20 * j);
         if (B(s) == 0xFF || B(s - 1) != t) continue;
-        fprintf(stderr, "message 0x4BAC: army %d meets legion %d in zone %u\n", i, j, t);
+        army_meets_4bac((uint16_t)(s - 0x0D), B(s - 3), t, (unsigned)i);   /* 0x5049: legion name, its +0x0A */
         uint16_t won;
         if (!battle_auto(i, j, (int)t, &won)) { unported("land battle 0xB06E", i, j); return; }
         if (won) { setW(a + 8, 0); break; }   /* 0x5063 */
     }
     if (t == 0 && W(a + 8) != 0 && B(0x5285) != 0) {   /* 0x508D */
-        fprintf(stderr, "message: %s%s%s\n", (const char *)&g_ds[0x3D9D], (const char *)&g_ds[W(0x5222 + 2 * W(a + 2))],
-                (const char *)&g_ds[0x3DB4]);
+        {   /* 0x508D: a local buffer = 3D9D "The Marauding Army of " + home name + 3DB4 "\nMeets the Roman Garrison"; 59D4 */
+            char m[160];
+            snprintf(m, sizeof(m), "%s%s%s", dsp(0x3D9D), dsp(W(0x5222 + 2 * W(a + 2))), dsp(0x3DB4));
+            game_message(m);
+        }
         uint8_t c = B(0x1A18);
-        if (c == 0xFF || B(0x1A20 + 6 * c) != 0) assign_commander(12);
+        if (c == 0xFF || B(0x1A20 + 6 * c) != 0) { assign_commander(12); commander_msg_4733(12); }   /* 0x50E0: 4733(12) */
         setW(0x1A0E, W(0x5270)); setW(0x1A10, W(0x5272));   /* 0x50E3: Rome's troops into the garrison */
         uint16_t won;
         if (!battle_auto(i, 12, 0, &won)) { unported("land battle 0xB06E (garrison)", i, 12); return; }

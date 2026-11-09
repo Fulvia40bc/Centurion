@@ -3,21 +3,16 @@
 #include "ui.h"
 #include "compat.h"
 #include "state.h"
+#include "screen.h"
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
+/* The image viewer (no arguments), the headless dumps (--dump-screen / --dump-frame / --end-turn / --save-game) and the
+   province screens' dump frames. The game itself (--play / --load) is main.c play_game -> map.c map_loop. */
 static uint8_t g_fb[SCREEN_W * SCREEN_H];
-static int g_turn = 0;
-static int g_prov_level[27];      /* tribute LEVEL 0-4 at province record +0x12 (0x7ce0); +0x11 is the amount the panel prints */
-static int g_prov_init_done;
-static int g_legion_zone[12];   /* in-memory legion array (save CSV 0x3A4, byte0 = zone) */
-static int g_legion_n;        /* turn counter (save CSV 0x5FE); year = 275 - turn */
-static void draw_map_buttons(void);
-
-
-static void draw_map_full(const char *save_path);
-static const char *g_save_path;      /* what SDL shows */
+void map_startup(void);              /* map.c */
+static const char *g_save_path;      /* --save of --dump-frame */
 static uint8_t g_work[SCREEN_W * SCREEN_H];    /* off-screen work buffer, like the original */
 static rgb_t g_palette[256];
 
@@ -357,46 +352,6 @@ static void draw_province_rome(void) {
 /* Headless: render the current frame (work buffer) to a raw index file. */
 
 
-/* turn counter from a save (CSV 0x5FE); year = 275 - turn, i.e. "275 BC" fresh (VERIFIED vs
-   fresh_275BC.csv / turn2_274BC.csv + screenshot) */
-static int load_turn(const char *path) {
-    FILE *f = fopen(path, "rb");
-    if (!f) return -1;
-    fseek(f, 0x5FE, SEEK_SET);
-    uint8_t t = 0;
-    if (fread(&t, 1, 1, f) != 1) { fclose(f); return -1; }
-    fclose(f);
-    return t;
-}
-
-
-/* 4-connected flood fill on the work buffer (matches EXE func_0x22ea): replaces the
-   connected region of colour `target` containing (x,y) with `fill`. */
-static void flood_fill(int x, int y, uint8_t target, uint8_t fill) {
-    if (x < 0 || y < 0 || x >= SCREEN_W || y >= SCREEN_H) return;
-    if (g_work[y * SCREEN_W + x] != target) return;
-    static int32_t stack[64000];
-    int sp = 0;
-    stack[sp++] = y * SCREEN_W + x;
-    g_work[y * SCREEN_W + x] = fill;
-    while (sp > 0) {
-        int32_t p = stack[--sp];
-        int px = p % SCREEN_W, py = p / SCREEN_W;
-        static const int dx[4] = {1, -1, 0, 0};
-        static const int dy[4] = {0, 0, 1, -1};
-        for (int i = 0; i < 4; i++) {
-            int nx = px + dx[i], ny = py + dy[i];
-            if (nx < 0 || ny < 0 || nx >= SCREEN_W || ny >= SCREEN_H) continue;
-            if (g_work[ny * SCREEN_W + nx] == target) {
-                g_work[ny * SCREEN_W + nx] = fill;
-                stack[sp++] = ny * SCREEN_W + nx;
-            }
-        }
-    }
-}
-
-
-
 /* ---- save load/write + End Turn economy (roadmap items 2-3) ----
    Save = 0x38 header + state blocks. End Turn (VERIFIED diff fresh_275BC -> turn2_274BC,
    42 bytes): turn counter CSV 0x5FE 0->1; every province record +0x19 0->1; Rome record
@@ -435,6 +390,20 @@ int game_save_game(const char *in_path, const char *out_path) {
     return 0;
 }
 
+/* The map screen from a save, as the game draws it: static DS (state_init) + the save (state_load; without --save the
+   first of 3.CSV / 0.CSV in the game folder that exists, else the static DS; the checks pass --save), the start-up writes
+   (map_startup), then map_build(FFh) (0x494A); the screen goes to g_work for the dump. Headless. */
+static int dump_map_ds(const char *save_path) {
+    if (state_init("OVL0.OVL") != 0) return 1;
+    if (save_path) { if (state_load(save_path) != 0) return 1; }
+    else if (state_load("3.CSV") != 0) state_load("0.CSV");
+    if (screen_open(1) != 0) return 1;
+    map_startup();
+    map_build(0xFF);
+    memcpy(g_work, g_scr, sizeof(g_work));
+    return 0;
+}
+
 int game_dump_frame(const char *outpath, const char *screen, const char *save_path) {
     g_save_path = save_path;  /* used by the map fleet loader */
     if (screen && strncasecmp(screen, "province", 8) == 0) {
@@ -453,22 +422,18 @@ int game_dump_frame(const char *outpath, const char *screen, const char *save_pa
             draw_province_rome();
         }
     } else if (screen && strcasecmp(screen, "map") == 0) {
-        if (assets_load_luts("OVL0.OVL") != 0) return 1;
-        if (assets_load_font("OVL0.OVL") != 0) return 1;
+        /* the map screen as the game builds it (map.c map_build 0x494A) from the DS of the save */
+        if (dump_map_ds(g_save_path) != 0) return 1;
+    } else if (screen && strcasecmp(screen, "game_menu") == 0) {
+        /* the map, then the Game Control Menu record DS:05A6 drawn over it (0x5614 mode 2) */
+        if (dump_map_ds(g_save_path) != 0) return 1;
         {
             FILE *f = fopen("OVL0.OVL", "rb");
             static uint8_t ovl0[0x20000];
-            if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
-        }
-        /* world map + top-right year/End-Turn box (measured from scr_newgame_map.bin) */
-        draw_map_full(g_save_path);
-        draw_map_buttons();
-    } else if (screen && strcasecmp(screen, "game_menu") == 0) {
-        if (assets_load_luts("OVL0.OVL") != 0) return 1;
-        if (assets_load_font("OVL0.OVL") != 0) return 1;
-        /* map background + centred Game Control Menu (measured from scr_game_control_menu.bin) */
-        draw_map_full(g_save_path);
-        {
+            if (!f) return 1;
+            if (fread(ovl0, 1, sizeof(ovl0), f) == 0) { fclose(f); return 1; }
+            fclose(f);
+            g_ovl0 = ovl0;
             menu_t m;
             load_menu(&m, 0x5A6);   /* Game Control Menu record */
             ui_menu_draw(g_work, &m, -1);
@@ -486,386 +451,8 @@ int game_dump_frame(const char *outpath, const char *screen, const char *save_pa
 }
 
 
-/* map top-right buttons, one copy: rects from DS globals 0x3C42..0x3C50 (func_0x4aa6/0x3134) */
-static void draw_map_buttons(void) {
-    if (!g_ovl0) return;
-    static char year_txt[16];
-    int turn = g_turn;
-    snprintf(year_txt, sizeof(year_txt), "%d BC", 275 - turn);
-    const char *txt0 = g_ovl0 ? ds_str(0x3CC6) : "?";   /* "End Turn" from DS:3CC6 */
-    const char *txt1 = year_txt;
-    for (int b = 0; b < 2; b++) {
-        const uint8_t *d = g_ovl0 + 0xB400 + 0x3C42 + b * 8;
-        int x0 = d[0] | (d[1] << 8), y0 = d[2] | (d[3] << 8);
-        int x1 = d[4] | (d[5] << 8), y1 = d[6] | (d[7] << 8);
-        int w = x1 - x0 + 1, h = y1 - y0 + 1;
-        ui_rect(g_work, x0, y0, w, h, 26);
-        ui_rect(g_work, x0, y0, w, 1, 15);            /* top highlight row */
-        ui_rect(g_work, x0 + 1, y0 + 1, w - 2, 1, 15);  /* 2nd row, corners stay 8 */
-        g_work[(y0 + 1) * SCREEN_W + x0] = 8;
-        g_work[(y0 + 1) * SCREEN_W + x1] = 8;
-        ui_rect(g_work, x0, y0 + 2, 2, h - 4, 8);
-        ui_rect(g_work, x1 - 1, y0 + 2, 2, h - 4, 8);
-        ui_rect(g_work, x0, y1 - 1, w, 2, 0);
-        g_work[(y1 - 1) * SCREEN_W + x0] = 8;
-        g_work[(y1 - 1) * SCREEN_W + x1] = 8;
-        ui_rect(g_work, x0 + 3, y0 + 3, w - 6, 1, 8);  /* inner lines at +3 */
-        ui_rect(g_work, x0 + 3, y1 - 3, w - 6, 1, 8);
-        ui_rect(g_work, x0 + 3, y0 + 4, 1, h - 7, 8);
-        ui_rect(g_work, x1 - 3, y0 + 4, 1, h - 7, 8);
-        if (b == 0) ui_text(g_work, x0 + 5, y0 + 4, txt0, 15);   /* 0x4AA6: 'End Turn' left-aligned (899C) at X0+5, Y0+4 */
-        else ui_text_centered(g_work, x0 + w / 2, y0 + 4, txt1, 15);
-    }
-}
-
-
-/* full map screen: MAP.CBM + territory flood-fills + buttons + unit icons.
-   Outline: flood-fill colour 104 (MAP border line) -> 9 (blue) from DS:3C52 seeds,
-   for each province with status byte (save +0x15) != 0 (VERIFIED: 583 -> 293 px).
-   Units: legions from save CSV 0x3A4 (DS:1924, 20-byte records, byte0 = zone);
-   fleets from CSV 0x48E (DS:1114, 12-byte records, byte2 == 0xFF = empty). */
-static void draw_map_full(const char *save_path) {
-    if (assets_load_luts("OVL0.OVL") != 0) return;
-    if (assets_load_font("OVL0.OVL") != 0) return;
-    {
-        FILE *f = fopen("OVL0.OVL", "rb");
-        static uint8_t ovl0[0x20000];
-        if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
-    }
-    img_entry_t imgs[256];
-    int n = assets_scan_images(".", imgs, 256);
-    for (int i = 0; i < n; i++)
-        if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
-    /* territory outline: seeds DS:3C52, status from save province records */
-    {
-        static uint8_t csv[2048];
-        const char *sv = save_path ? save_path : "tools/dosbox/results/saves/fresh_275BC.csv";
-        FILE *f = fopen(sv, "rb");
-        if (!f && !save_path) f = fopen("3.CSV", "rb");
-        if (!f && !save_path) f = fopen("0.CSV", "rb");
-        int have = f && fread(csv, 1, sizeof(csv), f) > 0x4D5;
-        if (f) fclose(f);
-        for (int p = 0; p < 27 && g_ovl0; p++) {
-            int status = have ? csv[0x3C + p * 32 + 0x15] : (p == 0 ? 4 : 0);
-            if (status != 0) {
-                uint16_t sx = g_ovl0[0xB400 + 0x3C52 + 4*p] | (g_ovl0[0xB400 + 0x3C52 + 4*p + 1] << 8);
-                uint16_t sy = g_ovl0[0xB400 + 0x3C52 + 4*p + 2] | (g_ovl0[0xB400 + 0x3C52 + 4*p + 3] << 8);
-                flood_fill(sx, sy, 104, 9);
-            }
-        }
-        /* unit icons: legions then fleets (icons drawn after the outline, as the original) */
-        if (assets_load("MINIT.DIR", "MINIT.DAT") == 0 && g_ovl0) {
-            sprite_ent_t ents[16];
-            int ne = 0;
-            uint8_t *pix = NULL;
-            size_t npix = 0;
-            if (assets_load_sheet("INITHDR.LZW", "INITDAT.LZW", ents, &ne, &pix, &npix) == 0) {
-                for (int pass = 0; pass < 2; pass++) {
-                    /* fleets: exactly 6 records (EXE func_0x2af8 loops DS:1114..0x115E); legions: 8 checked here */
-                    for (int i = 0; i < (pass == 0 ? 8 : 6); i++) {
-                        int z, ent;
-                        if (pass == 0) {  /* legions: in-memory array if loaded, else CSV 0x3A4 */
-                            if (g_legion_n > 0) { if (i >= g_legion_n) break; z = g_legion_zone[i]; }
-                            else { if (!have) break; z = csv[0x3A4 + i * 20]; }
-                            ent = 2;
-                        } else {          /* fleets: CSV 0x48E, 12-byte records, byte2==0xFF empty */
-                            if (!have) break;
-                            if (csv[0x48E + i * 12 + 2] == 0xFF) continue;
-                            z = csv[0x48E + i * 12];
-                            ent = 8;
-                        }
-                        if (z == 0xFF || z >= 37 || ent >= ne) continue;
-                        uint16_t ax = g_ovl0[0xB400 + 0x1AB8 + 4*z] | (g_ovl0[0xB400 + 0x1AB8 + 4*z + 1] << 8);
-                        uint16_t ay = g_ovl0[0xB400 + 0x1AB8 + 4*z + 2] | (g_ovl0[0xB400 + 0x1AB8 + 4*z + 3] << 8);
-                        const uint8_t *t = assets_lut(ents[ent].lut ? ents[ent].lut : 11);
-                        if (!t) t = assets_lut(11);
-                        assets_blit_sprite(pix, &ents[ent], t, g_work, SCREEN_W, SCREEN_H,
-                                           ax + 4 - ents[ent].xhot, ay - ents[ent].yhot);
-                    }
-                }
-                free(pix);
-            }
-        }
-    }
-    draw_map_buttons();
-}
-
-/* ---- playable slice: map <-> province <-> back (no game logic yet) ---- */
-static int g_screen;          /* 0 = map, 1 = province, 2 = province list */
-static int g_province;        /* province index */
-static int g_last_click;
-
-/* province hit regions on the map (320x200), UNVERIFIED approximate */
-static const struct { int x0, y0, x1, y1, prov; } g_regions[] = {
-    {190, 140, 215, 165, 0},   /* Italy / Rome */
-    {120, 100, 150, 125, 24},  /* Gaul / Narbonensis (record 24, VERIFIED) */
-};
-
-static void draw_map_screen(void) {
-    if (assets_load_luts("OVL0.OVL") != 0) return;
-    if (assets_load_font("OVL0.OVL") != 0) return;
-    {
-        FILE *f = fopen("OVL0.OVL", "rb");
-        static uint8_t ovl0[0x20000];
-        if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
-    }
-    img_entry_t imgs[256];
-    int n = assets_scan_images(".", imgs, 256);
-    for (int i = 0; i < n; i++)
-        if (strcasecmp(imgs[i].name, "MAP.CBM") == 0) { blit_cbm_at(&imgs[i], 0, 0); break; }
-    draw_map_buttons();
-}
-
-static void draw_province_screen(int prov) {
-    FILE *f = fopen("OVL0.OVL", "rb");
-    static uint8_t ovl0[0x20000];
-    if (f) { fread(ovl0, 1, sizeof(ovl0), f); fclose(f); g_ovl0 = ovl0; }
-    province_t p;
-    /* play mode: province data from the save file (3.CSV preferred, any .CSV fallback) */
-    if (load_province_csv("3.CSV", prov, &p) != 0 &&
-        load_province_csv("0.CSV", prov, &p) != 0) {
-        /* no save: capture-matching defaults */
-        if (prov == 0) {
-            static const province_t def = {"ROME", "ROME.CBM", NULL, NULL, 0, 1, 4, 3, "Officer", 8, 5000, 20, 0};
-            p = def;
-        } else {
-            static const province_t def = {"Narbonensis", NULL, "NEGBGA.CBM", "NEGFGX.CBM", 23, 0, 1, 2, "Officer", 0, 5279, 20, 0};
-            p = def;
-        }
-    }
-    /* panel "Tribute: N" always from +0x11 (amount); level (+0x12) only via the Tribute command */
-    draw_province(&p);
-}
-
-
-/* menu engine slice (EXE 0x55ea/0x585b): highlight hovered item (invert), click to select */
-static int g_menu_hover = -1;
-static int g_menu_selected = -1;
-
-static int menu_item_at(int mx, int my) {
-    if (!g_ovl0) return -1;
-    for (int i = 0; i < 7; i++) {
-        const uint8_t *rec = g_ovl0 + 0xB400 + 0x573C + 12 * i;   /* DS:573C item records */
-        int x0 = (int16_t)(rec[4] | (rec[5] << 8)), y0 = (int16_t)(rec[6] | (rec[7] << 8));
-        int x1 = (int16_t)(rec[8] | (rec[9] << 8)), y1 = (int16_t)(rec[10] | (rec[11] << 8));
-        /* window origin (6,63), body origin y = 63+18 = 81 */
-        if (mx >= 6 + x0 && mx <= 6 + x1 && my >= 81 + y0 && my <= 81 + y1) return i;
-    }
-    return -1;
-}
-
-static void redraw_province_with_menu(void) {
-    draw_province_screen(g_province);
-    /* re-highlight hovered/selected items on the fresh frame */
-    for (int i = 0; i < 7; i++) {
-        if (i == g_menu_hover || i == g_menu_selected) {
-            /* invert the item row's text area */
-            for (int y = 102 + 10 * i; y < 102 + 10 * i + 9; y++)
-                for (int x = 23; x < 144; x++) {
-                    uint8_t *p = &g_work[y * SCREEN_W + x];
-                    if (*p == 0) *p = 26; else if (*p == 26) *p = 0;
-                }
-        }
-    }
-}
-
-
-
-static void init_prov_state(const char *save_path) {
-    if (g_prov_init_done) return;
-    g_prov_init_done = 1;
-    for (int i = 0; i < 27; i++) g_prov_level[i] = -1;
-    static uint8_t csv[2048];
-    const char *sv = save_path ? save_path : "tools/dosbox/results/saves/fresh_275BC.csv";
-    FILE *f = fopen(sv, "rb");
-    if (!f && !save_path) f = fopen("3.CSV", "rb");
-    if (!f && !save_path) f = fopen("0.CSV", "rb");
-    if (f) {
-        if (fread(csv, 1, sizeof(csv), f) > 0x4D5)
-            for (int i = 0; i < 27; i++)
-                g_prov_level[i] = csv[0x3C + i * 32 + 0x12];   /* tribute LEVEL byte +0x12 (0x7ce0); +0x11 = amount */
-        fclose(f);
-    }
-}
-
-
-/* Tribute sub-menu (EXE 0x7ce0): DS:5F7F "What level of tribute?", items DS:5F6A.. (5 levels).
-   Click a level -> store in g_prov_level[prov] (= record +0x12); click outside = no change. */
-
-/* Tribute sub-menu = the DS:6054 record, drawn in the SAME box as the command menu
-   (EXE 0x7ce0 replaces the command list in place). All text from OVL0. */
-static void draw_tribute_menu(void) {
-    menu_t m;
-    load_menu(&m, 0x6054);
-    ui_menu_draw(g_work, &m, (g_province >= 0 && g_province < 27) ? g_prov_level[g_province] : -1);
-}
-
-
-
-
-static void init_legions(const char *save_path) {
-    g_legion_n = 0;
-    for (int i = 0; i < 12; i++) g_legion_zone[i] = -1;
-    static uint8_t csv[2048];
-    const char *sv = save_path ? save_path : "tools/dosbox/results/saves/fresh_275BC.csv";
-    FILE *f = fopen(sv, "rb");
-    if (!f && !save_path) f = fopen("3.CSV", "rb");
-    if (!f && !save_path) f = fopen("0.CSV", "rb");
-    if (f) {
-        if (fread(csv, 1, sizeof(csv), f) > 0x4D5)
-            for (int i = 0; i < 12; i++) {
-                uint8_t z = csv[0x3A4 + i * 20];
-                if (z != 0xFF && z < 37) g_legion_zone[g_legion_n++] = z;
-            }
-        fclose(f);
-    }
-}
-
-/* See Province List (EXE 0x69cc): box listing provinces with status >= 1 (save record +0x15) */
-static void draw_province_list(const char *save_path) {
-    static uint8_t csv[2048];
-    const char *sv = save_path ? save_path : "tools/dosbox/results/saves/fresh_275BC.csv";
-    FILE *f = fopen(sv, "rb");
-    if (!f && !save_path) f = fopen("3.CSV", "rb");
-    if (!f && !save_path) f = fopen("0.CSV", "rb");
-    int have = f && fread(csv, 1, sizeof(csv), f) > 0x4D5;
-    if (f) fclose(f);
-    int x0 = 90, y0 = 30, w = 140, h = 150;
-    ui_rect(g_work, x0, y0, w, h, 26);
-    ui_rect(g_work, x0, y0, w, 2, 15);
-    ui_rect(g_work, x0, y0 + 2, 2, h - 4, 8);
-    ui_rect(g_work, x0 + w - 2, y0 + 2, 2, h - 4, 8);
-    ui_rect(g_work, x0, y0 + h - 2, w, 2, 0);
-    ui_text_centered(g_work, x0 + w / 2, y0 + 4, "Province List", 15);
-    int row = 0;
-    for (int p = 0; p < 27 && row < 12; p++) {
-        int status = have ? csv[0x3C + p * 32 + 0x15] : (p == 0 ? 4 : 0);
-        if (status >= 1) {
-            ui_text(g_work, x0 + 8, y0 + 16 + row * 10, prov_name(p), 0);
-            row++;
-        }
-    }
-}
-
-/* Legions (EXE 0x4065): move a legion to an adjacent zone (adjacency DS:50EC, 8 neighbours).
-   Returns 1 if (mx,my) is a valid move target for the legion in zone `from`. */
-static int legion_move_target(int from, int mx, int my) {
-    if (!g_ovl0) return -1;
-    for (int i = 0; i < 8; i++) {
-        uint8_t nb = g_ovl0[0xB400 + 0x50EC + from * 8 + i];
-        if (nb == 0xFF) continue;
-        uint16_t ax = g_ovl0[0xB400 + 0x1AB8 + 4*nb] | (g_ovl0[0xB400 + 0x1AB8 + 4*nb + 1] << 8);
-        uint16_t ay = g_ovl0[0xB400 + 0x1AB8 + 4*nb + 2] | (g_ovl0[0xB400 + 0x1AB8 + 4*nb + 3] << 8);
-        if (mx >= ax - 8 && mx <= ax + 8 && my >= ay - 8 && my <= ay + 8) return nb;
-    }
-    return -1;
-}
-
-void game_play(void) {
-    g_screen = 0;
-    g_province = 0;
-    g_last_click = 0;
-    {
-        int t = g_save_path ? load_turn(g_save_path) : -1;
-        if (t < 0) t = load_turn("tools/dosbox/results/saves/fresh_275BC.csv");
-        if (t < 0) t = load_turn("3.CSV");
-        if (t < 0) t = load_turn("0.CSV");
-        g_turn = t < 0 ? 0 : t;
-    }
-    init_prov_state(g_save_path);
-    init_legions(g_save_path);
-    draw_map_screen();
-    input_t in;
-    const uint32_t frame_ms = 1000 / FPS;
-    uint32_t next = platform_ticks_ms();
-    while (1) {
-        platform_poll_input(&in);
-        if (in.quit_requested) break;
-        int click = in.mouse_buttons & 1;
-        if (g_menu_selected == -2) {
-            menu_t m;
-            load_menu(&m, 0x6054);
-            int ti = ui_menu_run(&m, &in, &g_last_click);
-            if (ti >= 0 && g_province >= 0 && g_province < 27)
-                g_prov_level[g_province] = ti;   /* write record +0x12 (level) */
-            if (ti == 5) { g_menu_selected = -1; redraw_province_with_menu(); }  /* Continue = no change */
-            else if (ti != -2) { g_menu_selected = -1; redraw_province_with_menu(); }
-        }
-        if (click && !g_last_click) {
-            if (g_screen == 0) {
-                /* End Turn button (first button rect from DS:3C42) -> advance the turn */
-                if (g_ovl0) {
-                    const uint8_t *d = g_ovl0 + 0xB400 + 0x3C42;
-                    int x0 = d[0] | (d[1] << 8), y0 = d[2] | (d[3] << 8);
-                    int x1 = d[4] | (d[5] << 8), y1 = d[6] | (d[7] << 8);
-                    if (in.mouse_x >= x0 && in.mouse_x <= x1 && in.mouse_y >= y0 && in.mouse_y <= y1) {
-                        g_turn++;
-                        draw_map_screen();   /* year button updates */
-                    }
-                }
-                if (g_menu_selected == -3 && g_legion_n > 0) {
-                    int from = g_legion_zone[0];
-                    int to = legion_move_target(from, in.mouse_x, in.mouse_y);
-                    if (to >= 0) {
-                        g_legion_zone[0] = to;   /* move the legion (record byte0) */
-                        g_menu_selected = -1;
-                        g_screen = 0;
-                        draw_map_screen();       /* back to the map showing the move */
-                    }
-                } else for (size_t i = 0; i < sizeof(g_regions)/sizeof(g_regions[0]); i++) {
-                    const __typeof__(g_regions[0]) *r = &g_regions[i];   /* typeof is GNU-only; breaks the -std=c99 Windows build */
-                    if (in.mouse_x >= r->x0 && in.mouse_x <= r->x1 &&
-                        in.mouse_y >= r->y0 && in.mouse_y <= r->y1) {
-                        g_province = r->prov;
-                        g_screen = 1;
-                        g_menu_hover = -1;
-                        g_menu_selected = -1;
-                        draw_province_screen(g_province);
-                        break;
-                    }
-                }
-            } else if (g_screen == 2) {
-                if (click && !g_last_click) {
-                    g_screen = 1;
-                    redraw_province_with_menu();
-                }
-            } else {
-                int hover = menu_item_at(in.mouse_x, in.mouse_y);
-                if (hover != g_menu_hover) {
-                    g_menu_hover = hover;
-                    redraw_province_with_menu();
-                }
-                if (click && !g_last_click && hover >= 0) {
-                    g_menu_selected = hover;
-                    if (hover == 6) {  /* Continue */
-                        g_screen = 0;
-                        draw_map_screen();
-                    } else if (hover == 5) {  /* See Province List (EXE 0x69cc) */
-                        g_screen = 2;
-                        redraw_province_with_menu();
-                        draw_province_list(g_save_path);
-                    } else if (hover == 0) {  /* Legions (EXE 0x4065): arm legion-move mode */
-                        g_menu_selected = -3;   /* next map click moves the legion */
-                        redraw_province_with_menu();
-                    } else if (hover == 2) {  /* Tribute (EXE 0x7ce0): 5-level sub-menu, write +0x12 */
-                        g_menu_selected = -2;  /* sub-menu open */
-                        redraw_province_with_menu();
-                        draw_tribute_menu();
-                    } else {
-                        redraw_province_with_menu();  /* other items: stub, no game logic yet */
-                    }
-                }
-            }
-        }
-        g_last_click = click;
-        memcpy(g_fb, g_work, sizeof(g_fb));
-        platform_present(g_fb, g_palette);
-        next += frame_ms;
-        uint32_t now = platform_ticks_ms();
-        if (next > now) platform_sleep_ms(next - now);
-        else next = now;
-    }
-}
+/* --play used to run a prototype loop here; the game is now main.c play_game (map_startup, then map_loop: map.c,
+   0x07EF..0x09B9) */
 
 void game_run(void) {
     game_init();

@@ -5,14 +5,28 @@
  * Province records: 27 x 32 bytes from DS:5270. The loop pointer si = 0x5285 + 32*k (record +0x15, the status byte).
  * Legion records: 12 x 20 bytes from DS:1918 (zone at +0x0C, the loop pointer si = record + 0x0D).
  *
- * NOT YET PORTED (reports on stderr if reached):
- *   - the rest of the revolt handler func_0x0D13 after the state reset (messages + legions in the revolting province)
- *   - battles reached from func_0x4C24 (enemy.c; events.c holds 0x1E98)
- *   - messages / screen updates (0x1D55, 0x1D8A, 0x494A map redraw): UI only, no state.
+ * The revolt handler 0x0D13 is ported whole (its battles through battle_auto, as enemy.c's). Not needed: the mouse cursor
+ * push / pop (0x1D55(2) at 0x09CB, 0x1D8A at 0x0CD9, 0x1D19 at 0x0E0C) and the disk check 0x1E21: UI only, no state.
+ * A battle without choices (a headless run without --choices / a script without a "battle" line) is reported on stderr
+ * and the handler stops there (g_enemy_unported).
+ * Messages (0x59D4) go through game_message(); the map is redrawn (0x494A(0xFF) at 0x0CDF, 0x494A(k) at 0x0E2D) when a
+ * screen is open.
  */
 #include "state.h"
+#include "screen.h"
 #include <stdio.h>
 #include <stdint.h>
+#include <string.h>
+
+void fleets_province_lost(unsigned p);   /* enemy.c: 0x541F */
+
+/* The one way End Turn, the enemy (enemy.c) and the events (events.c) show a message: 0x59D4 message_box when a screen
+   is open (screen_open, the game), else a line on stderr (headless runs such as --end-turn). The DS is not touched. */
+void game_message(const char *s) {
+    if (!s) return;
+    if (screen_ovl0()) message_box(s);
+    else fprintf(stderr, "message: %s\n", s);
+}
 
 /* 0x04FA: min(v + step, max), signed compare */
 int add_cap(int v, int step, int max) { int r = (int16_t)(v + step); return r > max ? max : r; }
@@ -35,7 +49,30 @@ static int mood(int k) {
     return v < 0 ? 0 : v > 3 ? 3 : v;
 }
 
-/* 0x0D13: revolt check for province k */
+/* A part of End Turn that is not ported (the naval battle, enemy.c): with a screen open a message box says so; the caller
+   reports it on stderr too. The DS is not touched. */
+void game_not_ported(const char *what) {
+    char m[160];
+    if (!what || !screen_ovl0()) return;
+    snprintf(m, sizeof(m), "%s\nis not ported yet.", what);
+    message_box(m);
+}
+
+static char *dsp(uint16_t a) { return (char *)&g_ds[a]; }
+
+/* AC60 = [first] + the words first+2 .. end-2 (9E32 strcpy, 9DF2 strcat), as the revolt messages build them */
+static void words_ac60(uint16_t first, uint16_t end) {
+    strcpy(dsp(0xAC60), dsp(W(first)));
+    for (uint16_t p = (uint16_t)(first + 2); p < end; p += 2) strcat(dsp(0xAC60), dsp(W(p)));
+}
+
+/* 0x0D13: revolt check for province k. 0x0D98..0x0EDF: every legion in k (record +0x0C == k) fights the rebels:
+   [1B6] = name 5222[k], 6738(legion +0x0A) -> C072 (= [1BA]), [1BC] = the legion's name (record + 0); AC60 = [1B4] "A
+   Rebellion in " + 1B6.. 1BE ("!!\n", numeral, name, " meets the rebel army\non the field of battle."); 59D4; 1D19 /
+   1E21 (cursor, disk: not needed); B06E(FFh, L, k): won -> status 1, +0x17 = 0, score +5 / +30 / +15, no more legions;
+   lost -> 4816(L) (legion_lost), 494A(k) (the map, when a screen is open). 0x0E64: +0x17 == 0 (won back): AC60 =
+   [1C6] "The Revolt in\n" + [1C8] name + [1CA] " Fails!"; else 541F(k) (enemy.c) and AC60 = [1C0] "Rebellious citizens
+   in " + [1C2] name + [1C4] "\nthrow off the Roman yoke!..."; 59D4(AC60). */
 static void revolt_check(int k) {
     uint16_t bx = (uint16_t)(k << 5);
     int8_t diff = (int8_t)(B(bx + 0x527E) - B(bx + 0x527D));
@@ -50,7 +87,42 @@ static void revolt_check(int k) {
     B(bx + 0x5287) = 0xFF;
     setW(bx + 0x5270, (uint16_t)((int16_t)(20 * SB(bx + 0x527E)) + W(bx + 0x5274)));
     setW(bx + 0x5272, 0);
-    fprintf(stderr, "end_turn: province %d revolts; legion handling of 0x0D98-0x0EDF NOT YET PORTED\n", k);
+    /* 0x0D98 */
+    int L = 0;                                                   /* [bp-8] */
+    for (uint16_t p = 0x1924; p < 0x1A14; p += 0x14, L++) {      /* [bp-6] = record + 0x0C */
+        if (B(p) != (unsigned)k) continue;
+        setW(0x1B6, W(0x5222 + 2 * k));
+        {   char num[32];
+            roman_numeral(B(p - 2), num);                        /* 6738 -> C072 */
+            strcpy(dsp(0xC072), num); }
+        setW(0x1BC, (uint16_t)(p - 0x0C));
+        words_ac60(0x1B4, 0x1C0);
+        game_message(dsp(0xAC60));                               /* 0x0E09 */
+        uint16_t won;
+        if (!battle_auto(0xFF, L, k, &won)) {                    /* 0x0E1C: B06E(FFh, L, k) */
+            g_enemy_unported = 1;
+            fprintf(stderr, "end_turn: rebel battle 0xB06E (legion %d, province %d): no battle choices; NOT FOUGHT\n", L, k);
+            return;
+        }
+        if (won) {                                               /* 0x0E3A */
+            B(bx + 0x5285) = 1;
+            B(bx + 0x5287) = 0;
+            score_add(k > 5 ? 5 : k == 2 ? 30 : 15);
+            break;
+        }
+        legion_lost(L);                                          /* 0x0E26: 4816(L) */
+        if (screen_ovl0()) map_build(k);                         /* 0x0E2D: 494A(k) */
+    }
+    /* 0x0E64 */
+    if (B(bx + 0x5287) == 0) {
+        setW(0x1C8, W(0x5222 + 2 * k));
+        words_ac60(0x1C6, 0x1CC);
+    } else {
+        fleets_province_lost((unsigned)k);                       /* 0x0EA4: 541F(k), enemy.c */
+        setW(0x1C2, W(0x5222 + 2 * k));
+        words_ac60(0x1C0, 0x1C6);
+    }
+    game_message(dsp(0xAC60));                                   /* 0x0EDC */
 }
 
 /* 0x72DE: rank (DS:5971) from score DS:594A against the thresholds at DS:594E */
@@ -160,6 +232,7 @@ void end_turn(void) {
     if (B(0x634E) > 75) score_add(1);
     rank_update();
     setW(0x634C, (uint16_t)(W(0x634C) + 1));                    /* turn */
+    if (screen_ovl0()) map_build(0xFF);                          /* 0x0CDC: 494A(FFh), the new year shows before the events */
     setW(0x634A, (uint16_t)(W(0x634A) + tribute));              /* treasury */
     {   /* 0x0CE9: [bp-4] = 27 after the loop, so this reads DS:55E1 */
         uint32_t acc = (uint32_t)W(0xC092) | ((uint32_t)W(0xC094) << 16);

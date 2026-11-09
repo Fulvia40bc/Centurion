@@ -2,8 +2,10 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include "state.h"
 #include "assets.h"
+#include "screen.h"
 
 void game_run(void);
 
@@ -11,8 +13,9 @@ int game_dump_screen(const char *name, const char *outpath);
 int game_dump_frame(const char *outpath, const char *screen, const char *save);
 int game_end_turn(const char *in_path, const char *out_path);
 int game_save_game(const char *in_path, const char *out_path);
-void game_play(void);
 void game_init(void);
+void map_startup(void);                  /* map.c: the start-up writes the map needs (colours, INIT sprites) */
+int  zone_at_raw(int x, int y);          /* map.c: 0x6C67 without the Asterix message */
 
 /* --choices "F,T;F,T": formation/tactic for each battle in a headless run, in order */
 static const char *g_choices;
@@ -64,6 +67,81 @@ static int orders_hook(int tick) {
     return 0;
 }
 
+/* Battles of a scripted run: the next "battle F T" line of the script, and its "orders" lines replayed by orders_hook */
+static int script_choices(uint8_t *f, uint8_t *t) {
+    if (!screen_script_choices(f, t)) return 0;
+    g_orders = screen_script_orders();
+    battle_orders_hook = g_orders ? orders_hook : NULL;
+    return 1;
+}
+
+/* 0x075A's source: the BIOS tick count (18.2 Hz since midnight) */
+static uint32_t bios_ticks(void) {
+    time_t now = time(NULL);
+    struct tm *lt = localtime(&now);
+    long s = lt ? lt->tm_hour * 3600L + lt->tm_min * 60L + lt->tm_sec : (long)(now % 86400);
+    return (uint32_t)((double)s * 1193180.0 / 65536.0);
+}
+
+/* The game: main 0x079D in the port's order. --play = a new game (gamectl.c new_game, NEWGAME.LZW), --load SAVE = a .CSV
+   save (state_load) or a 64 KB DS image / 640K snapshot ending in .bin (state_load_mem, dice included); then the map loop
+   (map.c). --script FILE SHOTDIR runs it headless with the input from FILE (screen.c), shots into SHOTDIR; --ds-out FILE
+   writes the DS image when the loop ends; --seed N uses N (decimal or 0x hex) as the BIOS tick count that 0x075A seeds the
+   dice from, instead of the clock, so a --play or .CSV run can be repeated (a .bin load brings its own dice, DS:00C8).
+   Run in the game folder. */
+static int play_game(int argc, char **argv) {
+    const char *load = NULL, *script = NULL, *shotdir = NULL, *dsout = NULL;
+    int have_seed = 0;
+    uint32_t seed = 0;
+    for (int i = 1; i < argc; i++) {
+        if (strcmp(argv[i], "--play") == 0) continue;
+        if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) { seed = (uint32_t)strtoul(argv[++i], NULL, 0); have_seed = 1; continue; }
+        if (strcmp(argv[i], "--load") == 0 && i + 1 < argc) { load = argv[++i]; continue; }
+        if (strcmp(argv[i], "--script") == 0 && i + 2 < argc) { script = argv[i + 1]; shotdir = argv[i + 2]; i += 2; continue; }
+        if (strcmp(argv[i], "--ds-out") == 0 && i + 1 < argc) { dsout = argv[++i]; continue; }
+        fprintf(stderr, "unknown or incomplete option %s\n", argv[i]);
+        return 1;
+    }
+    if (state_init("OVL0.OVL") != 0) { fprintf(stderr, "cannot read OVL0.OVL (run in the game folder)\n"); return 1; }
+    rng_seed(have_seed ? seed : bios_ticks());                      /* 0x075A */
+    if (screen_open(script != NULL) != 0) return 1;                 /* a script is always headless */
+    if (load) {
+        size_t n = strlen(load);
+        int mem = n > 4 && (strcmp(load + n - 4, ".bin") == 0 || strcmp(load + n - 4, ".BIN") == 0);
+        if ((mem ? state_load_mem(load) : state_load(load)) != 0) { fprintf(stderr, "cannot load %s\n", load); screen_close(); return 1; }
+    } else if (new_game() != 0) { fprintf(stderr, "new game: cannot read NEWGAME.LZW\n"); screen_close(); return 1; }
+    map_startup();
+    if (script) { screen_script(script, shotdir); battle_choices = script_choices; }
+    battle_ui_attach(1);
+    legions_ui_install();
+    map_loop();
+    if (dsout) {
+        FILE *f = fopen(dsout, "wb");
+        if (!f || fwrite(g_ds, 1, 0x10000, f) != 0x10000) fprintf(stderr, "cannot write %s\n", dsout);
+        if (f) fclose(f);
+    }
+    screen_close();
+    return 0;
+}
+
+/* --zone-check: 0x6C67 on the static DS: every zone anchor DS:1AB8[z] must hit z, and the Asterix pixels (FEh) */
+static int zone_check(void) {
+    if (state_init("OVL0.OVL") != 0) return 1;
+    int ok = 0, fe = 0, none = 0;
+    for (int z = 0; z < 37; z++) {
+        int r = zone_at(SW(0x1AB8 + 4 * z), SW(0x1ABA + 4 * z));
+        if (r == z) ok++; else printf("anchor %d (%d,%d) -> %d\n", z, SW(0x1AB8 + 4 * z), SW(0x1ABA + 4 * z), r);
+    }
+    for (int y = 0; y < 200; y++)
+        for (int x = 0; x < 320; x++) {
+            int r = zone_at_raw(x, y);
+            if (r == 0xFE) { fe++; printf("FE at (%d,%d)\n", x, y); }
+            if (r == 0xFF) none++;
+        }
+    printf("anchors %d/37, FE pixels %d, FF pixels %d\n", ok, fe, none);
+    return ok == 37 ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
     /* --original (first argument): keep the original game's bugs, for byte-exact comparison with DOSBox */
     for (;;) {
@@ -72,14 +150,11 @@ int main(int argc, char **argv) {
         if (argc > 2 && strcmp(argv[1], "--choices") == 0) { g_choices = argv[2]; battle_choices = choices_next; argv += 2; argc -= 2; continue; }
         break;
     }
-    /* headless screen dump: centurion --dump-screen NAME out.bin */
-    if (argc > 1 && strcmp(argv[1], "--play") == 0) {
-        if (platform_init() != 0) return 1;
-        game_init();
-        game_play();
-        platform_shutdown();
-        return 0;
-    }
+    /* the game: --play | --load SAVE, [--script FILE SHOTDIR] [--ds-out FILE] [--seed N] (see play_game) */
+    if (argc > 1 && (strcmp(argv[1], "--play") == 0 || strcmp(argv[1], "--load") == 0 || strcmp(argv[1], "--script") == 0 ||
+                     strcmp(argv[1], "--seed") == 0))
+        return play_game(argc, argv);
+    if (argc > 1 && strcmp(argv[1], "--zone-check") == 0) return zone_check();
     if (argc > 3 && strcmp(argv[1], "--end-turn") == 0)
         return game_end_turn(argv[2], argv[3]);
     /* --battle-from-formation IN OUT army legion zone formation tactic: resume a battle captured at Choose Formation */

@@ -13,6 +13,7 @@
 #include <string.h>
 #include "state.h"
 #include "assets.h"
+#include "screen.h"   /* battle_auto: g_battle_ui_attached, screen_scripted() */
 
 #define UNITS   W(0xC292)
 #define NUNITS  W(0xC294)
@@ -785,7 +786,8 @@ void battle_cmd_retreat(void) {                                 /* D77C "Run Awa
 }
 
 /* EXE 0x4733: assign a free commander (status 1) to legion L at random; if none is free, every commander not on duty
-   (status 1 or 2: the dead come back) is made free first. Message: "<name> is assigned to command <legion>". */
+   (status 1 or 2: the dead come back) is made free first. The roll and the record writes only; the message "<name> is
+   assigned\nto command <numeral><legion>" is built and shown by the callers (commander_msg_4733 in enemy.c / legions.c). */
 void assign_commander(int L) {
     uint16_t leg = LEG(L);
     if (B(leg + 0xD) == 0xFF) return;
@@ -797,15 +799,25 @@ void assign_commander(int L) {
     uint8_t c = list[rng_roll(n)];   /* n == 0 (all 24 on duty) would read a stale local in the original */
     B(leg + 0x10) = c;
     B(0x1A20 + 6 * c) = 0;
-    fprintf(stderr, "message: %s%s%s\n", (const char *)&g_ds[W(0x1A1C + 6 * c)], (const char *)&g_ds[0x1F89], (const char *)&g_ds[leg]);
+    /* the message (47C6..480B) is shown by the callers: enemy.c / legions.c commander_msg_4733 */
 }
 
 /* Battles started by End Turn. battle_choices supplies the player's formation and tactic (headless runs: from the command
-   line); NULL = not available, the caller stops as before. Tactics come from BATL.DAT in the current folder. */
+   line); NULL = not available, the caller stops as before. Tactics come from BATL.DAT in the current folder.
+   With battle_ui_attach(1) (screen.c, the game): the battle is fought on screen (battle_ui.c battle_play); in a scripted
+   headless run (screen_scripted()) its menus take battle_choices and the orders come from battle_orders_hook, both set
+   by main.c from the script's "battle" / "orders" lines. */
 int (*battle_choices)(uint8_t *formation, uint8_t *tactic);
+uint16_t battle_ui_script(int A, int L, int Z, int pf, int pt, int (*orders)(int tick));   /* battle_ui.c */
 int battle_auto(int A, int L, int Z, uint16_t *won) {
     static uint8_t *tac; static size_t tac_n;
     uint8_t pf, pt;
+    if (g_battle_ui_attached) {
+        if (!screen_scripted()) { *won = battle_play(A, L, Z); return 1; }
+        if (!battle_choices || !battle_choices(&pf, &pt)) return 0;
+        *won = battle_ui_script(A, L, Z, pf, pt, battle_orders_hook);
+        return 1;
+    }
     if (!battle_choices || !battle_choices(&pf, &pt)) return 0;
     if (!tac) {
         int k;
