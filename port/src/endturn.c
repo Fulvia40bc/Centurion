@@ -7,7 +7,7 @@
  *
  * NOT YET PORTED (reports on stderr if reached):
  *   - the rest of the revolt handler func_0x0D13 after the state reset (messages + legions in the revolting province)
- *   - func_0x4C24 for turn >= 5 and func_0x1E98 for turn > 4 (random events, need the RNG 0x076B)
+ *   - battles reached from func_0x4C24 (enemy.c; events.c holds 0x1E98)
  *   - messages / screen updates (0x1D55, 0x1D8A, 0x494A map redraw): UI only, no state.
  */
 #include "state.h"
@@ -15,14 +15,14 @@
 #include <stdint.h>
 
 /* 0x04FA: min(v + step, max), signed compare */
-static int add_cap(int v, int step, int max) { int r = (int16_t)(v + step); return r > max ? max : r; }
+int add_cap(int v, int step, int max) { int r = (int16_t)(v + step); return r > max ? max : r; }
 /* 0x050F: max(v - step, min), signed compare */
 static int sub_floor(int v, int step, int min) { int r = (int16_t)(v - step); return r < min ? min : r; }
 /* idiv-style truncation of a signed 16-bit value by 2^n, as the cdq/xor/sub/sar/xor/sub idiom does */
 static int sdiv_pow2(int16_t v, int n) { int a = v < 0 ? -v : v; a >>= n; return v < 0 ? -a : a; }
 
 /* 0x7330: score (DS:594A) += n, capped to 0..256 */
-static void score_add(int n) {
+void score_add(int n) {
     if (n >= 0) setW(0x594A, (uint16_t)add_cap(SW(0x594A), n, 0x100));
     else        setW(0x594A, (uint16_t)sub_floor(SW(0x594A), -n, 0));
 }
@@ -156,7 +156,7 @@ void end_turn(void) {
     }
 
     /* 0x0CC1 */
-    if (W(0x634C) >= 5) fprintf(stderr, "end_turn: func_0x4C24 (turn >= 5, random events) NOT YET PORTED\n");
+    enemy_turn();                                                /* 0x4C24, enemy.c (returns at once before turn 5) */
     if (B(0x634E) > 75) score_add(1);
     rank_update();
     setW(0x634C, (uint16_t)(W(0x634C) + 1));                    /* turn */
@@ -166,5 +166,5 @@ void end_turn(void) {
         acc += B((27 << 5) + 0x5281);
         setW(0xC092, (uint16_t)acc); setW(0xC094, (uint16_t)(acc >> 16));
     }
-    if (W(0x634C) > 4) fprintf(stderr, "end_turn: func_0x1E98 (turn > 4, events) NOT YET PORTED\n");
+    if (W(0x634C) > 4) random_events((uint16_t)tribute);        /* 0x0D07: 0x1E98, events.c */
 }

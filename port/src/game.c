@@ -419,10 +419,19 @@ static void flood_fill(int x, int y, uint8_t target, uint8_t fill) {
 /* headless: centurion --end-turn in.csv out.csv  (load, one End Turn, write) */
 int game_end_turn(const char *in_path, const char *out_path) {
     /* real End Turn (EXE 0x09BA, endturn.c) on the DS image; replaces the earlier placeholder */
+    /* in_path may also be a 640K memory snapshot (.bin) taken at End Turn entry: it carries the dice state */
+    size_t len = strlen(in_path);
+    int mem = len > 4 && strcasecmp(in_path + len - 4, ".bin") == 0;
     if (state_init("OVL0.OVL") != 0) { fprintf(stderr, "cannot read OVL0.OVL\n"); return 1; }
-    if (state_load(in_path) != 0) { fprintf(stderr, "cannot read save %s\n", in_path); return 1; }
+    if ((mem ? state_load_mem(in_path) : state_load(in_path)) != 0) { fprintf(stderr, "cannot read %s\n", in_path); return 1; }
     end_turn();
-    if (state_save(out_path) != 0) { fprintf(stderr, "cannot write %s\n", out_path); return 1; }
+    if (g_enemy_unported) fprintf(stderr, "end turn: an unported path was reached; the result is not exact\n");
+    size_t olen = strlen(out_path);
+    if (olen > 4 && strcasecmp(out_path + olen - 4, ".bin") == 0) {   /* the whole DS image, for comparing with a snapshot */
+        FILE *f = fopen(out_path, "wb");
+        if (!f || fwrite(g_ds, 1, sizeof(g_ds), f) != sizeof(g_ds)) { if (f) fclose(f); fprintf(stderr, "cannot write %s\n", out_path); return 1; }
+        fclose(f);
+    } else if (state_save(out_path) != 0) { fprintf(stderr, "cannot write %s\n", out_path); return 1; }
     printf("end turn: %s -> %s\n", in_path, out_path);
     return 0;
 }

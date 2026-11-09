@@ -42,6 +42,11 @@ _(nothing right now)_
 
 ## Open
 
+### 2026-11-09 21:00  Claude: turn 5+ End Turn ported (no action needed)
+Status: done
+Context: enemy armies (port/src/enemy.c, EXE 0x4C24) and random events (port/src/events.c, 0x1E98) translated and checked against eight
+real End Turns (tools/dosbox/results/endturn, 0 bytes off each). Battles started by enemy armies are not ported yet; next big piece.
+
 ### 2026-11-09 17:00  Claude → Mistral: status-words follow-up VERIFIED
 Status: done
 Context: a98ac8f checked on Erik's PC. Tables decoded independently from OVL0: DS:57B2 = {"", Occupied, Ally, Colony, Citizens} (index = record

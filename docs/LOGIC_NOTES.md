@@ -4,9 +4,26 @@ Status labels as in HANDOFF.md: PORTED = translated and checked against the real
 
 ## End Turn: EXE func_0x09BA (PORTED, port/src/endturn.c)
 Checked against two real next-turn saves (fresh game, and Erik's held-out save): 0 differing bytes. See tools/dosbox/results/saves/README.md.
-Not yet ported inside it: the rest of the revolt handler 0x0D13 (0x0D98-0x0EDF, legions in a revolting province) and the two turn-5+ calls below.
+Not yet ported inside it: the rest of the revolt handler 0x0D13 (0x0D98-0x0EDF, legions in a revolting province) and the battles that
+enemy armies start (below).
 
-## Dice: EXE 0x076B (DECODED)
+**Turn 5+ (2026-11-09): enemy armies 0x4C24 (port/src/enemy.c) and random events 0x1E98 (port/src/events.c) PORTED.** Checked against
+eight real End Turns in a row (turns 1-9 of Erik's game, with a random event, Carthage and Macedonia declaring war and sailing toward
+Italy): **0 differing bytes** in every save block plus dice, war chance and Rome's garrison record. The DS images at End Turn entry and
+exit are in tools/dosbox/results/endturn (tN_in.bin / tN_out.bin); rerun with
+`python tools/cmp_endturn.py tools/dosbox/results/endturn/tN_in.bin tools/dosbox/results/endturn/tN_out.bin` from the game folder.
+Turns 9 and 10: the port predicted "The Marauding Army of Carthago / Macedonia Meets the Roman Garrison", and the real game showed exactly
+that, then fought the battle (BATTLE, below), which the port stops at.
+
+## Battles reached from End Turn (NOT YET PORTED)
+- 0xB06E = overlay thunk (`lcall 129B:02EC`, overlay 2, entry DF24): the land battle. Args (army, legion or 12 = garrison, zone);
+  ax != 0 = the enemy army is destroyed. Before the garrison battle 0x4733 assigns a commander ("Albertus Discreditus is assigned to
+  command Rome"). Screens: Choose Formation (Balanced Army / Wedge / Strong Right / Strong Left), then Choose Tactic (Frontal Assault /
+  Scipio's Defense / Drive a Wedge / Outflank / Stand Fast), the battle plays out, then a report ("A Glorious Victory!", casualties and
+  survivors). Captures: tools/dosbox/results/scr_battle_formation.*, scr_battle_report.*.
+- 0xB0C2 = the naval battle (overlay call, args (6, fleet)); result bit 2 = stop, bit 4 = the fleet retreats (0x5244).
+
+## Dice: EXE 0x076B (PORTED, enemy.c)
 ```
 roll(n): s1 = s1*0x7ABD + 0x1B0F; s2 = s2*0x1B0F + 0x7ABD;   (DS:00C8, DS:00CA, 16-bit)
          return ((s1 ^ s2) * n) >> 16                          (high word of the 16x16 product)
@@ -16,7 +33,16 @@ DS:00C8/00CA are **not** in the save block table, so a save doesn't determine la
 at End Turn entry (BP 0823:09BA), dump DS (snap.ps1) including C8/CA, let the turn run, save; then run the port's end_turn from that DS
 image and compare the save. (The port seeds from the clock in play, like the original.)
 
-## Turn 5+ events (DECODED outline, not ported)
+## Random events 0x1E98 (PORTED, events.c)
+First 0x21A4, the crises: Rome is bored (DS:0ED8, chance DS:0ED4 +5 per turn) or a governor wants games (DS:0EDA, province DS:0ED6,
+chance DS:0ED5, starts at -20); either one blocks the events. Otherwise 20% per turn: one of 19 events (DS:0F02 {kind, score, talents};
+kind 0 = once per game, 1 = repeatable). 0/1 storms sink 10-19% / 0-9% of the ships of each Roman fleet in the Mediterranean (0x3A32
+then trims a legion aboard); 3 disease takes a tenth of the troops in the zone of **legion record 0** (the original rolls with n = 0, so it
+never picks another legion); the rest are texts with a score and/or talents change (-128 = half the tribute, 127 = all of it).
+Original quirks kept as they are: an undefended province taken by an army raises DS:634E by a quarter (the status is read after it was
+zeroed); places that read uninitialised locals are logged and skipped (enemy.c).
+
+## Turn 5+ events (DECODED outline; now PORTED, see above)
 - **0x4C24** (called by End Turn, returns early if turn < 5):
   - for each active record in the 14-byte table DS:C11A..C1B4 (enemy powers/armies): `call 0x4F27` (army AI, below);
   - war chance DS:3D9C = min(+10, 50); if roll(100) < it: `call 0x4DB5`, reset to 10;

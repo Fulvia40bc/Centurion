@@ -51,6 +51,19 @@ int state_load(const char *path) {
     return walk_blocks(file, 0);
 }
 
+/* A 640K memory snapshot (DOSBox MEMDUMPBIN 0:0, hunt/snap.ps1): take the whole DS (segment 1686) from it.
+ * Unlike a save it includes the state the save leaves out (dice DS:00C8/00CA, war chance DS:3D9C, Rome's garrison DS:1A08...). */
+int state_load_mem(const char *path) {
+    FILE *f = fopen(path, "rb");
+    if (!f) return -1;
+    if (fseek(f, 0, SEEK_END) != 0) { fclose(f); return -1; }
+    long size = ftell(f);   /* a bare 64K DS image (as kept in tools/dosbox/results/endturn) starts at 0 */
+    if (fseek(f, size == 0x10000 ? 0 : 0x16860, SEEK_SET) != 0) { fclose(f); return -1; }
+    size_t n = fread(g_ds, 1, sizeof(g_ds), f);
+    fclose(f);
+    return n == sizeof(g_ds) ? 0 : -1;
+}
+
 int state_save(const char *path) {
     uint8_t file[SAVE_SIZE];
     if (walk_blocks(file, 1) != 0) return -1;
