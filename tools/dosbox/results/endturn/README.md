@@ -16,4 +16,4 @@ and compares every save block plus the dice (DS:00C8), war chance (DS:3D9C) and 
 | 7 | 268 BC | Carthage's army sails into Mare Nostrum | 0 bytes off |
 | 8 | 267 BC | into Mare Adriaticum; Macedonia declares war | 0 bytes off |
 | 9 | 266 BC | Carthage lands at Rome: garrison battle (fought: Scipio's Defense, a glorious victory) | stops at the battle (not ported) |
-| 10 | 265 BC | Macedonia meets the garrison (left paused on that message) | predicts it, stops at the battle |
+| 10 | 265 BC | Macedonia meets the garrison; battle fought (Balanced Army + Frontal Assault vs Frontal Assault: victory, Rome 1583 lost / 4201 left, Macedonia 2610 / 1990); then "The people of Rome are bored" | predicts it, stops at the battle (t10_out.bin captured for when battles are ported) |

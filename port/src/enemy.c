@@ -41,7 +41,7 @@ static void unported(const char *what, int a, int b) {
 static uint8_t zone_strength(unsigned z) { return z < 0x1B ? B((z << 5) + 0x528A) : B(0x3D55 + z); }
 
 /* 0x4816: legion j is lost */
-static void legion_lost(int j) {
+void legion_lost(int j) {
     uint16_t b = (uint16_t)(20 * j);
     B(b + 0x1925) = 0xFF;
     uint16_t n = (uint16_t)(0x1A20 + 6 * B(b + 0x1928));

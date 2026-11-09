@@ -29,4 +29,12 @@ void     random_events(uint16_t tribute);/* EXE 0x1E98, events.c */
 extern int g_original_bugs;             /* --original: keep the 1990 bugs (byte-exact checks) */
 extern int g_enemy_unported;            /* set when a battle or other unported path was reached */
 
+/* battle.c: the land battle (OVL0 section 2) */
+#include <stddef.h>
+void     legion_lost(int j);             /* EXE 0x4816, enemy.c */
+uint16_t battle(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tactics, size_t tactics_len);
+uint16_t battle_from_formation(int A, int L, int Z, uint8_t pf, uint8_t pt);
+extern int (*battle_orders_hook)(int tick);
+extern int g_battle_quirks;
+
 #endif
