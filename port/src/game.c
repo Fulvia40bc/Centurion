@@ -525,7 +525,8 @@ static void draw_map_buttons(void) {
         ui_rect(g_work, x0 + 3, y1 - 3, w - 6, 1, 8);
         ui_rect(g_work, x0 + 3, y0 + 4, 1, h - 7, 8);
         ui_rect(g_work, x1 - 3, y0 + 4, 1, h - 7, 8);
-        ui_text_centered(g_work, x0 + w / 2, y0 + 4, b == 0 ? txt0 : txt1, 15);
+        if (b == 0) ui_text(g_work, x0 + 5, y0 + 4, txt0, 15);   /* 0x4AA6: 'End Turn' left-aligned (899C) at X0+5, Y0+4 */
+        else ui_text_centered(g_work, x0 + w / 2, y0 + 4, txt1, 15);
     }
 }
 

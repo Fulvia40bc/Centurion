@@ -76,8 +76,16 @@ void platform_poll_input(input_t *in) {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT) in->quit_requested = 1;
-        else if (e.type == SDL_KEYDOWN && e.key.keysym.sym < 256)
+        else if (e.type == SDL_KEYDOWN && e.key.keysym.sym < 256) {
             in->key_down[e.key.keysym.sym] = 1;
+            if (e.key.keysym.sym == '=' && (e.key.keysym.mod & KMOD_SHIFT)) in->key_down['+'] = 1;   /* US '+' */
+        }
+        else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_INSERT)
+            in->key_down[0x10] = 1;          /* the EXE's key reader 03AA turns Insert (scan 52h) into 10h */
+        else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_KP_PLUS)
+            in->key_down['+'] = 1;
+        else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_KP_ENTER)
+            in->key_down[13] = 1;
         else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RIGHT)
             in->key_special[KEY_RIGHT] = 1;
         else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_LEFT)
