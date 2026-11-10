@@ -63,6 +63,14 @@
  * the Roman, so "their" is the fleet's own admiral), "Neptune's locker without a sword", "together forever in a deadly
  * embrace", the boarding texts, RAMMING SPEED with the rowing drum (cn9a..cn9d) speeding up, the sharks that circle each
  * wreck and dive one time in ten, the Roman "Galleon".
+ *
+ * VERIFIED (10 Nov) against two battles captured in DOSBox-X (tools/dosbox/results/naval/README.md): the set-up, the
+ * boarding, the sinking, the fleet battle's last round, the write-back, B59F and B0E0 give the game's DS game state
+ * byte for byte (the dice exact in every stage; timer slots 2 and 8 exact in the boarding; the tick and slot 0 off by
+ * DOSBox's frame timing in the set-up, D3F2 and D60C stages) and every pixel the port draws itself as the game's (the
+ * mouse cursor aside; the D60C and result-box screens through runs chained from the boarding), through the TEST HOOKS
+ * at the end of this file (naval_test_frame, naval_test_resume; main.c --naval-frame / --naval-resume). The duel passes
+ * cannot be replayed (the 1990 dice per pass depended on the CPU speed and the keys were not recorded).
  */
 #include <stdio.h>
 #include <string.h>
@@ -753,10 +761,10 @@ static uint8_t flagship_C274(uint8_t r) {
 }
 /* BF50: NAVL: GALLEYS.LZW into the work buffer, OARS1 / OARS2; MNAVAL: (the picture to the screen) BOMBS, SMOK, the
    enemy's and the Roman's ship sheets, COLLIDE.LZW (5 tables), FLAG; music 13..16 loaded, 13 played. 0 = failed */
-static uint16_t load_BF50(void) {
+static uint16_t load_BF50(int pics) {                              /* pics 0: TEST HOOK, the sheets only */
     uint16_t di = (uint16_t)nv_archive_0F7B(9), bp2;
     if (di) {
-        if (nv_vga()) nv_galleys_0F0C();
+        if (nv_vga() && pics) nv_galleys_0F0C();
         setW(H_OARS1, nv_sheet_163B(dstr(0x97D8)));
         setW(H_OARS2, nv_sheet_163B(dstr(0x97DE)));
         /* 11A9 */
@@ -765,7 +773,7 @@ static uint16_t load_BF50(void) {
     if (di) {
         bp2 = di;
         /* not VGA: galleys.cbm (missing from MNAVAL); the port is VGA */
-        nv_restore_6973(0, 0, 0x13F, 0xC7);
+        if (pics) nv_restore_6973(0, 0, 0x13F, 0xC7);
         setW(H_BOMBS, nv_sheet_163B(dstr(0x97F0)));
         setW(H_SMOK, nv_sheet_163B(dstr(0x97F6)));
         setW(SHEET(0), nv_sheet_163B(dstr(W(0x980C + 2 * B(TYPE(0))))));
@@ -779,6 +787,7 @@ static uint16_t load_BF50(void) {
         setW(H_FLAG, nv_sheet_163B(dstr(0x9807)));
         /* 11A9 */
     }
+    if (!pics) return di;
     for (int i = 1; i < 5; i++) music_load_5D73(B(0x9704 + i));
     music_play_5D29(0x0D);
     return di;
@@ -814,7 +823,7 @@ static uint16_t setup_BD8A(uint8_t e, uint8_t r) {
     }
     B(HULL(1)) = B(0x8EE2 + B(TYPE(1)));
     B(HULL(0)) = B(0x8EE2 + B(TYPE(0)));
-    if (!load_BF50()) return 0;
+    if (!load_BF50(1)) return 0;
     nv_intro_C105();
     start_BE0F();
     return 0xFFFF;
@@ -865,10 +874,19 @@ static void message_B59F(uint16_t outcome, uint16_t mode, uint16_t flags) {
 }
 
 /* ---------------------------------------------------------------- the entries */
-/* B0E0(Roman fleet f [bp+4], zone z [bp+6]), ret 4 (ported by the fleet agent; FLEET_NOTES section 11) */
-uint16_t naval_enter_b0e0(uint8_t f, uint8_t z) {
-    uint16_t si = 1;
-    for (uint8_t e = 3; e < 6; e++) {                                         /* [bp-1] */
+/* where B12A's tail starts / stops (b12a_end); the breakpoints of the DOSBox captures (tools/dosbox/results/naval) */
+enum { NV_AT_NONE, NV_AT_B419, NV_AT_D3F2, NV_AT_D60C, NV_AT_B59F };
+#define NV_STOPPED 0xFF00u
+static uint16_t b12a_end(uint8_t e, uint8_t r, uint16_t mode, uint16_t flags, uint16_t res, int at, int stop, uint16_t di, uint16_t si);
+
+/* B0E0(Roman fleet f [bp+4], zone z [bp+6]), ret 4 (ported by the fleet agent; FLEET_NOTES section 11). b0e0_from: the
+   loop from enemy record e0 with si; res0 >= 0 (TEST HOOK naval_test_resume) is the result of a battle with e0 that was
+   resumed from a snapshot instead of fought here */
+static uint16_t b0e0_from(uint8_t f, uint8_t z, uint8_t e0, uint16_t si, int res0);
+uint16_t naval_enter_b0e0(uint8_t f, uint8_t z) { return b0e0_from(f, z, 3, 1, -1); }
+static uint16_t b0e0_from(uint8_t f, uint8_t z, uint8_t e0, uint16_t si, int res0) {
+    for (uint8_t e = e0; e < 6; e++) {                                        /* [bp-1] */
+        if (res0 >= 0 && e == e0) { if (!(res0 & 2)) { si = 0; break; } continue; }
         uint16_t bx = (uint16_t)(12 * e);
         if (B(bx + 0x1114) != z || B(bx + 0x1116) == 0xFF) continue;         /* b0fe, b104 */
         /* FLEET_NOTES 9.3: the original starts B12A even when the Roman fleet is already gone (+8 = FFh after a result 3
@@ -883,24 +901,16 @@ uint16_t naval_enter_b0e0(uint8_t f, uint8_t z) {
     return si;
 }
 
-/* B12A(enemy record e [bp+4], Roman fleet r [bp+6]), ret 4 */
-uint16_t naval_battle_b12a(uint8_t e, uint8_t r) {
-    if (!screen_ovl0()) {                                            /* --end-turn: no screen to fight on */
-        g_enemy_unported = 1;
-        fprintf(stderr, "naval: battle B12A(enemy record %u, Roman fleet %u) needs a screen (no window or script); result 0 (cancelled)\n", e, r);
-        return 0;
-    }
+/* B12A b13d..b231: the set-up up to the BEAE call; 0 = cancelled (b14f jmp b592) */
+static uint16_t b12a_setup(uint8_t e, uint8_t r) {
     /* the port's start-up state the EXE would have: the work buffer's descriptor (zero in a DS built from OVL0.OVL) and
        the screen as the target, as the map leaves it */
     if (W(0xC1DE) == 0) { memmove(&g_ds[0xC1DA], &g_ds[0x9AB6], 18); setW(0xC1DE, 0x2687); }
     nv_target_screen_680F();
     g_rt_on = 0;
     nv_burn_on = 0;
-
-    uint16_t di = 0, si = 0, flags = 0, mode = 0, key = 0, save4 = 0, res;   /* [bp-0Ah] flags, [bp-8] mode, [bp-2], [bp-4] */
     /* 1D55(0): the cursor (not ported) */
     if (!setup_BD8A(e, r)) return 0;                                 /* b14f jmp b592 */
-    res = si;                                                        /* [bp-0Ch] */
     setW(0xC0FC, (uint16_t)(W(0xC0FC) + 1));
     uint16_t e6 = (uint16_t)(6 * e), r6 = (uint16_t)(6 * r);         /* [bp-0Eh], [bp-14h] */
     setW(0x110E + 2 * (e6 + B(TYPE(0))), (uint16_t)(W(0x110E + 2 * (e6 + B(TYPE(0)))) - 1));   /* b174 */
@@ -914,6 +924,19 @@ uint16_t naval_battle_b12a(uint8_t e, uint8_t r) {
     if (L != 0xFF) B(COUR(1)) = B(0x1923 + 20 * L);
     else { setW(CREW(1), (uint16_t)(W(CREW(1)) >> 1)); B(COUR(1)) = B(0x527A + 32 * B(0x1115 + 12 * r)); }
     B(COUR(1)) = (uint8_t)(B(COUR(1)) + B(0x8EEA + DIFF));
+    return 0xFFFF;
+}
+
+/* B12A(enemy record e [bp+4], Roman fleet r [bp+6]), ret 4 */
+uint16_t naval_battle_b12a(uint8_t e, uint8_t r) {
+    if (!screen_ovl0()) {                                            /* --end-turn: no screen to fight on */
+        g_enemy_unported = 1;
+        fprintf(stderr, "naval: battle B12A(enemy record %u, Roman fleet %u) needs a screen (no window or script); result 0 (cancelled)\n", e, r);
+        return 0;
+    }
+    uint16_t di = 0, si = 0, flags = 0, mode = 0, key = 0, save4 = 0, res;   /* [bp-0Ah] flags, [bp-8] mode, [bp-2], [bp-4] */
+    if (!b12a_setup(e, r)) return 0;
+    res = si;                                                        /* b152: [bp-0Ch] = si = 0 */
     nv_screen_BEAE(e, r);
     nv_clip(0xB9);
     nv_burn_on = 1;
@@ -982,8 +1005,21 @@ uint16_t naval_battle_b12a(uint8_t e, uint8_t r) {
         }
         if (mode & 8) { di = 0xFFFF; continue; }                     /* the enemy admiral fled */
     }
-    /* b419 */
+    return b12a_end(e, r, mode, flags, res, NV_AT_B419, NV_AT_NONE, 0, 0);
+}
+
+/* B12A from b419 to the end: the flagship counters, D3F2 / D60C, the fleet battle, the write-back, B59F. `at` is where
+   it starts: NV_AT_B419 after the duel loop (B12A); the others are the breakpoints the TEST HOOK naval_test_resume
+   continues from (D3F2 / D60C entry: `di` = the sunk bits pushed; B59F entry: `si` = the outcome, mode and flags as
+   pushed). The cases fall through: the code is B12A's, in its order. `stop` (TEST HOOK, NV_AT_NONE in the game) returns
+   NV_STOPPED on reaching that breakpoint. */
+static uint16_t b12a_end(uint8_t e, uint8_t r, uint16_t mode, uint16_t flags, uint16_t res, int at, int stop, uint16_t di, uint16_t si) {
+    uint16_t e6 = (uint16_t)(6 * e), r6 = (uint16_t)(6 * r);         /* [bp-0Eh], [bp-14h] */
+    uint16_t rs = 0, es = 0;                                         /* [bp-6] (dx), di */
     nv_burn_on = 0;
+    switch (at) {
+    case NV_AT_B419:
+    /* b419 */
     di = flags;
     music_play_5D29(0x0D);
     if (sunk(1)) {
@@ -999,9 +1035,15 @@ uint16_t naval_battle_b12a(uint8_t e, uint8_t r) {
     B(SPEEDMSG) = 0;
     nv_panel_C71B();
     nv_save_67B6();
-    nv_sink_D3F2(di);
+    /* fallthrough */
+    case NV_AT_D3F2:
+    if (stop == NV_AT_D3F2) return NV_STOPPED;
+    nv_sink_D3F2(di);                                                /* b480 */
     free_C312();
-    nv_sink_D60C(di);
+    /* fallthrough */
+    case NV_AT_D60C:
+    if (stop == NV_AT_D60C) return NV_STOPPED;
+    nv_sink_D60C(di);                                                /* b487 */
     nv_save_67B6();
     nv_page_6837();
     flags = di;
@@ -1010,7 +1052,6 @@ uint16_t naval_battle_b12a(uint8_t e, uint8_t r) {
         while (!round_DA50(e, r)) ;                                  /* b4ac: the fleet battle to the end */
         nv_totals_DC8E(e, r);
     }
-    uint16_t rs = 0, es = 0;                                         /* [bp-6] (dx), di */
     for (int i = 0; i < 3; i++) {
         rs = (uint16_t)(rs + W(0x110E + 12 * r + 2 * i));
         es = (uint16_t)(es + W(0x110E + 12 * e + 2 * i));
@@ -1033,11 +1074,144 @@ uint16_t naval_battle_b12a(uint8_t e, uint8_t r) {
     setW(0x934A, W(0x1100 + 2 * r));
     setW(0x934E, W(0x1100 + 2 * e));
     setW(0x9352, W(0x5222 + 2 * B(0x1114 + 12 * e)));
-    message_B59F(si, mode, flags);
+    /* fallthrough */
+    case NV_AT_B59F:
+    if (stop == NV_AT_B59F) return NV_STOPPED;
+    message_B59F(si, mode, flags);                                   /* b58c */
+    break;
+    }
     music_C34F();
     /* b592: 1D8A, the cursor (not ported) */
     if (!g_original_bugs) nv_palette_restore();
     fprintf(stderr, "naval: battle of fleet %u against record %u: result %u (flagships sunk %u, mode %u), ships Rome %u, enemy %u\n",
             r, e, si, flags, mode, rs, es);
     return si;
+}
+
+/* ================================================================ TEST HOOKS (main.c --naval-frame, --naval-resume)
+   For the comparison with Erik's DOSBox captures (tools/dosbox/results/naval/README.md, tools/cmp_naval_frame.py,
+   tools/cmp_naval_resume.py); not part of the game. main.c loads g_ds from a 640K snapshot (DS = 1686), g_scr from its
+   VGA file and g_wrk from the snapshot's work buffer (2687:0000 = linear 0x26870), with the screen open headless. The
+   snapshot's sheet handles (far pointers at C3A2..C3BC) are replaced by the port's own (load_BF50(0)). */
+static void test_target(void) { if (W(0xC0D4) == 0xA000) nv_target_screen_680F(); else nv_target_work_67E4(); }
+
+/* naval_test_frame(mode, a, b, c): one picture from the state in g_ds.
+   "duel" e r: B12A's frame b324..b370 into the work buffer, over the snapshot's (cmp_naval_frame.py also runs it over two
+     filled buffers to count what the frame draws itself): sea, B96A, BA7A(1), BA7A(0), CCDE(1), CCDE(0), C71B, DC8E.
+   "intro" k: GALLEYS.LZW with FLAG frame k at (38, 5) over the sky colour (C105's loop), k < 0 the bare picture; flipped.
+   "after" bits e r: the screen a finished battle leaves, from the final state: BEAE's panel; the end of D3F2 (the screen
+     into the work buffer, the sea and the survivor: the loop itself is not run again, it would reset the oar frames);
+     D60C (its shark dice are whatever the snapshot's dice give); 67B6, 6837; DC8E (b4c3).
+   "check": no picture; C4F8, C641, CF7F, CFDD and CE7E on the snapshot's positions, printed against the snapshot's
+     values (meaningful when the ships did not move after the pass that computed them); 1 = a difference.
+   The frame's own state effects (CD4B, BA7A, C71B) go to g_ds, which the caller throws away. 0 = drawn. */
+int naval_test_frame(const char *mode, int a, int b, int c) {
+    if (!load_BF50(0)) { fprintf(stderr, "naval test: sheets not loaded\n"); return -1; }
+    if (!strcmp(mode, "duel")) {
+        nv_target_work_67E4();
+        nv_clip(0xB9);
+        setW(0x9AFA, 9);
+        nv_fill_7E74(0, 0, 0x13F, 0xB9);
+        nv_ships_B96A();
+        nv_hooks_BA7A(1); nv_hooks_BA7A(0);
+        nv_shots_CCDE(1); nv_shots_CCDE(0);
+        nv_panel_C71B();
+        nv_totals_DC8E((uint8_t)a, (uint8_t)b);
+        return 0;
+    }
+    if (!strcmp(mode, "intro")) {
+        if (!nv_archive_0F7B(9) || !nv_galleys_0F0C() || !nv_archive_0F7B(8)) return -1;
+        nv_target_work_67E4();
+        if (a >= 0) {
+            setW(0x9AFA, 0x80);
+            nv_fill_7E74(0x26, 2, 0x44, 0x0F);
+            nv_sprite_8E62(W(H_FLAG), a, 0x26, 5);
+        }
+        nv_flip_6887();
+        return 0;
+    }
+    if (!strcmp(mode, "after")) {
+        uint16_t bits = (uint16_t)a;
+        nv_target_screen_680F();
+        nv_screen_BEAE((uint8_t)b, (uint8_t)c);
+        nv_clip(0xB9);
+        setW(0x9AFA, 9);
+        if (bits == 3) { nv_target_work_67E4(); nv_fill_7E74(0, 0, 0x13F, 0xB9); }
+        else {                                                       /* D3F2's end (d5..): the survivor o */
+            int o = (bits & 1) ? 0 : 1;
+            nv_save_67B6();
+            nv_page_6837();
+            nv_target_work_67E4();
+            nv_fill_7E74(0, 0, 0x13F, 0xB9);
+            nv_ship_B8E3(o);
+        }
+        free_C312();
+        nv_sink_D60C(bits);
+        nv_save_67B6();
+        nv_page_6837();
+        nv_totals_DC8E((uint8_t)b, (uint8_t)c);
+        return 0;
+    }
+    if (!strcmp(mode, "check")) {                                    /* the pass's geometry against the snapshot's */
+        int16_t old[8];
+        for (int i = 0; i < 8; i++) old[i] = (int16_t)SW(RECT(0) + 2 * i);
+        uint16_t dist = W(DIST), ram = W(RAMMER);
+        uint8_t b1 = B(BEAR(1)), b0 = B(BEAR(0));
+        setW(DIST, dist_C4F8((int16_t)SW(PX(0)), (int16_t)SW(PY(0)), (int16_t)SW(PX(1)), (int16_t)SW(PY(1))));
+        B(BEAR(1)) = bearing_C641();
+        B(BEAR(0)) = (uint8_t)((B(BEAR(1)) - 8) & 0x0F);
+        rect_CF7F(1); rect_CF7F(0);
+        int bad = 0;
+        for (int i = 0; i < 8; i++) bad |= old[i] != (int16_t)SW(RECT(0) + 2 * i);
+        fprintf(stderr, "C4F8 distance %u (game %u)  C641 bearing %u/%u (game %u/%u)  CF7F rects %s\n", W(DIST), dist,
+                B(BEAR(1)), B(BEAR(0)), b1, b0, bad ? "DIFFER" : "same");
+        front_CFDD();
+        fprintf(stderr, "CFDD ship in front %u (game %u, kept from the pass before when neither bow is in the other)  CE7E touch %d\n",
+                W(RAMMER), ram, touch_CE7E());
+        return bad || W(DIST) != dist || B(BEAR(1)) != b1 || B(BEAR(0)) != b0;
+    }
+    fprintf(stderr, "naval test: unknown frame mode %s\n", mode);
+    return -1;
+}
+
+/* naval_test_resume(from, until, bp, sp): continue the battle in g_ds from a breakpoint of the captures to another. bp =
+   B12A's BP, sp = SP at the breakpoint (both from the capture's .txt).
+   from "B09E" (B0E0's entry: f = [sp+2], z = [sp+4]; the flagship menu takes the script's click, the intro ends with the
+     script) until "BEAE" (B12A b239), or until "2C27": the whole B0E0 (for a move with no battle or a cancelled one; a
+     battle fought would take its input from the script and end by retreat when it runs out);
+   from "BB7E" (bits, e, r = [sp+2], [sp+4], [sp+6]), "D3F2" / "D60C" (bits = [sp+2]) or "B59F" (outcome, mode, flags =
+     [sp+2], [sp+4], [sp+6]); B12A's e = [bp+4], r = [bp+6], mode [bp-8], flags [bp-0Ah], res [bp-0Ch];
+     until "D3F2", "D60C", "B59F" (the entries) or "2C27" (B0E0 returned to 2B40: B0E0's frame is B12A's saved bp [bp], its
+     f [bp'+4], z [bp'+6], e [bp'-1]; its si was pushed by B12A at [bp-1Ch]).
+   Returns AX at the stop (B0E0's result for "2C27", else 0), -1 on a bad request. */
+int naval_test_resume(const char *from, const char *until, uint16_t bp, uint16_t sp) {
+    int stop = !strcmp(until, "D3F2") ? NV_AT_D3F2 : !strcmp(until, "D60C") ? NV_AT_D60C : !strcmp(until, "B59F") ? NV_AT_B59F
+             : !strcmp(until, "2C27") ? NV_AT_NONE : -1;
+    if (!strcmp(from, "B09E")) {
+        uint8_t f = B(sp + 2), z = B(sp + 4), e;
+        if (stop == NV_AT_NONE) return naval_enter_b0e0(f, z);       /* the whole B0E0 (a cancelled or no battle) */
+        if (strcmp(until, "BEAE") != 0) return -1;
+        for (e = 3; e < 6; e++) if (B(12 * e + 0x1114) == z && B(12 * e + 0x1116) != 0xFF) break;
+        if (e == 6) { fprintf(stderr, "naval test: no enemy fleet in zone %u\n", z); return -1; }
+        fprintf(stderr, "naval test: B0E0(fleet %u, zone %u) -> B12A(%u, %u) set-up\n", f, z, e, f);
+        return b12a_setup(e, f) ? 0 : -1;
+    }
+    if (stop < 0) return -1;
+    uint8_t e = B(bp + 4), r = B(bp + 6);
+    uint16_t mode = W(bp - 8), flags = W(bp - 0x0A), res = W(bp - 0x0C), ax;
+    if (!strcmp(from, "BB7E") || !strcmp(from, "D3F2")) { if (!load_BF50(0)) return -1; }
+    test_target();
+    if (!strcmp(from, "BB7E")) {
+        nv_burn_on = 1;
+        board_BB7E(W(sp + 2));                                       /* b397; then b39a jmp b248 -> b24c jmp b419 */
+        ax = b12a_end(e, r, mode, flags, res, NV_AT_B419, stop, 0, 0);
+    }
+    else if (!strcmp(from, "D3F2")) ax = b12a_end(e, r, mode, flags, res, NV_AT_D3F2, stop, W(sp + 2), 0);
+    else if (!strcmp(from, "D60C")) ax = b12a_end(e, r, mode, flags, res, NV_AT_D60C, stop, W(sp + 2), 0);
+    else if (!strcmp(from, "B59F")) ax = b12a_end(e, r, W(sp + 4), W(sp + 6), res, NV_AT_B59F, stop, 0, W(sp + 2));
+    else return -1;
+    if (ax == NV_STOPPED) return 0;
+    uint16_t bp0 = W(bp);
+    fprintf(stderr, "naval test: B12A returned %u; B0E0(fleet %u, zone %u) goes on after enemy record %u\n", ax, B(bp0 + 4), B(bp0 + 6), B(bp0 - 1));
+    return b0e0_from(B(bp0 + 4), B(bp0 + 6), B(bp0 - 1), W(bp - 0x1C), ax);
 }

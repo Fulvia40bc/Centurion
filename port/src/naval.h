@@ -15,4 +15,9 @@ uint16_t naval_enter_b0e0(uint8_t f, uint8_t z);
    Ported in naval.c (logic, timing) and naval_gfx.c (drawing); see naval.c's header for the pacing and the 1990 bugs. */
 uint16_t naval_battle_b12a(uint8_t enemy, uint8_t f);
 
+/* TEST HOOKS (the end of naval.c; main.c --naval-frame / --naval-resume): a picture from the state in g_ds, and the
+   battle continued from one DOSBox breakpoint to another */
+int naval_test_frame(const char *mode, int a, int b, int c);
+int naval_test_resume(const char *from, const char *until, uint16_t bp, uint16_t sp);
+
 #endif

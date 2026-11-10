@@ -600,5 +600,60 @@ rng(3).
   against the sheets when porting.
 - Which key code 03AA returns for Insert (0x10 per BATTLE_UI_NOTES) and whether `R` (upper case) is ever seen (only 0x72 is
   tested).
-- 13.2 (boarding bonus): fixed by default on 10 Nov (see 13.2).
+- 13.2 (boarding bonus): fixed by default on 10 Nov (see 13.2). The 1990 behaviour is V since the captures (section
+  17: battle 1, the Romans boarded and the enemy got the +10).
 - Music ids 13..16 -> CN9A..CN9D is not checked against the music table.
+
+## 17. Verified against the real game (DOSBox-X captures of 10 Nov; V)
+
+Two battles Erik played in DOSBox-X (`tools/dosbox/results/naval/README.md`): battle 1, fleet 0 (45/20/15, no legion)
+against Carthage's fleet 3 (50 quinqueremes, army 11 of 5000 men aboard) in zone 30, quinquereme flagships: Rome won
+(Carthage 0 ships, Rome 38/16/13) although its flagship was boarded and scuttled; battle 2, fleet 0 (38/16/13) against
+Aegyptus's fleet 4 (100 galleons, army 12 of 5520 men) in zone 27, trireme against galleon: the fleet rounds during the
+duel sank all 66 Roman escorts, a head-on ram with no Roman men left led to a boarding, the Roman flagship was scuttled,
+Rome lost. The port was run from the breakpoint snapshots (`centurion --naval-resume`, naval.c's test hooks) with the
+snapshot's dice (DS:00C8) and timer, and its DS compared byte by byte (`tools/cmp_naval_resume.py`, which lists the
+bytes the port does not keep as the EXE does: clock, interrupt handlers, the mouse cursor and its visibility stack
+A674.., allocator, song segments, sheet pointers, the loader's buffers, the stack, the heap). Every comparison has 0
+game-state bytes off, with `--original` and without it. The clock class (the tick DS:42 and the 16 timer slots at
+DS:46 + 4n) is not counted but printed word by word: the dice (DS:00C8..CB, not excluded) end exactly as the game's in
+every stage, which pins the number of frames each stage ran; timer slots 2 and 8 are exact in BB7E; the tick and timer
+slot 0 are off by a few ticks in the set-up (slot 0: port 6F39, game 7136, after 18 ticks of intro against the game's
+~530), D3F2 (tick only, 5) and D60C (slot 0: 9 ticks, the tick 11) stages (G: DOSBox ran the game's frames slower than
+72.8 Hz), and the tick also wherever the game waited for a click on a box:
+
+- Set-up (B0E0 entry -> BEAE entry, battle 2, with the trireme picked in the menu): C37A = 2 (the enemy's last type
+  with ships), C37B = 0, hulls 8EE2 = 60 / 30, crews 8EDE = 200 / 25 (halved: no legion), courage C36E = army 12's 70
+  + 8EE6[0] (-5) = 65 and C36F = 527A[owner 0] 75 + 8EEA[0] (+5) = 80, positions, headings, gears, C386 = 216, the
+  fleets minus one flagship each, C0FC + 1, no dice; with 18 ticks of intro (b2_flagship_trireme_intro.txt) the
+  port's C105 ends on pennant frame 0 and leaves 9AFA = 80 as the game did (NAVAL_SCREEN_NOTES 18). Battle 1's set-up from its B0E0 entry gives 80 / 80 (the courage the
+  captures imply: Carthage's army 85 - 5, Rome 75 + 5).
+- Boarding BB7E (battle 2, entry -> D3F2 entry): head-on (bits 3), both courages + 10 (75 / 90), the 36-tick pause, 20
+  frames 9 ticks apart, the melee rounds (rng(108) apart; BD41 for the enemy's 130 men, none for Rome's 0), the smoke
+  dice, the end: Roman hull 0, text 9406 + 95A9 + 947E built in AC60; the dice DS:00C8..CB and the timer slots 2 and 8
+  end exactly as the game's (only the tick differs: the game waited for Erik's click on the box).
+- b419..b47c, D3F2, C312, D60C, the fleet battle, the write-back and B59F (entry -> entry, then B59F -> B0E0's return):
+  C08E + 1 (Roman flagship), the enemy flagship back into its fleet (69), D3F2's smoke dice, D60C's shark dice, one DA50
+  round (12 army rolls + 69 ship rolls + 4 flagship rolls; Rome had no ships left: -1 at once), C400..C40A, fleet 0 +8 =
+  FF (lost, no legion aboard), B59F's pointers 934A..9358 (outcome 1, flags 1: 8F52 + 913C), C0FE unchanged, B0E0
+  returns 0 (EAX 0 at 2C27).
+- B0E0 with no enemy fleet in the zone (battle 2, zone 29): returns 1, no DS change. B0E0 with Esc at the flagship menu
+  (battle 1's first try, zone 30): BD8A has already stopped the music and unloaded slot 0 (3EEE = FF, A6B0..A6B3 =
+  00 00 00 FF), C37B = FF, the menu record 972C.. / 9756 = 0x82 (3 types), B12A returns 0, B0E0 returns 0: same in the port.
+- Battle 1 (no snapshot inside the battle; checked by hand from its B0E0 entry and return, D vs V): Rome 45/20/15 ->
+  38/16/13 and C08E 0 -> 13 (12 ships in the fleet rounds + the flagship, b42c); Carthage 50 -> 0, C08A 0 -> 50 (its
+  flagship survived the duel, so b465 put it back and the rounds sank all 50), fleet 3 +8 = FF (b53d), army 11's +6 (5000
+  men) -> 0 and C082 + 5000 (DE51), its +8 -> 0 (b554); C0FC and C0FE 0 -> 1 (B59F, won); B59F's lines 8F52 ("your
+  flagship sinks beneath you") and 9104 ("In spite of their admiral's bath, your fleet prevails"); the boarding text
+  pointer 96CE = 9406 "Your sailors cheer lustily as they swing across and board the enemy flagship" proves si & 2 (the
+  Romans boarded), and the courage went to the enemy (80 -> 90, Rome stayed 80): 13.2 as decoded (V). In the port's
+  default mode that boarding would have been fought at Rome 90 / enemy 80 instead (the only place where a default-mode
+  fix would have changed these captures; not replayable, the boarding's start state was not captured).
+- Not verifiable from these captures: the duel passes themselves (the original rolls B6A0's dice once per pass, as fast
+  as the CPU runs; Erik's keys were not recorded), so B6A0, C3D3, C422, B7FA, D242, CD96's damage, CB11 / C9A3 hits and
+  the background DA50 rounds are still D. DD2E (Roman losses with a legion aboard) did not run in a captured stage.
+
+Observed in the 1990 game (V): a flagship with 0 men still rows at ramming speed and rams (battle 2: crew 0, gear 6,
+oars 4 at the boarding) - nothing in C422 / B7FA looks at the crew; the boarding then still runs its 20 frames and its
+melee rounds roll 1 or 2 dice for each of the enemy's 130 men (BD41: the second only when the first is under the
+courage) although nobody is left to fight. The port keeps both (they are how 1990 plays, not wrong results).

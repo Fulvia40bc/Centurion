@@ -5,6 +5,12 @@ OVL0.OVL file bytes 0x8550-0xB3F0 (0x2EA0 bytes), loaded at 1331:0000 = 0823:B0E
 unsigned, calls masked to 16 bits, EXE names and DS strings as comments). Marks: D decoded from the asm, V verified by
 running/comparing, G guess.
 
+The port (port/src/naval.c, naval_gfx.c) has been compared with two battles captured in DOSBox-X on 10 Nov
+(`tools/dosbox/results/naval/README.md`): the set-up (BD8A, b152..b231), BB7E, b419..b4c3, D3F2, D60C, DA50 (one round),
+the write-back, B59F and B0E0 give the game's DS game state byte for byte (the clock aside: NAVAL_LOGIC_NOTES 17) and
+every pixel the port draws itself as the game's (the cursor aside; B59F's box was never on a captured screen); the duel
+passes could not be replayed (NAVAL_LOGIC_NOTES 17, NAVAL_SCREEN_NOTES 18).
+
 ## 1. How the listing was made (V)
 
 - `sec5.bin` = OVL0.OVL[0x8550:0xB3F0]; `.code16` + `.incbin`, clang `--target=i386-unknown-elf -c`, llvm-objdump

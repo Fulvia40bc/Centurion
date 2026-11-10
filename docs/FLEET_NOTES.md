@@ -278,6 +278,11 @@ B12A(enemy record [bp+4], Roman fleet [bp+6]) (section 5, NAVAL_INDEX section 6)
 | 3 | both sums 0 | both of the above, C0FE not counted |
 | 4 | both fleets still have ships (no fleet battle: player pressed 'r', declined to re-engage) | none |
 
+V (DOSBox captures of 10 Nov, tools/dosbox/results/naval): result 0 by Esc at the menu -> B0E0 0 (BD8A had already
+stopped the music and freed its slot 0, so "none" above is not quite true: 3EEE = FF, A6B0..A6B3 = 00 00 00 FF);
+result 1 -> B0E0 0; result 2 -> B0E0 1 with C0FE + 1; no enemy fleet in the zone -> B0E0 1 with no DS change. The port
+gives the same DS and return values (NAVAL_LOGIC_NOTES 17).
+
 | caller | use |
 |---|---|
 | B0E0(Roman f [bp+4], zone [bp+6]) | for enemy fleets 3..5 in the zone: `if (!(B12A(e, f) & 2)) return 0;` else go on; returns 1 = way clear |

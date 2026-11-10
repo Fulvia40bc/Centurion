@@ -6,6 +6,7 @@
 #include "state.h"
 #include "assets.h"
 #include "screen.h"
+#include "naval.h"
 
 void game_run(void);
 
@@ -240,6 +241,40 @@ int main(int argc, char **argv) {
         battle_report_shot(atoi(argv[3]), atoi(argv[4]), (unsigned)atoi(argv[5]), (unsigned)atoi(argv[6]), (unsigned)atoi(argv[7]),
                            (unsigned)atoi(argv[8]), have ? bg : NULL, argv[10]);
         return 0;
+    }
+    /* TEST HOOKS, the naval battle (tools/dosbox/results/naval/README.md). SNAP = a 640K DOSBox snapshot (DS = 1686, the
+       work buffer 2687:0000), VGA = the 64000-byte screen saved with it; headless, run in the game folder.
+       --naval-frame SNAP VGA OUT MODE [A B C]: naval_test_frame (duel E R | intro K | after BITS E R) -> the picture OUT.
+       --naval-resume SNAP VGA FROM UNTIL BP SP OUT_DS OUT_VGA [SCRIPT]: naval_test_resume from breakpoint FROM to UNTIL
+       (BP, SP in hex from the capture's .txt) -> the DS image and the screen at UNTIL. */
+    if ((argc > 5 && strcmp(argv[1], "--naval-frame") == 0) || (argc > 9 && strcmp(argv[1], "--naval-resume") == 0)) {
+        int frame = argv[1][8] == 'f';
+        if (screen_open(1) != 0 || state_load_mem(argv[2]) != 0) { fprintf(stderr, "cannot load %s\n", argv[2]); return 1; }
+        FILE *f = fopen(argv[2], "rb");
+        int ok = f && fseek(f, 0x26870, SEEK_SET) == 0 && fread(g_wrk, 1, sizeof(g_wrk), f) == sizeof(g_wrk);
+        if (f) fclose(f);
+        f = fopen(argv[3], "rb");
+        ok = ok && f && fread(g_scr, 1, sizeof(g_scr), f) == sizeof(g_scr);
+        if (f) fclose(f);
+        if (!ok) { fprintf(stderr, "cannot read the work buffer of %s or the screen %s\n", argv[2], argv[3]); return 1; }
+        int r;
+        if (frame) {
+            r = naval_test_frame(argv[5], argc > 6 ? atoi(argv[6]) : -1, argc > 7 ? atoi(argv[7]) : 0, argc > 8 ? atoi(argv[8]) : 0);
+            f = fopen(argv[4], "wb");
+            if (r == 0 && f) fwrite(strcmp(argv[5], "duel") == 0 ? g_wrk : g_scr, 1, 64000, f);
+        } else {
+            if (argc > 10) screen_script(argv[10], NULL);
+            r = naval_test_resume(argv[4], argv[5], (uint16_t)strtoul(argv[6], NULL, 16), (uint16_t)strtoul(argv[7], NULL, 16));
+            fprintf(stderr, "naval test: AX = %d\n", r);
+            f = fopen(argv[8], "wb");
+            if (r >= 0 && f) fwrite(g_ds, 1, 0x10000, f);
+            if (f) fclose(f);
+            f = fopen(argv[9], "wb");
+            if (r >= 0 && f) fwrite(g_scr, 1, sizeof(g_scr), f);
+        }
+        if (f) fclose(f);
+        screen_close();
+        return frame ? r != 0 : r < 0;
     }
     /* --tactics-dump OUT: TACTICS.LZW decoded */
     if (argc > 2 && strcmp(argv[1], "--tactics-dump") == 0) {

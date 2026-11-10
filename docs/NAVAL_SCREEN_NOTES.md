@@ -8,8 +8,10 @@ both images, except [6346] (box fill: 7 static, 26 runtime/VGA), [9B26] (0 stati
 9B56..9B5F (0 static). Function index and DS map: `docs/NAVAL_INDEX.md`. Logic of the duel and the fleet battle
 belongs to the other notes; it appears here only where the screen depends on it.
 
-Marks: **D** = decoded from the code; **V** = verified by running or comparing (here: only rendering the decoded rules
-from the real sheets, no naval capture exists in tools/dosbox or C:\DOSBox-X\hunt); **G** = guess.
+Marks: **D** = decoded from the code; **V** = verified by running or comparing; **G** = guess. Since 10 Nov the port's
+pictures are compared with two real battles captured in DOSBox-X (tools/dosbox/results/naval, section 18): every
+pixel the port draws on the captured screens matches (the EXE's mouse cursor aside), so the coordinates of the duel frame, the panel, the intro, the boarding, the
+sinking and the sharks are **V** (section 18 lists what was and was not on the captured screens).
 
 Calls are Pascal: the first argument pushed is the highest `[bp+N]`, the callee pops. Below, arguments are written in
 push order. "side" 0 = the enemy flagship, 1 = the Roman flagship (the per-side tables are pairs: C388/C389 heading,
@@ -449,7 +451,7 @@ Trigger: a ram (CD96) or a corvus hit (BA7A) while both flagships float. si bit 
 rammed / the Roman corvus hit (95D2 = {1, 2}).
 ```c
 04ED();  C37C = 0;  011F(36);                     /* key flush, 0.49 s pause (frozen picture) */
-if (si & 2) C36E += 10;  if (si & 1) C36F += 10; /* the boarded side defends better */
+if (si & 2) C36E += 10;  if (si & 1) C36F += 10; /* the boarded side gets it: 1990 bug 13.2 (section 18) */
 C390 = C391 = 6;  C386 = 72;  cx = (C376 + C372) / 2;  cy = (C378 + C374) / 2;   /* C division (toward 0) */
 frames = 20;
 while ((C37E && C380) || frames) {
@@ -689,7 +691,7 @@ bookkeeping only (map.c music_play_5D29 / nego.c's 5D20 / 5E1A), as elsewhere.
 Descriptor (14 bytes): +0 w, +2 xhot, +4 yhot, +6 bytes per row, +7 rows, +8 transparent nibble, +9 lut, +A offset
 (counted from 2 bytes before the data; nego.c's sheet_163B reads them right).
 
-## 13. Reference renders (render only, from the decoded rules: NOT verified against the original)
+## 13. Reference renders (render only, from the decoded rules; superseded by the captures of section 18)
 
 Scratch: `C:\Users\erikk\AppData\Local\Temp\claude\bfb5522be8ee045d\c4bf0f5f-57f9-4ea6-80b3-e1aa05bf0592\scratchpad\fleet\`
 `render.py` (intro_ref.png: GALLEYS + pennant frame 1; battle_first_ref.png: BEAE for Quinquereme vs Quinquereme,
@@ -735,8 +737,9 @@ Centurion-native\cmap.bin, LUTs from the runtime DS.
 
 ## 16. Open questions
 
-- No capture of the naval battle exists: every coordinate here is D. A DOSBox-X capture of one frame of the duel
-  (work buffer seg 2687) and of the panel would make them V (compare with battle_first_ref.png).
+- (Answered 10 Nov, section 18: captures exist; the duel frame, panel, intro, boarding, sinking and shark pictures are V.
+  Not yet seen on a captured screen: fire-pots in flight, splashes, flames, the corvus, the speed word, the re-engage
+  prompt, the BEAE start screen itself.)
 - Whether anything after the battle reloads the palette (C18C dead, 4.3).
 - The pass rate of the 1990 game on a period machine (how many B6A0 dice per tick) cannot be recovered; the port
   needs a decision (3.3).
@@ -756,3 +759,53 @@ Centurion-native\cmap.bin, LUTs from the runtime DS.
   (cn9a..cn9d), and the music stops when you stop rowing.
 - A second, tiny font exists only for the naval panel.
 - The Roman corvus (the boarding bridge Rome really used in the First Punic War) is the Enter key, and only Rome has it.
+
+## 18. Verified against the real game (DOSBox-X captures of 10 Nov; V)
+
+Erik played two naval battles in DOSBox-X on C:\work\cent_play while a recorder stopped the game at breakpoints and
+saved the 640K memory (DS = 1686, the work buffer 2687:0000) and the VGA screen (indexed pixels, no palette: compared
+as palette indexes). Copies and the exact commands: `tools/dosbox/results/naval/README.md`; tools
+`tools/cmp_naval_frame.py`, `tools/cmp_naval_resume.py`; test hooks `centurion --naval-frame` / `--naval-resume`
+(naval.c's end). All results with `--original`, and the same without it (no 1990 bug the port fixes was on these paths).
+
+A resumed stage starts from the capture's screen and work buffer, and a stage may leave much of them as they were, so a
+0 px result alone does not show that the port drew the picture. The tools therefore run each check twice more with the
+input screen and work buffer filled with FD and with FE: a pixel that is the same in both runs was drawn by the port
+("drawn" below); the rest is the capture passed through. Every pixel the port drew matches, in every row below.
+
+| picture | how | result | drawn by the port |
+|---|---|---|---|
+| battle 2, the last duel frame before the boarding (BB7E entry) | `--naval-frame ... duel 4 0`: B12A's frame b324..b370 drawn from the snapshot's state | 0 px | 62023; the other 1977 (rows 186..199) are the panel background, the black line and "SHIPS", which only BEAE draws |
+| battle 2, the intro (BEAE entry) | set-up resumed from B0E0's entry with the flagship click and 18 ticks of intro (b2_flagship_trireme_intro.txt): the port's own BD8A, BF50 and C105 loop | 0 px; 9AFA left at 80 as in the game | 64000 |
+| (the same picture) | `intro K`: the test hook re-types C105's loop body (the 0x80 erase of (38,2)-(68,15), FLAG frame K at (38,5)) | K = 0: 0 px (1, 2, 3, none: 104, 152, 134, 78) | 64000 |
+| battle 2, the last boarding frame + b479's panel (D3F2 entry) | resumed from BB7E's entry: 20 boarding frames, smoke rng(3) at the midpoint, with the snapshot's dice and timer | 0 px | 61711 (the rest: the panel strip, rows 186..199) |
+| battle 2, the last D3F2 frame (D60C entry) | resumed from D3F2's entry: the enemy backs water 17 px, the Roman wreck turns from heading 2 to 4, smoke | 0 px | 59520 (the rest: the whole panel strip, rows 186..199) |
+| battle 2, the last D60C frame + DC8E (B59F entry) | resumed from D60C's entry: SSINK frames, the shark, DA50, DC8E | 0 px | **2332 only**: D60C restores its rects from the work buffer, which is the capture's here |
+| (the same picture) | **chained** from BB7E's entry (BB7E, b419.., D3F2, D60C, DA50, DC8E in one run) | 0 px | 62023 (the rest: rows 186..199, BEAE's panel background); this is the real check of D60C's picture |
+| battle 2, after the result box (2C27) | resumed from B59F's entry | 93 px = the EXE's mouse cursor at (148,92)-(158,107); the port shows the system pointer instead | **0**: the box is drawn and taken down again, the screen is the input |
+| (the same picture) | **chained** from BB7E's entry to B0E0's return | 93 px, the cursor; DS 0 game-state bytes off | 62023, 93 of them differ (the cursor) |
+| battle 1, after the battle (2C27) | `after 1 3 0`: BEAE's panel, the end of D3F2, D60C (MSINK, shark), DC8E, from the final state | 93 px = the mouse cursor at (160,109)-(170,124) | 64000 |
+
+Verified by these (V): the duel frame's order and layering (5, 5.1), the hull and oar frames and hot spots, the arrow
+volley sprites (5.3: both volleys were in the air), the strength bars, "MEN" and the men numbers, the ship totals and
+their places (5.5..5.7), the small font, the clip at 185, the intro's pennant picture and its place (4.3), the boarding
+frames (6), D3F2's back-off steps 9958/9968 and its turn (7.2), D60C's frames, the shark's start, frames and erase box
+(7.3), DC8E after the fleet battle (7).
+The intro (4.3): the pennant picture is V (the `intro` hook), and C105's loop body as the port runs it is V too (the set-up
+resume with 18 ticks of intro ends on frame 0 like the game, and the frames come in the decoded order: holding the intro
+0..4 ticks gives no frame, 5..8 frame 1, 9..12 frame 2, 13..16 frame 3, 17..20 frame 0, so ++si comes before the draw
+and a frame is drawn every 4 ticks of the port). C105's pacing against the game's real time and the water-colour phase
+9812..9817 (excluded from the DS comparison as time) stay D: one stop cannot show how many frames the game drew (its
+intro ran about 530 ticks; its tick was 5 past timer slot 0 at BEAE's entry, the port's 2: G, DOSBox frame timing).
+The shark dice: battle 1's `after` picture runs D60C on the dice left at the END of the battle (after the real D60C and
+all DA50 rounds), and its last shark frame hardly depends on them (other dice give 93 px as well, now and then 100), so
+battle 1 checks D60C's sprites and places and its dice only by chance. The dice evidence is battle 2's D60C resume (the
+dice end as the game's, NAVAL_LOGIC_NOTES 17) and the chained run above.
+Not on any captured screen (still D): the speed word, the corvus, fire-pots, splashes, flames, the re-engage prompt,
+BEAE's start screen, B59F's result box (2C27's screen is after the box was taken down).
+Geometry (`cmp_naval_frame.py ... check`): at BB7E's entry CF7F's rects equal the snapshot's, C641's bearing 2 / 10 too,
+and CE7E finds the ships touching (it was a head-on ram). C382 = 32 is not the distance of the stored positions (25): C4F8
+ran at the top of the last pass, before both ships moved one step (both move slots = that pass's tick); undoing the step
+from the stored fractions allows the pre-move positions (76..77, 84..85) / (56..57, 107..108), and C558 gives 32 for
+(77,84) / (56,108) (its rounding: the floor would be 31), so the value is consistent (V for C558's rounding, G which
+pre-move position).
