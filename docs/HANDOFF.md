@@ -36,9 +36,21 @@ Reply:
 **Claude has taken over the port** (Erik's decision: the back-and-forth costs more than it gains in the game-logic phase). Mistral's open
 entries below are closed as of this date; this file stays as the project log. Claude works on branch vibe/centurion-port-b35c83 as before.
 
+**Regression checks: run every tool with the working folder C:\work\cent_play** and give the result files with full paths
+(e.g. `python tools/cmp_battle_frame.py C:/work/Centurion/tools/dosbox/results/battle/b11_orders1_open.bin 0
+C:/work/Centurion/tools/dosbox/results/battle/b11_frame_tick0.bin`). Run from a results folder, cmp_battle_frame.py reports
+4630 px for tick 0 with every build and cmp_battle.py b10 prints "TACTICS.LZW not found": false failures (V, 2026-11-12).
+
 ## Needs Erik
 
-_(nothing right now)_
+Three open decisions from the circus port (2026-11-12); the code keeps the current default until you rule:
+1. Gladiators, glad.c fix 7: which man's move table is the slip? The port slows the AI's high attack by one step (the hit on
+   the raised-sword pose, as the wimps); GLAD_LOGIC_NOTES 12.4 proposed the opposite (the player's man one step faster).
+   1990 gives the AI's man the faster attack. The bytes support either reading.
+2. Chariot race, race.c fix 8 (skill read as "% chance of a clean line"): on by default, but it makes the Galley Slave and
+   Legionnaire fields corner almost as well as Senator's. Keep it, or keep the 1990 code by default (as the BD0A counter)?
+3. Chariot race: the bribe text "paid 10 talents to let you win" vs the code (the bribed driver stays faster than you):
+   a joke to keep, or a slip to fix (a fix needs a design)?
 
 ## Open
 

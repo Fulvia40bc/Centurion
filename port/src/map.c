@@ -11,7 +11,7 @@
  * Not ported here (as screen.c): the mouse cursor (0x1D55 / 0x1D8A / 0x1CCE), the music driver (the file loading of
  * 0x5D73 / 0x5EB5 and the driver calls of 0x5D29 / 0x5D20; their DS writes, the slot table DS:A6B0 and [3EEE], are done)
  * and the disk swap prompts (0x1E21). The fleet orders (0x2C6F, 0x2F5A, 0x2B40) are in fleet.c. The victory sequence
- * (section 4 DF58, not disassembled) is not ported: a message box says so and the DS is left as it is.
+ * (section 4 DF58, thunk B092) is race.c's race_victory_df58; after it the game ends (0x09A7 -> 0x09AE exit_game).
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,6 +22,7 @@
 #include "assets.h"
 #include "legions.h"
 #include "fleet.h"
+#include "race.h"
 
 static const char *dstr(uint16_t a) { return (const char *)&g_ds[a]; }
 
@@ -397,9 +398,9 @@ void map_loop(void) {
         for (uint16_t bx = 0x5285; bx < 0x55E5; bx += 0x20) if (B(bx) != 0) any = -1;
         if (!any) { message_box(dstr(0x17F)); quit = -1; }
         wait_release();                                   /* 0x35DB */
-        if (B(0x5971) == 8) {                             /* rank Caesar: 1E21 disk check, section 4 DF58 victory */
+        if (B(0x5971) == 8) {                             /* rank Caesar: 0x099E di = -1, 1E21 disk check (nothing) */
             quit = -1;
-            message_box("The victory sequence\nis not ported yet.");
+            race_victory_df58();                          /* 0x09A4: B092 = section 4 DF58; then 0x09AE exit_game(0) */
         }
     }
 }

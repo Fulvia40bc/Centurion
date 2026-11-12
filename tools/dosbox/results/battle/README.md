@@ -26,5 +26,9 @@ Check: `python tools/cmp_battle.py --entry b11_entry.bin b11_exit.bin 7 0 0 2 4 
   linear 0x26870; the clean field is at 0x39420) when the orders mode opened; DS at the same moments = b11_orders1_open.bin /
   b11_orders2_open.bin. `python tools/cmp_battle_frame.py b11_orders1_open.bin 0 b11_frame_tick0.bin` -> 0 differing pixels
   (same for tick 245). port/src/battle_gfx.c.
+- **Run these checks with the working folder C:\work\cent_play** (the port reads the game's files from the working folder)
+  and give the result files with their full paths. From this results folder `cmp_battle_frame.py` reports 4630 differing
+  pixels for tick 0 with every build (a false failure), and `cmp_battle.py b10_form.bin ...` prints "TACTICS.LZW not
+  found (run in the game folder)" while still saying "identical" (V, 2026-11-12).
 - The report: `centurion --report-shot endturn/t9_out.bin 12 1 641 3146 5659 1534 ../scr_battle_report.bin out.bin` draws
   Carthage's report over the captured screen: 0 differing pixels against scr_battle_report.bin.

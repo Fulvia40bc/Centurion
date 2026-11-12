@@ -12,9 +12,9 @@
  * C0E8 C0EA C0EC C0EE), "init2" (MINIT, [C28A]: the crowd by mood). The province strips are CBMs of archive 7 (MNEGO)
  * loaded by 0x1273 and drawn with 0x8E62 too.
  *
- * Not ported here (each says so on screen and leaves the DS as it is): the chariot race (section 4 D08A) and the
- * gladiator show (section 3 B0E0) of Rome's Hold Games; the show's amphitheatre purchase (0x34CB, 50 talents) is
- * skipped with it, and as neither module writes its once-per-turn word (154E / 154C) they may be chosen again.
+ * Rome's Hold Games: the chariot race (section 4 D08A) is race.c; it writes its once-per-turn word 154E itself (d09e).
+ * The gladiator show (section 3 B0E0) is glad.c; it writes its once-per-turn word 154C itself (b313), and the
+ * amphitheatre purchase (0x34CB) is done here.
  * Build Fleet has no naval part: it is ported whole, with the auto-repeat of a held button on +/- (0x2900).
  * The legions.h UI hooks are installed by the caller (main.c, legions_ui_install), not by these entry points.
  * The mouse cursor calls (0x1D55 / 0x1D8A / 0x1CCE) and the disk prompt 0x1E21 do nothing in the port.
@@ -28,6 +28,8 @@
 #include "assets.h"
 #include "legions.h"
 #include "fleet.h"
+#include "glad.h"
+#include "race.h"
 
 #define P(z)   ((uint16_t)((uint16_t)(uint8_t)(z) << 5))      /* + 0x5270..: province record 5270 + 32z */
 #define AC60   0xAC60u
@@ -163,6 +165,14 @@ static void frame30e6(int x, int y) {
     fill7e74(x + 4, y + 3, x + 0x92, y + 0x71);
     for (int k = 0; k < 4; k++) sprite8e62(mmenu(), k, x, y);
 }
+/* 0x30E6 on the screen, for the gladiator show's training menu (glad.c, 5614(7CB0, 1)). The MMENU sheet is loaded
+   by then (Rome Games drew its own menu with this frame first), so the show's open archive (MGLAD) is not replaced. */
+void province_frame30e6(int x, int y) {
+    uint8_t *keep = g_fb;
+    g_fb = g_scr;
+    frame30e6(x, y);
+    g_fb = keep;
+}
 /* 0x5614 menu_draw(rec, mode): mode 1 = the frame 0x30E6 then the items, ornament and title (ui.c mode 0 draws exactly
    those); mode 2 = box 3134 + the rest (ui.c); 0 = items only */
 static void menu_draw5614(uint16_t rec, int mode) {
@@ -199,12 +209,6 @@ static void menu_off55ff(uint16_t rec) {
     ui_menu_disable(g_fb, &m);
 }
 static void msgbox59d4(uint16_t s) { message_box(dstr(s)); }
-static void not_ported(const char *what) {
-    char b[160];
-    snprintf(b, sizeof(b), "%s\nis not ported yet", what);
-    fprintf(stderr, "province: %s NOT PORTED (DS left as it is)\n", what);
-    message_box(b);
-}
 
 /* ---------------------------------------------------------------- province screen pieces */
 /* 0x6C26 mood(z): ((+0x10) - (+0x0E) + (+0x0D)) / 25, signed bytes, idiv; 0..3 */
@@ -292,6 +296,17 @@ static void province_panel6f0c(uint8_t z) {
     ds_strcat(AC60, dstr(0x587A));                                    /* " level" */
     text8be4(0xEF, 0xB4, dstr(AC60));
 }
+/* For the chariot race's prepare menus (race.c, section 4 C2DE / C730 / C88E): 0x3512, 0x6F0C(z) and 0x44E5(v) on the
+   screen (the province sheets are cached by then: the Rome screen drew them before Hold Games) */
+void province_panel3512(void) { uint8_t *k = g_fb; g_fb = g_scr; panel_frame3512(); g_fb = k; }
+void province_rome_panel6f0c(uint8_t z) { uint8_t *k = g_fb; g_fb = g_scr; province_panel6f0c(z); g_fb = k; }
+void province_treasury44e5(uint16_t v) {
+    uint8_t *k = g_fb;
+    g_fb = g_scr;
+    setW(0x9AFA, W(0x6346)); setW(0x9B69, 0);
+    num8af2(0xD3, 0xA7, 0x37, v);
+    g_fb = k;
+}
 /* 0x680F + 0x6973(0, 0, 319, 199): the screen is the target again and gets the composed picture */
 static void present_composed(void) {
     g_fb = g_scr;
@@ -363,8 +378,9 @@ static int rome_games3457(void) {
     uint16_t di = menu_run54c8(0x15C2);
     if (di == 0) {                                                    /* Racing Chariots */
         if (W(0x154E) == W(0x634C)) msgbox59d4(0x15DC);               /* "Only One Race Per Turn" */
-        else if (W(0x634A) >= 5) {                                    /* 1E21 disk check, B0AA = section 4 D08A */
-            not_ported("The chariot race");
+        else if (W(0x634A) >= 5) {                                    /* 0x349A: 1E21 disk check (nothing in the port) */
+            race_d08a();                                              /* 0x349D: B0AA = section 4 D08A, which writes 154E
+                                                                         (d09e) when a race is run */
             si = -1;
         } else msgbox59d4(0x15F3);                                    /* "You cannot afford to\nenter a chariot race." */
     } else if (di == 1) {                                             /* Gladiator Show */
@@ -372,12 +388,14 @@ static int rome_games3457(void) {
             if (W(0x634A) < 0x32) { msgbox59d4(0x161E); goto out; }
             menu_off55ff(0x15C2);
             if (!yes_no(dstr(0x164E))) { menu_on55ea(0x15C2); goto out; }   /* "...Spend 50 Talents?" */
-            /* 0x34CB-0x34D6: [634A] -= 50 and [154A] = FFFF (the amphitheatre) pay for the show module only (154A is
-               read nowhere else in the EXE); as the show is not ported they are NOT done: the treasury stays as it is.
-               [15D2] = FFFF is the menu record's own flag (15C2 + 0x10, cleared by 55FF above) and is kept. */
+            /* 0x34CB-0x34D6: the amphitheatre is paid and built, the menu record's own flag (15C2 + 0x10, cleared by 55FF
+               above) set again, and the show follows at once (it cannot have been held this turn: no per-turn test) */
+            setW(0x634A, (uint16_t)(W(0x634A) - 0x32));
             setW(0x15D2, 0xFFFF);
+            setW(0x154A, 0xFFFF);
         } else if (W(0x154C) == W(0x634C)) { msgbox59d4(0x167A); goto out; }  /* "Only One Show Per Turn" */
-        not_ported("The gladiator show");                             /* 1E21, B0B6 = section 3 B0E0 */
+        glad_show_b0e0();                                             /* 0x34F2: 1E21 (disk check, nothing in the port);
+                                                                         B0B6 = section 3 B0E0, which writes 154C (b313) */
         si = -1;
     }
 out:

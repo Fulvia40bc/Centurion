@@ -447,8 +447,8 @@ Rank names DS:5972[r]: Officer, Centurion, Tribune, Legatus, General, Praetor, C
 | conquest battle / negotiation | 0x5F82 (B06E / MNEGO 0x6570) | battle PORTED; negotiation no |
 | enemy army battles in End Turn | 0x4B3F, 0x501E, 0x508D | PORTED |
 | naval battle | section 5 (B0C2, B09E) | no |
-| chariot race / gladiators | section 4 D08A / section 3 B0E0 | no |
-| victory sequence + credits | section 4 DF58, section 1 B9A1 | no |
+| chariot race / gladiators | section 4 D08A / section 3 B0E0 | PORTED (race.c, glad.c; 2026-11-12) |
+| victory sequence + credits | section 4 DF58, section 1 B9A1 | PORTED (race.c, credits.c; 2026-11-12; RACE_LOGIC_NOTES 7.1) |
 | "Sic Transit" defeat | 0x0986 | no |
 
 ## 7. Porting plan (order, dependencies, checks)
