@@ -1,0 +1,9 @@
+exe_runtime_0823.bin: the CENTURIO.EXE load image as it sits in memory (segment 0823, offsets 0x0000-0xB0EF),
+captured from the running game with the DOSBox-X debugger on 2026-11-06.
+
+- Byte-identical in two captures taken minutes apart (no self-modifying code in this range).
+- Segment fixups are already applied (load segment 0x0823), so far pointers/segment immediates are runtime values
+  (e.g. 'mov ax,1686' at 0x000A loads DS).
+- Use this instead of tools/CENTURIO.unpacked.bin: only 5.2% of that file's 16-byte chunks occur in the real
+  code (the LZEXE unpacker output is corrupt), e.g. file 0x1C38 'B8 D0 83 C4 CD 64 ..' vs real 'B8 D0 C0 50 8D 46 ..'.
+- Disassemble as 16-bit real mode with origin 0823:0000.

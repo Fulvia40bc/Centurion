@@ -1,0 +1,55 @@
+#ifndef ASSETS_H
+#define ASSETS_H
+#include <stdint.h>
+#include <stddef.h>
+
+typedef struct {
+    uint32_t offset;
+    uint16_t length;
+    char name[14];
+    uint8_t format;
+} dir_entry_t;
+
+int assets_load(const char *dir_path, const char *dat_path);
+int assets_find(const char *name);
+uint8_t *assets_decode(int idx, size_t *out_len);
+/* Decode a 0xC0 CBM image member to 8-bit palette indices (w*h bytes).
+   Returns NULL on failure. out_w and out_h get the pixel dimensions. */
+uint8_t *assets_decode_cbm(int idx, int *out_w, int *out_h, int *out_lut);
+/* Load the 16x16-byte CBM colour lookup tables from OVL0.OVL (file offset 0x114C0). */
+int assets_load_luts(const char *ovl0_path);
+const uint8_t *assets_lut(int idx);  /* 16-byte LUT, NULL if out of range */
+
+#endif
+
+/* Image viewer support: scan all DIR/DAT pairs in a directory for CBM members */
+typedef struct {
+    char name[14];
+    char dat[260];
+    uint32_t offset;
+    uint16_t length;
+} img_entry_t;
+
+int assets_scan_images(const char *dir, img_entry_t *out, int max);
+/* Decode a CBM from an explicit dat file; also returns x/y hotspot and transparent nibble. */
+uint8_t *assets_decode_cbm_file(const char *dat_path, const img_entry_t *e,
+                                int *out_w, int *out_h, int *out_x, int *out_y, int *out_trans, int *out_lut);
+/* Colour table for imgs[i]. Header LUT index 0 means "keep the current table": use the nearest earlier
+   image in the same DAT with a non-zero index (GALLERY2 -> 3, BB1/BB2 -> 23). UNVERIFIED vs the game,
+   but it is the only rule that makes these three images look right. */
+int assets_effective_lut(const img_entry_t *imgs, int i);
+
+/* Font (from OVL0.OVL file offset 0x1509C; see docs/FONT_FORMAT.md):
+   width[96], yoff[96], glyph[96][8]; chars 0x20..0x7F, 8 rows, bit7 = leftmost. */
+int assets_load_font(const char *ovl0_path);
+const uint8_t *font_glyph(int ch, int *w, int *yoff);  /* NULL if out of range */
+
+/* Sprite sheet (xxxHDR.LZW + xxxDAT.LZW in MINIT.DAT etc.; VERIFIED on INIT2):
+   HDR unpacks to 14-byte entries <HhhBBBBI = w, xhot, yhot, bpr, rows, byte8(transp),
+   lut, u32 offset into unpacked DAT. DAT = raw 4-bit nibbles, bpr stride, no compression. */
+typedef struct { int w, h, xhot, yhot, trans, lut; uint32_t off; } sprite_ent_t;
+int assets_load_sheet(const char *hdr_name, const char *dat_name,
+                      sprite_ent_t *ents, int *count, uint8_t **pixels, size_t *npix);
+/* blit sprite i into fb at (px,py); nibble==trans is transparent */
+void assets_blit_sprite(const uint8_t *pixels, const sprite_ent_t *e, const uint8_t *lut,
+                        uint8_t *fb, int fb_w, int fb_h, int px, int py);
