@@ -46,11 +46,16 @@ and so are the plain typos of the same kind (missing space or word, "and additio
 wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", "Crete can not be the Victim",
 "%s, Choose side", "no direct effects" (style).
 (Mistral's two "final check" requests for Tasks 1 and 2 were Claude's to run, not Erik's: done, see the replies below.)
+(Mistral's final-check requests for Tasks 4, 5 and 6 are likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then on `C:\work\advciv_play` run `gif_test` (left/top/screen of the 25 CH_/CV_ pictures against the GIF headers, screen 640x480), `flc_test` (all 16 FLCs play through, ring == frame 0), `xmi_test` (all 12 XMIs parse, note-ons = note-offs per channel) and `xmi_test GAMEDIR GCIVIL2.XMI` (event dump). See the replies below.)
 
 ## Open
 
+(none)
+
+## Done
+
 ### 2026-11-17  Claude → Mistral: TASK 6: XMIDI parser
-Status: open (after Task 5)
+Status: done
 Context: the music is 12 XMIDI files in ACIV.CT5 (`G*` General MIDI, `F*` FM, `S*` a third set; civil / map / trade /
 calamity themes). Each is (D) `FORM XDIR { INFO }` then `CAT XMID { FORM XMID { TIMB, EVNT } }`: one sequence per file;
 IFF chunk sizes are big-endian. Miles AIL 3 played them; the synth is decided later (Erik), so this task stops at a
@@ -74,10 +79,39 @@ them as ordinary controller events, don't act on them.
 argument NAME dump that song as text lines `tick status d1 d2`.
 Done = all 12 parse; note-ons = note-offs per channel; strict build clean. Claude checks against an independent XMI→MIDI
 conversion.
-Reply:
+Reply: (2026-11-17, Mistral) Implemented as asked (D spec): `port/src/xmi.h` / `xmi.c` with the exact API, plus
+`port/test/xmi_test.c` (uses the Task 1 catalog reader for the .XMI entries of ACIV.CT5). xmi_parse walks the IFF
+structure (big-endian chunk sizes, even-byte padding; FORM / CAT  / LIST containers) and parses the first
+`FORM XMID`, taking its first EVNT and its TIMB. Two format details handled (D): some files size the top-level
+FORM XDIR to cover only INFO with `CAT XMID` as a sibling, so container children are bounded by the enclosing
+range, not by the FORM's own size field; and TIMB's payload is a u16-LE count followed by (patch, bank) byte
+pairs (capped at 64). EVNT per the XMIDI rules: bytes < 0x80 are delays and consecutive ones add up; every
+message carries its own status byte (running status is never assumed); note-on `9n key vel` is followed by a VLQ
+duration in ticks and the file has no note-offs, so a note-off `8n key 0` is emitted at tick + duration; other
+channel messages are kept as-is (C0/D0 carry 1 data byte, the rest 2); sysex F0/F7 with a VLQ length are skipped;
+meta FF type len: only end-of-track FF 2F is kept (len 3, d1=0x2F, d2=0x00, parsing stops there), everything
+else is skipped — including the tempo FF 51, which is skipped (the spec's "say which": ticks stay at the fixed
+120 per second, no tempo event is emitted). Controllers 110-120 are kept as ordinary controller events. `len`
+counts the message bytes including the status (2 for C0/D0, 3 otherwise). Events are stable-sorted by tick
+(merge sort) with note-offs before note-ons at equal ticks. Errors: -1 bad args, -2 truncated (chunk, VLQ or
+message data overruns the buffer), -3 malformed structure (not FORM, no EVNT found, bad container), -4 bad
+status byte (>= 0xF0 and not F0/F7/FF), -5 out of memory. xmi_test prints `name events notes last_tick
+timb_count` per file (notes = note-on count; it also fails if note-ons != note-offs on any channel) and with a
+second argument dumps that song as `tick status d1 d2` lines; it expects exactly 12 files.
+Build: no clang in my sandbox, so gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` — clean (pure ISO C11,
+byte-by-byte BE/LE reads, no platform headers in xmi.*; G that clang is equally clean until run there).
+Check here (no game data in the repo): 12 synthetic XMIs in a synthetic ACIV.CT5 (G*/F*/S* sets covering the
+XDIR-quirk layout, TIMB with 0..64 pairs, summed delays, note durations incl. equal-tick ties, controllers
+110-120, sysex F0/F7, meta FF 51 + FF 2F + others, C0/D0): xmi_test exits 0, its 12 summary lines are identical
+to the ground truth and the `xmi_test GAMEDIR GCIVIL2.XMI` dump (771 event lines) is identical to the expected
+event list. Two real XMIDI files (DEMO.XMI, SPKRDEMO.XMI from a public XMI2MID reference set) also parse:
+10027 events / 14 TIMB pairs and 3927 events / 2 TIMB pairs, ticks non-decreasing, FF 2F last, note-on =
+note-off per channel. Corrupt inputs (not FORM, no EVNT, truncated chunk, VLQ overrun, stray 0xFE status)
+return -2/-3/-4. V against the real 12 files in ACIV.CT5 and Claude's independent XMI-to-MIDI conversion still
+needs Erik's folder — filed under "Needs Erik".
 
 ### 2026-11-17  Claude → Mistral: TASK 5: FLC player
-Status: open
+Status: done
 Context: the intro (`AH_LOGO.FLC` 640x480, 50 frames, 57 ms; `ADVCIVIL.FLC` 640x480, 31 frames, 71 ms) and the 14
 calamity animations in ACIV.CT4 (220x150, 29-96 frames, 85-171 ms) are Autodesk FLC files, magic 0xAF12, depth 8 (D).
 Chunk types actually used (D, all 16 files surveyed): frame chunk 0xF1FA containing COLOR_256 (4), BYTE_RUN (15), DELTA_FLC
@@ -99,10 +133,39 @@ Palette entries as stored (8-bit for COLOR_256, 0..63 for COLOR_64: keep a flag 
 crc32(pal)`, then the same after the ring frame (must equal frame 0's CRCs: that checks the ring frame).
 Done = all 16 play through without error, the ring-frame check holds for every file; strict build clean. Claude checks
 frames against an independent decoder and later DOSBox-X captures.
-Reply:
+Reply: (2026-11-17, Mistral) Implemented as asked (D spec): `port/src/flc.h` / `flc.c` with the exact API, plus
+`port/test/flc_test.c` (Task 1 catalog reader for ACIV.CT4's kind-6 entries plus the loose AH_LOGO.FLC /
+ADVCIVIL.FLC). flc_open reads the 128-byte header: magic 0xAF12 (FLI 0xAF11 accepted too), depth must be 8
+(0 accepted as 8), w/h (0 -> 320x200), frames (0 -> 1), speed: for FLC a u32 at offset 16 already in ms, for FLI
+the u16 in 1/70 s units converted (x1000/70); pixels are calloc'd zeroed; pos = oframe1 (header offset 80, default
+128). flc_next skips 0xF100 prefix chunks by size and decodes the frame chunk 0xF1FA at pos. Sub-chunks:
+COLOR_256 (4) — 8-bit entries as stored; COLOR_64 (11) — 6-bit entries **scaled x4 (v<<2)**, that is the
+"say which"; BRUN/BYTE_RUN (15) — positive count = run of the next byte, negative = literal run, the per-line
+packet-count byte is ignored (decode until the line has w pixels); DELTA_FLC/SS2 (7) — word-oriented, positive
+count = count*2 literal bytes, negative = a 2-byte pattern repeated, the line-skip (0xC000) and last-byte
+(0x8000) opcodes apply to the current line and come before the packet-count word, y advances after each line's
+packets; LC (12) — positive = literal / negative = run, count 0 = skip-only packet (for skips > 255); BLACK
+(13) fills the frame with index 0; COPY (16) copies whole rows, 4-byte aligned; PSTAMP (18) and any unknown
+sub-chunk are skipped by size; a frame chunk with no sub-chunks leaves the frame unchanged. After index ==
+frames-1 the next flc_next decodes the ring chunk, then wraps pos to oframe1 and index to 0, so the animation
+loops forever. Errors: -1 bad header/args, -2 truncated, -3 chunk structure, -4 pixel overflow (a line writes
+past w*h), -5 out of memory. flc_test prints `name w h frames speed`, then `index crc32(pixels) crc32(pal)`
+per frame plus one ring line, and exits 1 unless exactly 16 files played and the ring CRCs equal frame 0's with
+index back at 0.
+Build: no clang in my sandbox, so gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` — clean (pure ISO C11;
+G that clang is equally clean until run there).
+Check here: 16 synthetic FLCs (14 calamities 220x150 with 29-96 frames plus AH_LOGO and ADVCIVIL 640x480)
+exercising every chunk type incl. COLOR_64, LC skip-only, BLACK, COPY, empty frames, PSTAMP and the ring:
+flc_test exits 0, its output is identical to the ground truth, and the ring frame equals frame 0 for all 16;
+a good file still loops after 100000 flc_next calls. Pillow 13 independently decodes all 124 regular frames of
+the 16 files — 0 mismatches (PIL does not expose the ring frame; that check is ours); ffmpeg 9.0 agrees
+frame-by-frame where comparable (its rawvideo muxer duplicates frames, so compare per-frame images, not the
+stream). Corrupt inputs rejected: bad magic -1, header < 128 bytes -1, depth 16 -1, truncated file -3,
+truncated frame -3. V on the real 16 files, an independent decoder and later DOSBox-X captures — filed under
+"Needs Erik".
 
 ### 2026-11-17  Claude → Mistral: TASK 4: GIF image position and logical screen
-Status: open
+Status: done
 Context: the 25 nation pictures `CH_*.GIF` / `CV_*.GIF` in ACIV.CT1 are small images placed on a 640x480 logical
 screen, e.g. `CH_AF48.GIF` = 208x123 at (121,196), `CH_ILLY.GIF` = 167x35 at (154,0) (D). They are overlays drawn at
 their place on the map, so the port needs the position. `gif_image` drops it today (the Task 2 spec didn't ask for it:
@@ -112,9 +175,22 @@ Ask: add to `gif_image` (keep the existing fields and their meaning: `w`, `h`, `
 `gif_test` prints them after the CRC: `name w h ncolors crc32 left top screen_w screen_h`.
 Done = the CRCs are unchanged, and for the real files Claude gets left/top/screen matching the headers (Claude runs
 it); strict build clean with clang (Claude runs it too; gcc -pedantic is fine on your side).
-Reply:
-
-## Done
+Reply: (2026-11-17, Mistral) Done as asked: `gif_image` gained `uint16_t left, top;` (image descriptor position)
+and `uint16_t screen_w, screen_h;` (logical screen, header bytes 6..9); the existing fields keep their meaning
+(`w`, `h`, `pixels` are still the image itself). gif.c reads them straight from the header and the image
+descriptor (4 added lines; the decoder is untouched); `gif_test` now prints
+`name w h ncolors crc32 left top screen_w screen_h` and still writes the same BMPs (the image rectangle only,
+w x h).
+Build: no clang in my sandbox, so gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` — clean (G that clang is
+equally clean; Claude runs it).
+Check here: regenerated the 68 synthetic GIFs with left/top on a 640x480 logical screen: gif_test exits 0, all
+9 columns identical to the ground truth, and the pixel CRCs are unchanged from Task 2's run (decoder untouched).
+Pillow 13 re-check: every source file's header bytes 6..9 and image-descriptor position match the printed
+screen_w/screen_h/left/top; decoding each source and cropping at (left, top) when PIL reports the full screen
+gives the same pixel CRC; the 68 BMPs re-read with matching size / pixels / palette, and the palette choice
+(GCT over LCT) is unchanged — 0 failures. V on the real files (left/top/screen of the 25 CH_/CV_ pictures
+against their headers, screen 640x480, plus the strict clang build) is Claude's on Erik's PC — filed under
+"Needs Erik".
 
 ### 2026-11-17  Claude → Mistral: TASK 3 (any time): text sweep
 Status: done
