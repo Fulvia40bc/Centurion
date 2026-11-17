@@ -7,7 +7,9 @@ the cursor port, gets [684] = [C0E2] there too (port-only, review 2026-11-17)). 
 (gamectl.c) drew their menus without 5614's push / pop (stale save-under patches: "Legionarne."); fixed, so every 5614 site
 is now bracketed (V: h_diff shots = the pre-cursor build + the arrow). V: naval resume BB7E -> 2C27 and B59F -> 2C27 0 px (93 before) and the cursor DS
 words equal n010's; `after 1 3 0` 0 px; `--dump-frame province_narbonensis --save snap_back1.bin` 0 px (the arrow clipped
-at (310,185) included). Not drawn: the land battle's own screens (battle_ui.c keeps the system pointer there).
+at (310,185) included). The land battle's own screens (battle_ui.c, 2026-11-18, after Erik saw no pointer in a battle): the
+arrow is drawn over a copy of the screen when presenting, in the formation / tactic menus (541F push(1)) and the orders mode
+(1CCE at D1B3), hidden while the battle runs (DF24 push(0), 1D19 at D18F), as in 1990 (D; not compared with a capture).
 
 Claude, 2026-11-17. Sources: `disasm/EXE_RUNTIME.bin` (segment 0823, fresh llvm-objdump listing with
 `--triple=i386-unknown-linux-code16`; the clean listing lacks 0x1C7F..0x1CAE and 0x1DF5), OVL0 sections 1..5 at 0823:B0E0

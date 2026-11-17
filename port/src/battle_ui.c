@@ -9,9 +9,10 @@
  *   report       E48B..E58B (OVL_BATTLE)
  * The menus are 5614 / 54C8 on the DS records 73B6 / 73C8 (ui.c's drawing; the wait is this file's own poll loop).
  *
- * The mouse cursor: this file draws on its own pictures, not on screen.c's, and does not draw the EXE's arrow (1CCE at
- * D1B3, 1D19 at D18F / BF0D, 1BE6 at D67C, the menus' 54C8): in a window the system pointer is shown for the battle
- * (battle_play) and screen.c's arrow comes back after it. battle.c makes DF24's push / pop around the whole battle.
+ * The mouse cursor: this file draws on its own pictures, not on screen.c's, so it shows the EXE's arrow itself (present,
+ * g_arrow): in the formation / tactic menus (541F push(1)) and the orders mode (1CCE at D1B3), hidden while the battle
+ * runs (DF24 push(0), the tick's 1D19 at D18F). The system pointer stays hidden. battle.c makes DF24's push / pop around
+ * the whole battle; [686] itself is left to it (the port draws the arrow over a copy of the screen, see present).
  *
  * Model of the original's two pictures in the orders mode: g_fb = the VGA screen (everything is drawn straight onto
  * it), g_work = the work buffer (seg 2687), used as the backup of the clean picture: 691B copies a rect of the screen
@@ -33,6 +34,8 @@
 #include "assets.h"
 #include "platform.h"
 #include "ui.h"
+
+void map_sprite_8e62(uint8_t *fb, uint16_t spr, int x, int y);   /* map.c: 0x8E62 for INIT sheet descriptors (the arrow) */
 
 static uint8_t g_fb[SCREEN_W * SCREEN_H];     /* the screen (VGA A000) */
 static uint8_t g_work[SCREEN_W * SCREEN_H];   /* the work buffer (seg 2687): 691B / 6973 save area */
@@ -63,9 +66,20 @@ static void shot(const char *tag) {
     FILE *f = fopen(path, "wb");
     if (f) { fwrite(g_fb, 1, sizeof(g_fb), f); fclose(f); }
 }
+/* The EXE's arrow on the battle's screens ([686] while the battle runs; DF24's push(0) hides it): shown by 541F's push(1)
+   in the formation / tactic menus and by 1CCE at D1B3 in the orders mode, hidden by the tick's 1D19 (D18F); 6887 at the
+   end of the orders mode copies the work buffer over it. The port draws it over a copy of the screen when presenting, at
+   the pointer's position (1BE6 follows the mouse in every wait of these screens), so g_fb and the checks never see it. */
+static int g_arrow;
 static void present(void) {
     if (g_headless) { g_prev_buttons = g_in.mouse_buttons; memset(&g_in, 0, sizeof(g_in)); g_in.mouse_buttons = 0; return; }
-    platform_present(g_fb, g_pal);
+    if (g_arrow && W(0x684)) {
+        static uint8_t shown[SCREEN_W * SCREEN_H];
+        memcpy(shown, g_fb, sizeof(shown));
+        map_sprite_8e62(shown, W(0x684), g_in.mouse_x, g_in.mouse_y);
+        platform_present(shown, g_pal);
+    } else
+        platform_present(g_fb, g_pal);
     g_prev_buttons = g_in.mouse_buttons;
     platform_poll_input(&g_in);
     if (g_in.quit_requested) g_quit = 1;
@@ -266,7 +280,15 @@ static void report_hook(int won, const char *title, const char *text, unsigned r
 
 /* ---- menus (5614 + 54C8 with records DS:73B6 / 73C8, ui.c: pixel-exact drawing, 54C8 polling) ---- */
 static int g_pick[2];
+static int menu_run_battle(int which);
 static int menu_hook(int which) {
+    int arrow = g_arrow;
+    g_arrow = 1;                              /* 541F push(1): the arrow shows while the menu waits ... */
+    int r = menu_run_battle(which);
+    g_arrow = arrow;                          /* ... and its pop puts back DF24's hidden state */
+    return r;
+}
+static int menu_run_battle(int which) {
     menu_t m;
     ui_menu_load(&m, g_ovl0, which ? 0x73C8 : 0x73B6);
     if (which) {   /* the tactic menu's first four items are the player formation's tactics (76F6[C2AA][i]) */
@@ -540,7 +562,9 @@ static int d198(void) {                                             /* overlay D
 static void orders_mode(void) {                                     /* overlay D0F2, the triggered branch */
     draw_field();                                                   /* 6837 + BB7E + BA72: field and units on the screen */
     SAVE(0, 0, 319, 199);
+    g_arrow = 1;                                                    /* D1B3: 1CCE, the arrow shown */
     while (!d198()) if (g_quit) break;
+    g_arrow = 0;                                                    /* 6887 covers it; the next tick's 1D19 (D18F) hides it */
     RESTORE(0, 0, 319, 199);                                        /* 6973 + 6887: the work buffer shown */
     present();
 }
@@ -643,8 +667,10 @@ uint16_t battle_play(int A, int L, int Z) {
     battle_menu_hook = menu_hook; battle_setup_hook = setup_hook; battle_message_hook = msg_hook;
     battle_report_hook = report_hook; battle_orders_hook = tick_hook;
     g_tick_start = platform_ticks_ms();
-    int pointer = g_headless ? -1 : platform_pointer(1);  /* the system pointer for the battle's screens (header) */
+    int pointer = g_headless ? -1 : platform_pointer(0);  /* the game's own arrow on the battle's screens (present) */
+    g_arrow = 0;                                          /* DF24's push(0): hidden for the whole battle */
     uint16_t r = battle(A, L, Z, 0, 0, tac, tn);
+    g_arrow = 0;
     if (pointer >= 0) platform_pointer(pointer);
     battle_menu_hook = NULL; battle_setup_hook = NULL; battle_message_hook = NULL; battle_report_hook = NULL;
     battle_orders_hook = saved_orders;
