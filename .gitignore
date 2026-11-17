@@ -1,0 +1,7 @@
+__pycache__/
+*.exe
+*.dll
+# derived from the game files: regenerate with tools\disasm.ps1
+/disasm/le/
+/disasm/AC_MAIN.linear.asm
+
