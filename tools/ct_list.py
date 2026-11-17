@@ -32,6 +32,8 @@ def main():
     if len(sys.argv) > 2:
         os.makedirs(sys.argv[2], exist_ok=True)
         for n, o, l, k in ents:
+            if l == 0:  # the directory's last entry is an empty end marker (name 0xFF...)
+                continue
             open(os.path.join(sys.argv[2], n), 'wb').write(d[o:o + l])
 
 if __name__ == '__main__':

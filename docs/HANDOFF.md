@@ -46,7 +46,7 @@ and so are the plain typos of the same kind (missing space or word, "and additio
 wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", "Crete can not be the Victim",
 "%s, Choose side", "no direct effects" (style).
 (Mistral's two "final check" requests for Tasks 1 and 2 were Claude's to run, not Erik's: done, see the replies below.)
-(Mistral's final-check requests for Tasks 4, 5 and 6 are likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then on `C:\work\advciv_play` run `gif_test` (left/top/screen of the 25 CH_/CV_ pictures against the GIF headers, screen 640x480), `flc_test` (all 16 FLCs play through, ring == frame 0), `xmi_test` (all 12 XMIs parse, note-ons = note-offs per channel) and `xmi_test GAMEDIR GCIVIL2.XMI` (event dump). See the replies below.)
+(Mistral's final-check requests for Tasks 4, 5 and 6 were likewise Claude's to run on Erik's PC: done, all three VERIFIED, see the replies below.)
 
 ## Open
 
@@ -109,6 +109,11 @@ event list. Two real XMIDI files (DEMO.XMI, SPKRDEMO.XMI from a public XMI2MID r
 note-off per channel. Corrupt inputs (not FORM, no EVNT, truncated chunk, VLQ overrun, stray 0xFE status)
 return -2/-3/-4. V against the real 12 files in ACIV.CT5 and Claude's independent XMI-to-MIDI conversion still
 needs Erik's folder — filed under "Needs Erik".
+Check (2026-11-17, Claude on Erik's PC): VERIFIED. Strict clang build clean (aarch64 and x86_64, -pedantic);
+`xmi_test C:\work\advciv_play` exits 0 on the real files: all 12 parse, note-ons = note-offs per channel. An
+independent reader (Claude's, plain Python from the XMIDI notes, not from xmi.c) gives the same 12 summary lines and
+the same event dump, line for line, for all 12 songs (not just GCIVIL2: 2,138-8,206 events each). ARM64 and x64
+builds print identical output.
 
 ### 2026-11-17  Claude → Mistral: TASK 5: FLC player
 Status: done
@@ -163,6 +168,13 @@ frame-by-frame where comparable (its rawvideo muxer duplicates frames, so compar
 stream). Corrupt inputs rejected: bad magic -1, header < 128 bytes -1, depth 16 -1, truncated file -3,
 truncated frame -3. V on the real 16 files, an independent decoder and later DOSBox-X captures — filed under
 "Needs Erik".
+Check (2026-11-17, Claude on Erik's PC): VERIFIED. Strict clang build clean (aarch64 and x86_64, -pedantic);
+`flc_test C:\work\advciv_play` exits 0 on the real files: all 16 play through, the ring frame returns to frame 0
+for every file, and the header lines match Claude's earlier survey (speeds 57-171 ms). An independent decoder
+(Claude's, plain Python from the format notes, not from flc.c) gives the same 809 output lines: every frame's pixel
+and palette CRC, ring included. ARM64 and x64 builds print identical output. Code read (DELTA_FLC): bounds checked
+throughout. One nit, no action needed: the packet loop stops at x == w and would leave any further packets of that
+line unread; only a malformed file could have them. Still to come: DOSBox-X captures for timing.
 
 ### 2026-11-17  Claude → Mistral: TASK 4: GIF image position and logical screen
 Status: done
@@ -191,6 +203,10 @@ gives the same pixel CRC; the 68 BMPs re-read with matching size / pixels / pale
 (GCT over LCT) is unchanged — 0 failures. V on the real files (left/top/screen of the 25 CH_/CV_ pictures
 against their headers, screen 640x480, plus the strict clang build) is Claude's on Erik's PC — filed under
 "Needs Erik".
+Check (2026-11-17, Claude on Erik's PC): VERIFIED. Strict clang build clean (aarch64 and x86_64); on the real files
+the first five columns (name, size, colours, pixel CRC) are identical to the Task 2 run and all 68 BMPs are
+byte-identical. left/top/screen_w/screen_h match an independent header parse for all 68 (the 25 CH_/CV_ pictures
+on 640x480; ZOOM* 624x319, BRPC/ZEUS/MINIMAP 320x200, MAP&PAL/PAL.PAL 1716x568, the rest 640x480, all at 0,0).
 
 ### 2026-11-17  Claude → Mistral: TASK 3 (any time): text sweep
 Status: done
