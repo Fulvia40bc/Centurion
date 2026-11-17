@@ -43,7 +43,8 @@ C:/work/Centurion/tools/dosbox/results/battle/b11_frame_tick0.bin`). Run from a 
 
 ## Needs Erik
 
-Three open decisions from the circus port (2026-11-12); the code keeps the current default until you rule:
+RULED 2026-11-17: Erik keeps fixes 1 and 2 as the defaults; the bribe text (3) stays as a joke.
+Three decisions from the circus port (2026-11-12):
 1. Gladiators, glad.c fix 7: which man's move table is the slip? The port slows the AI's high attack by one step (the hit on
    the raised-sword pose, as the wimps); GLAD_LOGIC_NOTES 12.4 proposed the opposite (the player's man one step faster).
    1990 gives the AI's man the faster attack. The bytes support either reading.

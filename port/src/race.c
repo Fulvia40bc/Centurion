@@ -70,12 +70,12 @@
  * frame per race tick and the per byte does nothing: the chariot's 4-frame cycle reaches frame 0 every 4 ticks, so whips,
  * lashes and the speed cap at top come every 4 race ticks (0.4 s), not every 8 (horses per 1) or 12 (drivers per 2). The
  * game was balanced with this, so it is kept in both modes.
- * Also Erik's call (open decisions, the code unchanged until he rules):
- *   - Fix 8 is the default, but its intent is G and it changes the difficulty a lot: with it the Galley Slave /
+ * Erik's calls:
+ *   - Fix 8: ERIK RULED (2026-11-17) keep it as the default. Its intent is G and it changes the difficulty a lot: with it the Galley Slave /
  *     Legionnaire field corners almost as well as Senator's (RACE_LOGIC_NOTES 12.5), with the 1990 code far slower, so
  *     the two easy levels nearly collapse into Senator in the curves. It also changes the dice per tick, so the two
- *     readings cannot be swapped on one dice stream. Options: keep it, or keep 1990 by default (as BD0A above).
- *   - The bribe text (W(881E)) "driver has been paid\n10 talents to let you win." contradicts the code (G: joke or slip):
+ *     readings cannot be swapped on one dice stream; --original keeps the 1990 reading.
+ *   - Kept as a joke (2026-11-17; Erik asked for no change): the bribe text (W(881E)) "driver has been paid\n10 talents to let you win." contradicts the code (G: joke or slip):
  *     the bribed driver loses rng(10) = 0..9 top speed (c7d4..c7e5) and stays at 101..110, above the player's 100, and
  *     the AI is otherwise unchanged. A fix would need a design (none proposed; RACE_LOGIC_NOTES 11.15).
  *

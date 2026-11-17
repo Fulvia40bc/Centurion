@@ -44,11 +44,11 @@
  *      and O man tables are otherwise exact mirrors and RMAN / LMAN mirrored sheets. Fix: O man state 10 flags 00, 11
  *      flags 04 (read through gl_flags; the DS bytes stay as they are). G: the two notes disagreed on which table is the
  *      odd one; the sheets (rendered) show the sword-up pose = frame 4 for the man and frame 3 for the wimp.
- *      ERIK'S CALL (open): GLAD_LOGIC_NOTES 12.4 proposed the OPPOSITE change (P man state 10 flags 04, state 11 flags
+ *      ERIK RULED (2026-11-17): keep this fix as the default. GLAD_LOGIC_NOTES 12.4 proposed the OPPOSITE change (P man state 10 flags 04, state 11 flags
  *      00: the player's man faster, as 3 of the 4 tables hit on state 10); the port follows DATA 2.4 (the O man slower,
  *      the hit on the raised-sword pose as for the wimps, whose state 10 is their raised-sword frame). Both make the two
  *      men equal; this one makes the AI's high attack 6 frames slower, LOGIC's the player's 6 frames faster, 1990 has
- *      the AI faster by 6. The bytes support either reading; the default stays until Erik rules.
+ *      the AI faster by 6. The bytes support either reading.
  * Kept (D, quirks): the AI pace DS:800D never reset (it carries over between shows); the beast records 10..12 not saved;
  * Spartacus' style 3 running style 2's code; the Up key changing only from stand; the contact coin every frame; attacks on
  * a falling man counting; an upset paying both ways (BDEA be8f); the last pass reading movetab[FF] (DS bytes past the
