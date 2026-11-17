@@ -8,6 +8,7 @@
  * (bit 0 left, bit 1 right), W(0xB6) / W(0xB8) mouse x / y (0x0644), B(0xC07F) the last key (0x359B).
  * The port always has a mouse (W(0x00BA) = FFFF), so only the mouse paths are ported (no keyboard cursor 0x3603 / 0x5901). */
 #include "ui.h"
+#include "music.h"                       /* music.c: 5D73 / 5D29 / 5D20 / 5E1A and the driver */
 
 extern uint8_t g_scr[64000];     /* the screen (A000) */
 extern uint8_t g_wrk[64000];     /* the work buffer (2687:0000) */
@@ -36,10 +37,10 @@ void battle_ui_attach(int on);
 /* Entry points owned by the parallel agents (defined in map.c, province.c, gamectl.c; NOT in screen.c) */
 void map_loop(void);                    /* map.c: 0x07EF..0x09B9 on g_ds; returns when quitting */
 void map_build(int z);                  /* 0x494A: the map screen from g_ds (+ pointer warp to DS:1AB8[z]) */
-void music_play_5D29(uint8_t m);        /* map.c: 0x5D29 (with 0x5D73), the DS part: slot table DS:A6B0 and [3EEE] */
 int  zone_at(int x, int y);             /* 0x6C67 incl. the Asterix village message; 0..36 or 0xFF */
 void province_screen(int z);            /* province.c: 0x6CB8 (z 1..26) */
 void rome_screen(void);                 /* province.c: 0x7366 */
+void province_dump(int z);              /* province.c: 0x7366 / 0x6CB8 up to their first menu_run, for --dump-frame */
 void zone_info(int z);                  /* province.c: 0x720B */
 void province_list(void);               /* province.c: 0x69CC (key P / menu) */
 void legion_list(void);                 /* province.c: 0x4280 (key L), uses legions.c */
@@ -59,8 +60,24 @@ int  new_game(void);                    /* gamectl.c: 0x752E (NEWGAME.LZW) into 
      key, so lines are consumed strictly in order. key_poll takes only "key" lines: a loop that polls keys while a "click"
      line is next must also call wait_input (or it spins). "shot" lines are written when the input reaches them (the screen
      as it waits) and, at the end, by screen_close. Mouse x / y are clamped to the driver range [BC..C0] x [BE..C2].
-   Window: Insert -> 0x10, Shift / Caps Lock give upper case and US shifted symbols, Ctrl+letter its control code; arrows,
-     F-keys, Delete and Ctrl-S are swallowed (0x03AA). The mouse cursor sprite (0x1BE6) is not drawn: the system pointer is. */
+   Window: Insert (and keypad 0 without Num Lock) -> 0x10, the keypad's digits and signs with Num Lock as their ASCII
+     codes, Shift / Caps Lock give upper case and US shifted symbols, Ctrl+letter its control code; arrows, F-keys, Delete
+     and Ctrl-S are swallowed (0x03AA). The game draws its own mouse cursor (below); the system pointer is hidden. */
+
+/* The mouse cursor (EXE 0x1BE6 / 0x1CCE / 0x1D19 / 0x1D55 / 0x1D8A, docs/CURSOR_NOTES.md): DS [680] [682] [684] [686] [68A],
+   the stack DS:A674; drawn into the current target [C0D0] */
+void cursor_move_1BE6(int x, int y);
+void cursor_show_1CCE(void);
+void cursor_hide_1D19(void);
+void cursor_push_1D55(int n);           /* 0 = hide, 1 = show, other = keep */
+void cursor_pop_1D8A(void);
+void cursor_seed(void);                 /* TEST HOOK: the save-under from the loaded screen (resumes from a snapshot) */
+void save691b_rect(ui_box_t r);         /* 0x691B screen -> work buffer, 0x6973 back: each between 1D55(0) and 1D8A */
+void restore6973_rect(ui_box_t r);
+void scr_menu_draw5614(const menu_t *m, int mode);         /* 0x5614 on the screen, between 1D55(0) and 1D8A */
+void scr_menu_mark585b(const menu_t *m, int item, int on); /* 0x585B on the screen, between 1D55(0) and 1D8A */
+void map_sprite_8e62(uint8_t *fb, uint16_t spr, int x, int y);   /* map.c: 0x8E62 for INIT sheet descriptors */
+void map_init_sheet(void);              /* map.c: load the INIT sheet's pixels (map_startup does it too) */
 
 /* ---- extras in screen.c (beyond the shared interface; optional for callers) ---- */
 extern int g_battle_ui_attached;        /* set by battle_ui_attach(); the battle wiring (battle.c / battle_ui.c) reads it */

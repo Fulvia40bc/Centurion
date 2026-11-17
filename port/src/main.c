@@ -16,6 +16,7 @@ int game_end_turn(const char *in_path, const char *out_path);
 int game_save_game(const char *in_path, const char *out_path);
 void game_init(void);
 void map_startup(void);                  /* map.c: the start-up writes the map needs (colours, INIT sprites) */
+int  intro_run(void);                    /* intro.c: section 1 B694 with B18A's music load / unload around it */
 int  zone_at_raw(int x, int y);          /* map.c: 0x6C67 without the Asterix message */
 
 /* --choices "F,T;F,T": formation/tactic for each battle in a headless run, in order */
@@ -84,18 +85,40 @@ static uint32_t bios_ticks(void) {
     return (uint32_t)((double)s * 1193180.0 / 65536.0);
 }
 
+/* B0E0's other words (section 1, docs/GAPS_NOTES.md 4): 1 = keyboard / video (k x m e tandy v), 2 = a sound device (pc tn
+   roland mt lapc adlib ad), 0 = not one of them. The port is VGA, AdLib and mouse only: "v", "adlib" and "ad" choose what
+   it does anyway; the others are noted on stderr and ignored. 1990 compares whole words, case-sensitive (A186). */
+static int b0e0_word(const char *a) {
+    static const char *const w[13] = { "k", "x", "m", "e", "tandy", "v", "pc", "tn", "roland", "mt", "lapc", "adlib", "ad" };
+    for (int i = 0; i < 13; i++) if (strcmp(a, w[i]) == 0) return i < 6 ? 1 : 2;
+    return 0;
+}
+
 /* The game: main 0x079D in the port's order. --play = a new game (gamectl.c new_game, NEWGAME.LZW), --load SAVE = a .CSV
    save (state_load) or a 64 KB DS image / 640K snapshot ending in .bin (state_load_mem, dice included); then the map loop
    (map.c). --script FILE SHOTDIR runs it headless with the input from FILE (screen.c), shots into SHOTDIR; --ds-out FILE
    writes the DS image when the loop ends; --seed N uses N (decimal or 0x hex) as the BIOS tick count that 0x075A seeds the
    dice from, instead of the clock, so a --play or .CSV run can be repeated (a .bin load brings its own dice, DS:00C8).
-   Run in the game folder. */
+   The intro (intro.c, section 1 B694) runs before the map when there is no --script and no --load, or always with
+   --intro (then a --script drives it: "wait N" / "key C" / "shot NAME"). Run in the game folder.
+   The music (music.c): a window game opens an audio device and plays the AdLib's songs (B0E0 with an AdLib found, 5E86);
+   the original's word "nosnd" turns the sound off ([3EEA] = FF, [3EE9] = 0, written in every run that has it); a
+   scripted (headless) run has no music and its DS stays as before. */
 static int play_game(int argc, char **argv) {
     const char *load = NULL, *script = NULL, *shotdir = NULL, *dsout = NULL;
-    int have_seed = 0;
+    int have_seed = 0, intro = 0, nosnd = 0;
     uint32_t seed = 0;
     for (int i = 1; i < argc; i++) {
         if (strcmp(argv[i], "--play") == 0) continue;
+        if (strcmp(argv[i], "nosnd") == 0) { nosnd = 1; continue; }    /* B0E0's word (DS:6318) */
+        int w = b0e0_word(argv[i]);
+        if (w) {
+            if (w == 2) nosnd = 0;                                      /* B0E0: the last sound word wins */
+            if (strcmp(argv[i], "v") && strcmp(argv[i], "adlib") && strcmp(argv[i], "ad"))
+                fprintf(stderr, "%s: not in the port (VGA, AdLib and a mouse only), ignored\n", argv[i]);
+            continue;
+        }
+        if (strcmp(argv[i], "--intro") == 0) { intro = 1; continue; }
         if (strcmp(argv[i], "--seed") == 0 && i + 1 < argc) { seed = (uint32_t)strtoul(argv[++i], NULL, 0); have_seed = 1; continue; }
         if (strcmp(argv[i], "--load") == 0 && i + 1 < argc) { load = argv[++i]; continue; }
         if (strcmp(argv[i], "--script") == 0 && i + 2 < argc) { script = argv[i + 1]; shotdir = argv[i + 2]; i += 2; continue; }
@@ -112,7 +135,10 @@ static int play_game(int argc, char **argv) {
         if ((mem ? state_load_mem(load) : state_load(load)) != 0) { fprintf(stderr, "cannot load %s\n", load); screen_close(); return 1; }
     } else if (new_game() != 0) { fprintf(stderr, "new game: cannot read NEWGAME.LZW\n"); screen_close(); return 1; }
     map_startup();
+    if (nosnd) music_nosnd_B0E0();                                  /* B0E0 + 5E86 with the word */
+    else if (!script) music_init_5E86();                            /* the window: no device = the sound off */
     if (script) { screen_script(script, shotdir); battle_choices = script_choices; }
+    if ((intro || (!script && !load)) && intro_run() != 0) { screen_close(); return 1; }   /* B18A b265: B694 */
     battle_ui_attach(1);
     legions_ui_install();
     map_loop();
@@ -167,11 +193,16 @@ int main(int argc, char **argv) {
         if (argc > 2 && strcmp(argv[1], "--choices") == 0) { g_choices = argv[2]; battle_choices = choices_next; argv += 2; argc -= 2; continue; }
         break;
     }
-    /* the game: no arguments (a double-click) | --play | --load SAVE, [--script FILE SHOTDIR] [--ds-out FILE] [--seed N] */
+    /* the game: no arguments (a double-click) | --play | --load SAVE, [--script FILE SHOTDIR] [--ds-out FILE] [--seed N]
+       [--intro] */
     if (argc == 1 || strcmp(argv[1], "--play") == 0 || strcmp(argv[1], "--load") == 0 || strcmp(argv[1], "--script") == 0 ||
-        strcmp(argv[1], "--seed") == 0)
+        strcmp(argv[1], "--seed") == 0 || strcmp(argv[1], "--intro") == 0 || strcmp(argv[1], "nosnd") == 0 ||
+        b0e0_word(argv[1]))
         return keep_console(play_game(argc, argv));
     if (argc > 1 && strcmp(argv[1], "--zone-check") == 0) return zone_check();
+    /* --music-wav SONG OUT SECONDS: song 0..16 / cn9a / a file, to OUT.wav (49716 Hz mono 16-bit) or OUT.txt (the OPL2
+       register log, = tools/adlib_regs.py with --original); headless, no SDL (music.c, docs/MUSIC_NOTES.md 10) */
+    if (argc > 4 && strcmp(argv[1], "--music-wav") == 0) return music_wav(argv[2], argv[3], atof(argv[4]));
     if (argc > 3 && strcmp(argv[1], "--end-turn") == 0)
         return game_end_turn(argv[2], argv[3]);
     /* --battle-from-formation IN OUT army legion zone formation tactic: resume a battle captured at Choose Formation */
@@ -257,6 +288,8 @@ int main(int argc, char **argv) {
         ok = ok && f && fread(g_scr, 1, sizeof(g_scr), f) == sizeof(g_scr);
         if (f) fclose(f);
         if (!ok) { fprintf(stderr, "cannot read the work buffer of %s or the screen %s\n", argv[2], argv[3]); return 1; }
+        map_init_sheet();                                /* the INIT sheet: the mouse cursor's arrow (no DS write) */
+        cursor_seed();                                   /* the snapshot has no save-under: from the screen (screen.c) */
         int r;
         if (frame) {
             r = naval_test_frame(argv[5], argc > 6 ? atoi(argv[6]) : -1, argc > 7 ? atoi(argv[7]) : 0, argc > 8 ? atoi(argv[8]) : 0);
@@ -305,6 +338,7 @@ int main(int argc, char **argv) {
         return 0;
     }
     fprintf(stderr, "unknown option %s\n"
-                    "usage: centurion [--play] [--load SAVE.CSV] [--seed N]   (no arguments: a new game)\n", argv[1]);
+                    "usage: centurion [--play] [--load SAVE.CSV] [--seed N] [--intro] [nosnd]   (no arguments: a new game)\n"
+                    "       tests: [--script FILE SHOTDIR] [--ds-out FILE]; --music-wav SONG OUT SECONDS; --zone-check\n", argv[1]);
     return keep_console(2);
 }

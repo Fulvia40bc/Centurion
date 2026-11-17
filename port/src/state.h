@@ -46,6 +46,7 @@ void     battle_cmd_melee(void);
 void     battle_cmd_retreat(void);
 void     battle_cmd_end(void);
 void     assign_commander(int L);
+void     commander_msg_4733(int L, void (*show)(const char *s));   /* 4733's message (47C6..480B), battle.c */
 extern int  (*battle_menu_hook)(int which);
 extern void (*battle_setup_hook)(int Z);
 extern void (*battle_message_hook)(const char *s);

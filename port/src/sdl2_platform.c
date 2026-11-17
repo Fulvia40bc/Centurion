@@ -1,31 +1,41 @@
 #include "platform.h"
+#include "music.h"
 #include <SDL2/SDL.h>
+#include <stdio.h>
 #include <string.h>
 
 static SDL_Window *g_win;
 static SDL_Renderer *g_ren;
 static SDL_Texture *g_tex;
-static SDL_AudioDeviceID g_audio;
-static uint32_t g_audio_freq;
-static volatile int g_audio_on;
-static volatile uint32_t g_audio_until;
+static SDL_AudioDeviceID g_audio;            /* the music's device (music.c), opened by platform_audio_open only */
+static void (*g_fill)(int16_t *buf, int n);
 
 static void audio_callback(void *ud, uint8_t *stream, int len) {
     (void)ud;
-    uint32_t now = platform_ticks_ms();
-    int16_t *out = (int16_t *)stream;
-    int frames = len / 2;
-    if (!g_audio_on || now >= g_audio_until) {
-        memset(stream, 0, len);
-        return;
-    }
-    static uint32_t phase = 0;
-    for (int i = 0; i < frames; i++) {
-        int16_t v = (phase < g_audio_freq / 2) ? 8000 : -8000;
-        out[i] = v;
-        phase = (phase + 1) % g_audio_freq;
-    }
+    g_fill((int16_t *)stream, len / 2);
 }
+
+/* 49716 Hz (the OPL2's own rate), mono, 16-bit: SDL converts to the hardware's format. The callback runs on SDL's audio
+   thread with the device locked; platform_audio_lock takes the same lock from the game thread. */
+int platform_audio_open(void (*fill)(int16_t *buf, int n)) {
+    SDL_AudioSpec want;
+    memset(&want, 0, sizeof want);
+    want.freq = 49716;
+    want.format = AUDIO_S16SYS;
+    want.channels = 1;
+    want.samples = 1024;
+    want.callback = audio_callback;
+    g_fill = fill;
+    g_audio = SDL_OpenAudioDevice(NULL, 0, &want, NULL, 0);
+    if (!g_audio) { fprintf(stderr, "audio: no device (%s): no music\n", SDL_GetError()); return -1; }
+    SDL_PauseAudioDevice(g_audio, 0);
+    return 0;
+}
+void platform_audio_lock(int on) {
+    if (!g_audio) return;
+    if (on) SDL_LockAudioDevice(g_audio); else SDL_UnlockAudioDevice(g_audio);
+}
+void platform_pump(void) { SDL_PumpEvents(); }
 
 int platform_init(void) {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0)
@@ -40,19 +50,12 @@ int platform_init(void) {
     g_tex = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGB888,
                               SDL_TEXTUREACCESS_STREAMING, SCREEN_W, SCREEN_H);
     if (!g_tex) return -1;
-    SDL_AudioSpec want = {0};
-    want.freq = 44100;
-    want.format = AUDIO_S16SYS;
-    want.channels = 1;
-    want.samples = 1024;
-    want.callback = audio_callback;
-    g_audio = SDL_OpenAudioDevice(NULL, 0, &want, NULL, 0);
-    if (g_audio) SDL_PauseAudioDevice(g_audio, 0);
     return 0;
 }
 
 void platform_shutdown(void) {
     if (g_audio) SDL_CloseAudioDevice(g_audio);
+    g_audio = 0;
     if (g_tex) SDL_DestroyTexture(g_tex);
     if (g_ren) SDL_DestroyRenderer(g_ren);
     if (g_win) SDL_DestroyWindow(g_win);
@@ -71,19 +74,49 @@ void platform_present(const uint8_t *fb, const rgb_t palette[256]) {
     SDL_RenderPresent(g_ren);
 }
 
+/* The keypad keys (keysyms >= 256) as the BIOS gives them to INT 16h (AL): + - * / always (Shift or not), the digits and
+   '.' only with Num Lock xor Shift (else they are the cursor keys, AL = 0, which 0x03AA drops); 0 = no ASCII code. The
+   caller marks them 2 in key_down, so screen.c does not shift them again (G: the AT BIOS's keypad, not run in a window) */
+static int kp_ascii(SDL_Keycode k, Uint16 mod) {
+    switch (k) {
+    case SDLK_KP_PLUS: return '+';
+    case SDLK_KP_MINUS: return '-';
+    case SDLK_KP_MULTIPLY: return '*';
+    case SDLK_KP_DIVIDE: return '/';
+    default: break;
+    }
+    if (!(mod & KMOD_NUM) == !(mod & KMOD_SHIFT)) return 0;
+    if (k == SDLK_KP_0) return '0';
+    if (k >= SDLK_KP_1 && k <= SDLK_KP_9) return '1' + (int)(k - SDLK_KP_1);
+    return k == SDLK_KP_PERIOD ? '.' : 0;
+}
+
+int platform_pointer(int on) {
+    int prev = SDL_ShowCursor(SDL_QUERY) == SDL_ENABLE;
+    SDL_ShowCursor(on ? SDL_ENABLE : SDL_DISABLE);
+    return prev;
+}
+
 void platform_poll_input(input_t *in) {
     memset(in, 0, sizeof(*in));
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT) in->quit_requested = 1;
+        if (e.type == SDL_KEYDOWN && e.key.keysym.scancode == SDL_SCANCODE_S && (e.key.keysym.mod & KMOD_CTRL)) {
+            /* by the physical key, as 03FF tests make code 1Fh (any keyboard layout) */
+            music_ctrl_s_03FF();             /* the INT 9 hook 03FF: Ctrl+S mutes / unmutes the music; 03AA drops the */
+            continue;                        /* key (13h), so no reader sees it */
+        }
         else if (e.type == SDL_KEYDOWN && e.key.keysym.sym < 256) {
             in->key_down[e.key.keysym.sym] = 1;
             if (e.key.keysym.sym == '=' && (e.key.keysym.mod & KMOD_SHIFT)) in->key_down['+'] = 1;   /* US '+' */
         }
         else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_INSERT)
             in->key_down[0x10] = 1;          /* the EXE's key reader 03AA turns Insert (scan 52h) into 10h */
-        else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_KP_PLUS)
-            in->key_down['+'] = 1;
+        else if (e.type == SDL_KEYDOWN && kp_ascii(e.key.keysym.sym, e.key.keysym.mod))
+            in->key_down[kp_ascii(e.key.keysym.sym, e.key.keysym.mod)] = 2;
+        else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_KP_0)
+            in->key_down[0x10] = 1;          /* keypad 0 without Num Lock is Insert (scan 52h) */
         else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_KP_ENTER)
             in->key_down[13] = 1;
         else if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_RIGHT)
@@ -105,10 +138,3 @@ void platform_poll_input(input_t *in) {
 
 void platform_sleep_ms(uint32_t ms) { SDL_Delay(ms); }
 uint32_t platform_ticks_ms(void) { return SDL_GetTicks(); }
-
-void audio_play_square(uint32_t freq_hz, uint32_t duration_ms) {
-    if (!g_audio || freq_hz == 0) return;
-    g_audio_freq = freq_hz;
-    g_audio_on = 1;
-    g_audio_until = SDL_GetTicks() + duration_ms;
-}

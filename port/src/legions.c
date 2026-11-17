@@ -8,7 +8,8 @@
  * legions_menu / legions_click, and every drawing call through legions_ui, at the places the original makes them.
  * The DS writes made by the drawing routines of this group (3CB0, 3DB7, 3EA3, 3F23, 4280, 44E5, 4510: the box
  * bookkeeping 1B52/1B84/1B8C/1B90, the colours 9AFA/9B69, the numeral buffer C072) are done here, as in the original;
- * so are the state words written by 55EA/55FF (menu+0x10) and 5D20 ([3EEE] = 0xFF), and 4733's message buffer AC60.
+ * so are the state words written by 55EA/55FF (menu+0x10) and 4733's message buffer AC60. 5D20 (the music stop) is
+ * music.c's.
  * The writes inside the shared UI engine (54C8, 5614, 56B6, 57F7, 59D4, 5C20, 494A ...) belong to the UI.
  *
  * Battles: battle_auto() (battle.c) where the original calls the thunk 0xB06E. When no battle choices are available it
@@ -20,6 +21,7 @@
 #include "legions.h"
 #include "nego.h"
 #include "state.h"
+#include "music.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -98,27 +100,7 @@ static void menu_off_55FF(uint16_t menu) {
     setW((uint16_t)(menu + 0x10), 0);
     ui(LEV_MENU_OFF, menu, 0, NULL);
 }
-/* 5D20 music_stop: [3EEE] (current music id) = 0xFF, then the sound driver 074B (UI event) */
-static void music_stop_5D20(void) {
-    B(0x3EEE) = 0xFF;
-    ui(LEV_MUSIC_STOP, 0, 0, NULL);
-}
 
-/* 4733 at 47C6..480B: the commander message, after battle.c's assign_commander() made the roll and the record writes
-   (rec+0x10 = c, [1A20 + 6c] = 0). battle.c's assign_commander does not build this message in DS nor send it through a hook
-   (it only prints its own line on stderr, without the numeral), so the tail of 4733 is done here, in the original's order:
-   AC60 = [1A1C + 6c] + 1F89 " is assigned\nto command " + 6738(rec numeral) (C072) + rec name; 59D4(AC60).
-   If battle.c's assign_commander ever does this itself, drop this call (it would show the message twice). */
-static void commander_msg_4733(uint16_t L) {
-    uint16_t rec = (uint16_t)(20 * L);
-    if (B(rec + 0x1925) == 0xFF) return;                                          /* 474C: 4733 returns at once */
-    uint8_t c = B(rec + 0x1928);
-    ds_strcpy(AC60, dstr(W((uint16_t)(0x1A1C + 6 * c))));
-    ds_strcat(AC60, dstr(0x1F89));
-    ds_strcat(AC60, dstr(numeral_6738(B(rec + 0x1922))));
-    ds_strcat(AC60, dstr((uint16_t)(rec + 0x1918)));
-    legions_message(dstr(AC60));
-}
 
 /* ---------------------------------------------------------------- 44E5 / 4510: numbers on the province screen */
 static void show_treasury(uint16_t v) {                                          /* 44E5 */
@@ -346,7 +328,7 @@ uint16_t legions_raise(uint8_t z, uint16_t t) {
             B(b + 0x1922) = B(p + 0x5288);
             setW(p + 0x5274, (uint16_t)(W(p + 0x5274) - (uint16_t)(inf + cav)));
             assign_commander((int)L);                                             /* 4733: dice roll(#free commanders) */
-            commander_msg_4733(L);                                                /* 4733's message (47C6..480B) */
+            commander_msg_4733((int)L, legions_message);                          /* 4733's message (47C6..480B), battle.c */
         }
         setW(0x634A, (uint16_t)(W(0x634A) - B((uint16_t)(0x1EC8 + t))));
         r = 0xFFFF;

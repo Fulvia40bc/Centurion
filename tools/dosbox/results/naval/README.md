@@ -42,13 +42,14 @@ Pictures, `tools/cmp_naval_frame.py` (centurion --naval-frame; naval.c naval_tes
 |---|---|
 | `cmp_naval_frame.py --original N/b2_n006_BB7E.bin N/b2_n006_BB7E_vga.bin duel 4 0` | 0 differing pixels; drawn 62023, 0 of them differ; from the input 1977, all in rows 186..199 (the panel background, the black line and "SHIPS", drawn only by BEAE) |
 | `cmp_naval_frame.py --original N/b2_n005_BEAE.bin N/b2_n005_BEAE_vga.bin intro 0` | 0 differing pixels, drawn 64000 (pennant frame 0; frames 1 / 2 / 3 / none: 104 / 152 / 134 / 78). This mode re-types C105's loop body (the 0x80 erase of (38,2)-(68,15), FLAG frame K at (38,5)) and K is the one that fits; the port's own C105 is checked by the set-up resume with b2_flagship_trireme_intro.txt below |
-| `cmp_naval_frame.py --original N/b1_n005_2C27.bin N/b1_n005_2C27_vga.bin after 1 3 0` | 93 differing pixels, all at (160,109)-(170,124): the EXE's mouse cursor (the port shows the system pointer); drawn 64000. D60C runs here on the dice left at the END of the battle (after the real D60C and all the DA50 rounds), so this checks D60C's sprites and places, and its dice only by chance: the last shark frame hardly depends on them (other dice in DS:00C8..CB give 93 px too, now and then 100). The shark dice are checked by battle 2's D60C resume below |
+| `cmp_naval_frame.py --original N/b1_n005_2C27.bin N/b1_n005_2C27_vga.bin after 1 3 0` | 0 differing pixels since 2026-11-17 (before: 93 at (160,109)-(170,124), the EXE's mouse cursor, now drawn: the "after" mode ends with b592's pop, the arrow at the final DS's [680]/[682]); drawn 64000. D60C runs here on the dice left at the END of the battle (after the real D60C and all the DA50 rounds), so this checks D60C's sprites and places, and its dice only by chance: the last shark frame hardly depends on them (other dice in DS:00C8..CB give 93 px too, now and then 100). The shark dice are checked by battle 2's D60C resume below |
 | `cmp_naval_frame.py --original N/b2_n006_BB7E.bin N/b2_n006_BB7E_vga.bin check` | CF7F rects, C641 bearing 2/10, CFDD, CE7E touching: the same; C4F8 distance 25 against the game's 32, because the game computed it at the top of the last pass, before both ships moved (32 = C558's rounding for one of the pre-move positions; NAVAL_SCREEN_NOTES 18). The tool says "DIFFERS" for that reason. |
 
 Resumed battle, `tools/cmp_naval_resume.py` (centurion --naval-resume; naval.c naval_test_resume): the port continues
 from one stop to the next with the snapshot's dice and timer, then the DS is compared byte by byte and the screen pixel
 by pixel. Bytes the port does not keep as the EXE does are counted per class and listed by the tool (clock, interrupt
-handlers, mouse cursor and its visibility stack, allocator, song segments, the loader's buffers, sheet pointers, the
+handlers, the mouse position [680]/[682] (since 2026-11-17 the rest of the cursor, 684..68F and the visibility stack
+A674..A691, is compared as game state: 0 bytes in every resume below), allocator, song segments, the loader's buffers, sheet pointers, the
 stack, the heap); the clock class's words (the tick DS:42, timer slot n at DS:46 + 4n) are printed one by one.
 
 | command (all `cmp_naval_resume.py --original`) | DS game-state bytes off | clock words off (port / game) | screen | drawn by the port |
@@ -58,9 +59,9 @@ stack, the heap); the clock class's words (the tick DS:42, timer slot n at DS:46
 | `N/b2_n006_BB7E.bin N/b2_n006_BB7E_vga.bin BB7E D3F2 CBB2 CB8E N/b2_n007_D3F2.bin` | 0 (dice, crews, courage, the text in AC60) | tick only, 8AE1 / 8BF8 (the game waited for Erik's click on the box); slots 2 and 8 exact | 0 px | 61711 (from the input 2289, rows 186..199) |
 | `N/b2_n007_D3F2.bin N/b2_n007_D3F2_vga.bin D3F2 D60C CBB2 CB92 N/b2_n008_D60C.bin` | 0 (the smoke dice) | tick 8CF4 / 8CF9 | 0 px | 59520 (from the input 4480: the whole panel strip, rows 186..199) |
 | `N/b2_n008_D60C.bin N/b2_n008_D60C_vga.bin D60C B59F CBB2 CB92 N/b2_n009_B59F.bin` | 0 (the shark dice, DA50) | tick 8E3B / 8E46, slot 0 8E2D / 8E36 | 0 px | **2332 only**: D60C restores its rects from the work buffer, which here is the capture's (from the input 61668) |
-| `N/b2_n009_B59F.bin N/b2_n009_B59F_vga.bin B59F 2C27 CBB2 CB8E N/b2_n010_2C27.bin` | 0; B0E0 returns 0 as EAX | tick 8E46 / 9276 (the box waited for a click) | 93 px at (148,92)-(158,107): the mouse cursor | **0**: the result box is drawn and taken down again, the screen is the input |
+| `N/b2_n009_B59F.bin N/b2_n009_B59F_vga.bin B59F 2C27 CBB2 CB8E N/b2_n010_2C27.bin` | 0; B0E0 returns 0 as EAX | tick 8E46 / 9276 (the box waited for a click) | 0 px since 2026-11-17 (before: 93 at (148,92)-(158,107), the mouse cursor B592's pop redraws) | 93 (the arrow): the result box is drawn and taken down again, the rest is the input |
 | `N/b2_n001_B09E.bin N/b2_n001_B09E_vga.bin B09E 2C27 CBB2 CBC4 N/b2_n002_2C27.bin` | 0; returns 1 | none | 0 px | **0** (no battle: nothing drawn) |
-| `N/b1_n002_B09E.bin N/b1_n002_B09E_vga.bin B09E 2C27 CBB2 CBC4 N/b1_n003_2C27.bin N/b1_flagship_esc.txt` | 0; returns 0 | tick 1536 / 1538 | 0 px | 6161 (from the input 57839) |
+| `N/b1_n002_B09E.bin N/b1_n002_B09E_vga.bin B09E 2C27 CBB2 CBC4 N/b1_n003_2C27.bin N/b1_flagship_esc.txt` | 0; returns 0 | tick 1536 / 1538 | 0 px | 6254 since the cursor (6161 before; the arrow redrawn in place; from the input 57746) |
 
 The real checks of the D60C and result-box screens are the chained runs from BB7E's entry over the stops in between
 (BB7E's input screen is the last duel frame, which the duel check above shows the port draws itself):
@@ -68,7 +69,7 @@ The real checks of the D60C and result-box screens are the chained runs from BB7
 | command (all `cmp_naval_resume.py --original`) | DS game-state bytes off | clock words off (port / game) | screen | drawn by the port |
 |---|---|---|---|---|
 | `N/b2_n006_BB7E.bin N/b2_n006_BB7E_vga.bin BB7E B59F CBB2 CB8E N/b2_n009_B59F.bin` | 0 | tick 8D1F / 8E46, slot 0 8D11 / 8E36 | 0 px | 62023 (from the input 1977, rows 186..199: BEAE's panel background) |
-| `N/b2_n006_BB7E.bin N/b2_n006_BB7E_vga.bin BB7E 2C27 CBB2 CB8E N/b2_n010_2C27.bin` | 0; returns 0 | tick 8D1F / 9276, slot 0 8D11 / 8E36 | 93 px: the mouse cursor | 62023, 93 of them differ (the cursor) |
+| `N/b2_n006_BB7E.bin N/b2_n006_BB7E_vga.bin BB7E 2C27 CBB2 CB8E N/b2_n010_2C27.bin` | 0; returns 0 | tick 8D1F / 9276, slot 0 8D11 / 8E36 | 0 px since 2026-11-17 (before: 93, the mouse cursor); the cursor variables DS:680..68A, A674.. also equal n010's (148, 92, CE48, FFFF, depth 1, FF FF 00) | 62023, 0 of them differ |
 | `N/b2_n007_D3F2.bin N/b2_n007_D3F2_vga.bin D3F2 B59F CBB2 CB92 N/b2_n009_B59F.bin` | 0 | tick 8E36 / 8E46, slot 0 8E28 / 8E36 | 0 px | 59884 (from the input 4116, rows 186..199) |
 
 Dice (DS:00C8..CB) end exactly as the game's in every stage, so each stage ran the game's number of frames (D3F2's

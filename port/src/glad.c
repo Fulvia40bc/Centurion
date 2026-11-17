@@ -49,13 +49,16 @@
  *      the hit on the raised-sword pose as for the wimps, whose state 10 is their raised-sword frame). Both make the two
  *      men equal; this one makes the AI's high attack 6 frames slower, LOGIC's the player's 6 frames faster, 1990 has
  *      the AI faster by 6. The bytes support either reading.
+ *   8. The last pixel of ARENABTM.CBM (319,199) (docs/FRAME_DIFF_NOTES.md 3; D, no arena capture): the picture loader
+ *      13F8 / 88A7 expands in place and re-reads the last packed byte after writing over it, so 1990 shows
+ *      t[t[hi] & 15] = 242 there instead of t[lo] = 55. Fix: the picture as packed (glad_gfx.c gl_picture_13A8).
  * Kept (D, quirks): the AI pace DS:800D never reset (it carries over between shows); the beast records 10..12 not saved;
  * Spartacus' style 3 running style 2's code; the Up key changing only from stand; the contact coin every frame; attacks on
  * a falling man counting; an upset paying both ways (BDEA be8f); the last pass reading movetab[FF] (DS bytes past the
  * tables, read literally from the DS: no effect, LOGIC 12.5); the two empty "Click to continue" boxes (7BC6 / 7BC7).
  *
- * PORT ADDITIONS: the mouse cursor (1D55 / 1D8A / 1CCE / 1D19 / 1BE6) and the disk prompt are not drawn (the system
- * pointer); music is the DS part only (map.c / naval.c). When the input ends (window closed, script run out): in a card
+ * PORT ADDITIONS: the mouse cursor (1D55 / 1D8A / 1CCE / 1D19 / 1BE6) is screen.c's, called where section 3 calls it
+ * (2026-11-17); the disk prompt is not drawn; the music calls are music.c's. When the input ends (window closed, script run out): in a card
  * pick or a training menu the selection is cancelled; in the fight the fight stops and the outcome (BDEA) is skipped
  * (154C is still written, as b313 comes before it); in the vote no vote is taken (no score, no kill). The original has no
  * way out of the fight or the vote.
@@ -76,23 +79,12 @@
 #include "naval_int.h"
 #include "glad.h"
 
-void music_load_5D73(uint8_t m);          /* map.c (the DS part of 5D73) */
 void province_frame30e6(int x, int y);    /* province.c: 0x30E6 on the screen (the menu frame of 5614 mode 1) */
 
 static int g_input_gone;                  /* port: the input ended in the fight or the vote */
 
 static const char *dstr(uint16_t a) { return (const char *)&g_ds[a]; }
 static void msg_59D4(uint16_t s) { message_box(dstr(s)); }
-
-/* ---------------------------------------------------------------- music (the DS part, as naval.c) */
-static void music_stop_5D20(void) { B(0x3EEE) = 0xFF; }
-static void music_unload_5E1A(uint8_t n) {
-    for (int i = 0; i < 4; i++) {
-        if (B(0xA6B2 + 4 * i) == 0 || B(0xA6B3 + 4 * i) != n) continue;
-        setW((uint16_t)(0xA6B0 + 4 * i), 0); B(0xA6B2 + 4 * i) = 0; B(0xA6B3 + 4 * i) = 0xFF; B(0x3EEE) = 0xFF;
-        break;
-    }
-}
 
 /* ---------------------------------------------------------------- move tables */
 uint8_t gl_mt(uint16_t f, int k) {
@@ -121,16 +113,16 @@ static void release_B4A3(const uint8_t *lineup) {
 static uint8_t pick_B4DA(uint8_t *lineup) {
     int done = 0, armed = 0;                                         /* [bp-2], [bp-8] */
     uint8_t rec = 0;                                                 /* [bp-5] */
-    /* 1CCE cursor_show (not ported) */
+    cursor_show_1CCE();                                              /* b4f0 */
     while (!done) {                                                  /* b4f3 */
         while (!armed) {                                             /* b514 */
             int b = wait_input();                                    /* b4fe: 359B */
-            if (screen_quit()) return 0xFF;                          /* port: the input ended */
+            if (screen_quit()) { cursor_hide_1D19(); return 0xFF; }  /* port: the input ended (as b597) */
             if (b == 0) {                                            /* b501: a key (in [C07F]) */
-                if (!g_original_bugs && B(0xC07F) == 0x1B) return 0xFF;   /* bug 4: Esc cancels (1990: keys do nothing) */
+                if (!g_original_bugs && B(0xC07F) == 0x1B) { cursor_hide_1D19(); return 0xFF; }   /* bug 4: Esc cancels (as b597; 1990: keys do nothing) */
                 continue;
             }
-            if (B(0xC07F) == 0x1B) return 0xFF;                      /* b505 (never: a button leaves [C07F] = 0); 1D19 */
+            if (B(0xC07F) == 0x1B) { cursor_hide_1D19(); return 0xFF; }   /* b505 (never: a button leaves [C07F] = 0); b597 1D19 */
             armed = -1;                                              /* b50f */
         }
         for (int si = 0; si < 6; si++) {                             /* b51a */
@@ -149,7 +141,8 @@ static uint8_t pick_B4DA(uint8_t *lineup) {
         wait_release();                                              /* b591: 35DB */
         if (!done) armed = 0;                                        /* bug 3 (both modes): a miss waits for a new click */
     }
-    /* b59f: 1D19; the four item texts ([bp-78h] + 25k), " (n0 Talents)" with the digit patched (DS:7B6A) */
+    cursor_hide_1D19();                                              /* b59f */
+    /* the four item texts ([bp-78h] + 25k), " (n0 Talents)" with the digit patched (DS:7B6A) */
     char item[4][0x19];
     for (int k = 0; k < 4; k++) {
         uint16_t lab = B(REC(rec, R_STY)) == 4 ? W(0x7C76 + 2 * k) : W(0x7C6E + 2 * k);
@@ -162,9 +155,11 @@ static uint8_t pick_B4DA(uint8_t *lineup) {
     menu_t m;
     menu_load_ds(&m, 0x7CB0);
     for (int k = 0; k < 4 && k < m.count; k++) snprintf(m.items[k].text, sizeof(m.items[k].text), "%s", item[k]);
-    province_frame30e6(m.x, m.y);                                    /* 5614(7CB0, 1): the frame, then the rest */
+    cursor_push_1D55(0);                                             /* b609 5614(7CB0, 1): 0x5622 .. 0x56AB */
+    province_frame30e6(m.x, m.y);                                    /* the frame, then the rest */
     ui_menu_draw_mode(g_scr, &m, 0, -1);
-    /* 1CCE */
+    cursor_pop_1D8A();
+    cursor_show_1CCE();                                              /* b60c */
     int got = 0;                                                     /* si = [bp-0Ah] */
     while (!got) {                                                   /* b66d */
         int sel = menu_choose(&m, -1, -1);                           /* b617: 54C8(7CB0, di) */
@@ -174,7 +169,7 @@ static uint8_t pick_B4DA(uint8_t *lineup) {
             break;
         }
         if ((uint16_t)(10 * (sel + 1)) > W(0x634A)) {                /* b62e: ja */
-            ui_menu_highlight(g_scr, &m, sel, 0);                    /* 585B(7CB0, di, 0) */
+            scr_menu_mark585b(&m, sel, 0);                           /* 585B(7CB0, di, 0) */
             msg_59D4(0x7D7D);                                        /* "You Cannot Afford Such\na Well-Trained Gladiator" */
             continue;
         }
@@ -208,11 +203,11 @@ static int select_B38B(void) {
     }
     msg_59D4(0x7CE4);                                                /* "Select a Gladiator\nfor You to Control" */
     B(0xAA51) = pick_B4DA(lineup);
-    if (B(0xAA51) == 0xFF) { release_B4A3(lineup); /* 1D19 */ return 0; }
-    /* 1D19 */
+    if (B(0xAA51) == 0xFF) { release_B4A3(lineup); cursor_hide_1D19(); return 0; }   /* b427 */
+    cursor_hide_1D19();                                              /* b42d */
     gl_grid_B67C();
     for (int si = 0; si < 6; si++) gl_card_B6EC(si, lineup[si], 0);  /* facing left: your card now shows a beast */
-    /* 1CCE */
+    cursor_show_1CCE();                                              /* b448 */
     if (W(0x634A) < 0x0A) {
         msg_59D4(0x7D0A);                                            /* "You Cannot Afford a Second Gladiator.\n..." */
         setW(0x634A, saved);                                         /* b459 */
@@ -221,11 +216,12 @@ static int select_B38B(void) {
     msg_59D4(0x7D59);                                                /* "Select a Gladiator\nTo Fight Against" */
     B(0xAA50) = pick_B4DA(lineup);
     if (B(0xAA50) == 0xFF) {                                         /* b48b: 1D19, jmp b45f */
+        cursor_hide_1D19();
         if (!g_original_bugs) setW(0x634A, saved);                   /* bug 1: the refund of b459 */
         goto back_out;
     }
     release_B4A3(lineup);
-    /* 1D19 */
+    cursor_hide_1D19();                                              /* b497 */
     return -1;
 back_out:                                                            /* b45f */
     B(REC(B(0xAA51), R_STAT)) = 0;
@@ -467,11 +463,12 @@ static void outcome_BDEA(uint8_t p, uint8_t o) {
     } while (!passed);
     gl_thumbs_box();                                                 /* bfd8 */
     gl_crowd_C149(SW(0xAA62));
-    /* W(BA): 1CCE cursor_show (not ported) */
+    if (W(0xBA)) cursor_show_1CCE();                                 /* bff8 */
     msg_59D4(0x800E);                                                /* "Thumbs Up or Down?" */
     while (!up && !down) {                                           /* c004..c071 */
         if (W(0xBA)) {
-            mouse_poll();                                            /* 0644 (1BE6, the cursor: not ported) */
+            mouse_poll();                                            /* 0644 */
+            cursor_move_1BE6(SW(0xB6), SW(0xB8));                    /* c019 */
             if (W(0xB2)) {
                 int16_t ru[4], rd[4];
                 for (int i = 0; i < 4; i++) { ru[i] = SW(0x7EC0 + 2 * i); rd[i] = SW(0x7EC8 + 2 * i); }
@@ -515,7 +512,7 @@ void glad_show_b0e0(void) {
     if (si & gl_title_1273()) gl_title_draw();                       /* b114: coloseum.cbm */
     setW(SH_SHOW, nv_sheet_163B(dstr(0x7B96)));                      /* "show" */
     setW(SH_ARENA, nv_sheet_163B(dstr(0x7B9B)));                     /* "arena" */
-    /* 1D55(0) cursor push (not ported) */
+    cursor_push_1D55(0);                                             /* b17c */
     setW(0x9B69, 0x0F);
     music_unload_5E1A(1);
     music_load_5D73(4); music_load_5D73(5); music_load_5D73(6); music_load_5D73(7);
@@ -538,7 +535,8 @@ void glad_show_b0e0(void) {
         music_unload_5E1A(4); music_unload_5E1A(5); music_unload_5E1A(6); music_unload_5E1A(7);
         nv_sheet_19A0(W(SH_SHOW));
         nv_sheet_19A0(W(SH_ARENA));
-        /* 11A9 archive close, 1D8A cursor pop */
+        /* 11A9 archive close */
+        cursor_pop_1D8A();                                           /* b1fc */
         music_stop_5D20();
         gl_pictures_free();
         return;
@@ -574,6 +572,6 @@ void glad_show_b0e0(void) {
     nv_sheet_19A0(W(SH_ARENA));
     nv_sheet_19A0(W(SH_PLAYER));
     nv_sheet_19A0(W(SH_OPP));
-    /* 1D8A cursor pop */
+    cursor_pop_1D8A();                                               /* b37a */
     gl_pictures_free();
 }

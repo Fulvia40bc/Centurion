@@ -13,6 +13,8 @@ typedef struct {
 int assets_load(const char *dir_path, const char *dat_path);
 int assets_find(const char *name);
 uint8_t *assets_decode(int idx, size_t *out_len);
+/* one member of DIR/DAT unpacked without touching the archive assets_load keeps open (NULL = missing) */
+uint8_t *assets_member(const char *dir_path, const char *dat_path, const char *name, size_t *out_len);
 /* Decode a 0xC0 CBM image member to 8-bit palette indices (w*h bytes).
    Returns NULL on failure. out_w and out_h get the pixel dimensions. */
 uint8_t *assets_decode_cbm(int idx, int *out_w, int *out_h, int *out_lut);

@@ -6,8 +6,9 @@
  *         names centred on (159, 99), at least as wide as the title), then a wait of n ticks or a key, then the rect from
  *         y 47 down is filled with [6346] (the frame's fill); -1 when a key ended the wait
  *   B8B7  the wait's poll: in VGA ([9B26] == 2) B8FE, then 03AA: -1 on a key
- *   B8FE  every 4 ticks the five colours DS:6ABA (6-bit r, g, b words) go to the DAC entries DS:6AD8 (A2..A6) one place on
- *   B970  the intro's credits (the first 11 pairs, 288 ticks each; not called by the port: the intro is section 1 B694)
+ *   B8FE  every 5 ticks (when more than 4 have passed) the five colours DS:6ABA (6-bit r, g, b words) go to the DAC entries DS:6AD8 (A2..A6) one place on
+ *   B970  the intro's credits (the first 11 pairs, 288 ticks each): intro.c, with B694 and B8CF, using credit_B9D3 and
+ *         credits_poll from here
  *
  * The frame is 30E6 at (84, 40) on the screen (the menu frame: fill [6346] and the four MMENU corner sprites), drawn once;
  * the 18 pairs DS:6A6E..6AB2 (title, names) 216 ticks each (3.0 s), a key ends the list; then always the last pair DS:6AB6
@@ -40,7 +41,7 @@ static int g_shown;                       /* port: the window shows the current 
 
 static void show(void) { if (!screen_headless()) screen_present(); g_shown = 1; }
 
-/* B8FE: every 4 ticks (DS:6AE2/6AE4 the last time) the counter DS:6AE6 0..4 steps and colour k goes to DAC entry
+/* B8FE: every 5 ticks, when more than 4 have passed (DS:6AE2/6AE4 the last time; V: DAC writes at 2664, 2669, 2674 ...) the counter DS:6AE6 0..4 steps and colour k goes to DAC entry
    W(6AD8 + 2 * ((counter + k) mod 4)) (bug: mod 5 meant) */
 static void cycle_B8FE(void) {
     uint32_t last = (uint32_t)W(0x6AE2) | (uint32_t)W(0x6AE4) << 16;
@@ -57,18 +58,21 @@ static void cycle_B8FE(void) {
     g_shown = 0;
 }
 
-/* B8B7: -1 when a key was typed (port: or the input ended) */
-static int poll_B8B7(void) {
-    if (W(0x9B26) == 2) cycle_B8FE();                                /* b8b7 */
+/* B8B7: -1 when a key was typed (port: or the input ended). cycle = 0: 03AA alone, with the port's window handling (the
+   intro's she-wolf and legend waits, intro.c B694) */
+int credits_poll(int cycle) {
+    if (cycle && W(0x9B26) == 2) cycle_B8FE();                       /* b8b7 */
     if (!screen_scripted()) mouse_poll_input();                      /* port: the window's events */
     if (!g_shown) show();
     if (key_read() & 0xFF) return -1;                                /* b8c1: 03AA */
     if (screen_quit()) return -1;                                    /* port: the input ended */
     return 0;
 }
+static int poll_B8B7(void) { return credits_poll(1); }
+void credits_redraw(void) { g_shown = 0; }                           /* port: the screen changed (intro.c) */
 
-/* B9D3(pair, n): one credit for n ticks; -1 when a key ended it */
-static int credit_B9D3(uint16_t pair, uint16_t n) {
+/* B9D3(pair, n): one credit for n ticks; -1 when a key ended it (also intro.c's B970) */
+int credit_B9D3(uint16_t pair, uint16_t n) {
     int skip = 0;                                                    /* [bp-2] */
     const char *title = (const char *)&g_ds[W(pair)], *names = (const char *)&g_ds[W(pair + 2)];
     /* b9e0..ba08: 8C9F(names, 8C58(title), 0, 159, 99) (8C58 pops the title, the names stay pushed as 8C9F's first

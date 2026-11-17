@@ -415,41 +415,52 @@ Rank names DS:5972[r]: Officer, Centurion, Tribune, Legatus, General, Praetor, C
 
 ## 6. Every screen / command, entry and port status
 
-| screen / command | entry | port today |
+Rewritten 2026-11-17 from the completeness audit (docs/GAPS_NOTES.md: method, the full gap table, the small gaps decoded). The
+"NOT PORTED" remarks in sections 4 and 7 date from 2026-11-09 and are historical; this table is the state. "V" = checked against a
+DOSBox capture (the check named), "D" = translated from the code, no capture of that screen. Every row is on the DS image (g_ds);
+the floppy prompts are left out everywhere (GAPS_NOTES row 10). Since 2026-11-17 the mouse cursor (screen.c, CURSOR_NOTES), the
+music (music.c + opl2.c, MUSIC_NOTES) and the intro (intro.c, INTRO_NOTES) are ported; the rows below say so where it matters.
+
+| screen / command | entry | port today (file) |
 |---|---|---|
-| startup state | static DS + section 1 B397(3..5) | state_init (static DS) — needs B397 (or load NEWGAME.LZW) |
-| copy protection | section 1 B466 | skipped (decision) |
-| intro / title | section 1 B694 | no |
-| map loop + dispatch | 0x07EF-0x09B9 | game.c prototype (2 hard-coded click boxes, own turn counter, no DS) |
-| zone hit test + Asterix village | 0x6C67 | no (table VERIFIED here) |
-| map builder | 0x494A | game.c draw_map_full, from the CSV file, not g_ds; enemy army icons 0x53BC missing |
-| End Turn button | 0x09BA | logic PORTED (endturn.c/enemy.c/events.c/battle.c); not wired to the map loop (game.c does g_turn++) |
-| year button | 0x4A24 | yes (draw), "AD" branch not checked |
-| Game Control Menu | 0x1A8B, DS:05A6 | menu drawn (VERIFIED text); actions no |
-| Save / Load | 0x762D / 0x76C2, slots DS:5BCC | state.c save/load (byte-exact); the slot screens and "10A" check no |
-| New Game | 0x752E (NEWGAME.LZW) | no |
-| About | inline 0x1AFB | no |
-| Difficulty / Fine Tuning | 0x1B32 / 0x19BC | no |
-| Quit (Q / menu) | 0x0960 / 0x1BC9 | window close only |
-| Rome screen | 0x7366, DS:5A30 | approximate (swap_plunder exception) |
-| provincial screen | 0x6CB8, DS:5790 | approximate |
-| foreign zone info | 0x720B | no |
-| Legions | 0x4065 (+0x382A move) | placeholder |
-| Plunder | inline 0x6DB2 | no |
-| Tribute / Tribute Policy | 0x7CE0 / 0x7D42 | Tribute approximate (not in g_ds), Policy no |
-| Hold Games (province) | 0x3342 | no |
-| Hold Games (Rome) | 0x3457 → B0AA race / B0B6 gladiators | no (modules not ported) |
-| Build Fleet | 0x2458 | no |
-| See Province List / P | 0x69CC | placeholder |
-| fleet click: select/info/move | 0x2C6F / 0x2F5A / 0x2B40 | no |
-| right click: legion select/info/move | 0x3BAF / 0x3EA3 / 0x382A | no |
-| F / L lists | 0x2FD6 / 0x4280 | no |
-| conquest battle / negotiation | 0x5F82 (B06E / MNEGO 0x6570) | battle PORTED; negotiation no |
-| enemy army battles in End Turn | 0x4B3F, 0x501E, 0x508D | PORTED |
-| naval battle | section 5 (B0C2, B09E) | no |
-| chariot race / gladiators | section 4 D08A / section 3 B0E0 | PORTED (race.c, glad.c; 2026-11-12) |
-| victory sequence + credits | section 4 DF58, section 1 B9A1 | PORTED (race.c, credits.c; 2026-11-12; RACE_LOGIC_NOTES 7.1) |
-| "Sic Transit" defeat | 0x0986 | no |
+| start-up state | static DS + section 1 B397(3..5) | main.c: state_init + gamectl.c new_game (NEWGAME.LZW; = static DS + B397, V check 1/2) + map.c map_startup (colours, font record, [9B26], INIT sprites). B18A / B397 themselves not run (start-up agent) |
+| command line | section 1 B0E0 | main.c: `nosnd` (music off); `adlib` / `ad` / `v` = what the port does anyway; `k`, `x m e tandy`, `pc tn roland mt lapc` noted on stderr and ignored (the port is VGA, AdLib, mouse; GAPS_NOTES 4) |
+| copy protection | section 1 B466 | skipped (Erik's decision) |
+| intro / title | section 1 B694, B970, B8CF | intro.c (D; checked against an independent reference built from the game files, no DOSBox capture exists) |
+| map loop + dispatch, keys E F L M P Q Esc | 0x07EF-0x09B9 | map.c map_loop; scripted End Turn t1 / t9 / t11 = DOSBox byte for byte (V) |
+| zone hit test + Asterix village | 0x6C67 | map.c zone_at (V: --zone-check 37/37 anchors, the 6 Asterix pixels) |
+| map builder incl. enemy army icons | 0x494A, 0x53BC | map.c map_build (V: 84 px off the capture = DOSBox's arrow 83 (a dump has no pointer to draw) + (319,199), the 13A8 last-pixel fix; 83 with --original, FRAME_DIFF_NOTES) |
+| End Turn button / 'E' | 0x09BA | endturn.c + enemy.c + events.c + fleet.c + naval.c + battle.c, wired in map.c (V: cmp_endturn t1-t11 0 bytes) |
+| year button | 0x4A24 | map.c year_button (V for BC; the "AD" branch at turn >= 275 D only) |
+| Game Control Menu | 0x1A8B, DS:05A6 | gamectl.c (menu text V, check 5) |
+| Save / Load (slots, "10A" check, s.csv) | 0x762D / 0x76C2, DS:5BCC | gamectl.c + state.c (round trip byte-exact; the slot screen D, no capture). Two-floppy drive switch 0x0363/0x0373 not ported |
+| New Game | 0x752E (NEWGAME.LZW) | gamectl.c new_game (V: = fresh_275BC.csv but the name) |
+| About | inline 0x1AFB | gamectl.c (D) |
+| Difficulty / Fine Tuning | 0x1B32 / 0x19BC | gamectl.c (D); DS:048E[0..3] read by battle.c, race.c, glad.c, naval.c |
+| Quit (Q / menu) | 0x0960 / 0x1BC9 | map.c / gamectl.c, "Really Quit?" (D) |
+| Rome screen | 0x7366, DS:5A30 | province.c (menu V; the Mode 1 panel frame sprites 0x30E6 not drawn: frame agent) |
+| provincial screen | 0x6CB8, DS:5790 | province.c (menu V; Build Fleet greying 0x2A07; Mode 1 frame as above) |
+| foreign zone info | 0x720B | province.c (D) |
+| Legions (raise, Cavalry, Consular, strengthen, list, select, move) | 0x4065, 0x4392 ... 0x382A | legions.c (logic) + province.c (its UI hooks) (D; the 4733 roll V via t9) |
+| Plunder | inline 0x6DB2 | province.c, with the verifier's once-per-visit flag (D) |
+| Tribute / Tribute Policy | 0x7CE0 / 0x7D42 | province.c (D) |
+| Hold Games (province) | 0x3342 | province.c (D) |
+| Hold Games (Rome) | 0x3457 -> B0AA race / B0B6 gladiators | province.c -> race.c / glad.c |
+| Build Fleet (purchase screen) | 0x2458, 0x26D0 / 0x2852 / 0x2900 | province.c (mouse path; the keyboard poll 0x2983 not ported: GAPS_NOTES 3) |
+| See Province List / P | 0x69CC | province.c (D) |
+| fleet click: select / info / move | 0x2C6F / 0x2F5A / 0x2B40 | fleet.c, called from map.c (V: naval README, the fleet-move snapshots) |
+| right click: legion select / info / move | 0x3BAF / 0x3EA3 / 0x382A | legions.c, called from map.c (D) |
+| F / L lists | 0x2FD6 / 0x4280 | province.c fleet_list / legions.c 4280 with its drawing in province.c (D) |
+| a legion enters an army's zone | 0x4B3F | legions.c -> battle.c (D) |
+| conquest: rebel battle / negotiation / Cleopatra | 0x5F82 (B06E / MNEGO 0x6570, 0x602E..0x64DD) | legions.c (5F82 rebel branch) + nego.c (D; no negotiation capture) |
+| land battle (simulation, screen, orders, report) | section 2 DF24 (thunk B06E) | battle.c + battle_gfx.c + battle_ui.c (V: b10 / b11 identical, frames 0 px, report 0 px). **Gap: the new commander after the general falls (E5AA -> 0x4733) is not called** (GAPS_NOTES 2) |
+| enemy armies and random events in End Turn | 0x4C24 (0x4F27, 0x501E, 0x508D), 0x1E98 | enemy.c, events.c (V: End Turn t5-t11). Three 1990 reads of uninitialised locals are stopped, not followed (GAPS_NOTES 6) |
+| naval battle | section 5 B0E0 / B12A (thunks B09E, B0C2) | naval.c + naval_gfx.c + fleet.c (V: two DOSBox battles, DS 0 bytes, frames 0 px; the end screen's 93 px are the cursor) |
+| chariot race / gladiators | section 4 D08A / section 3 B0E0 | race.c + race_gfx.c / glad.c + glad_gfx.c (one parade frame 63999/64000 px; else D) |
+| victory sequence + credits | section 4 DF58, section 1 B9A1 | race.c race_victory_df58, credits.c (D) |
+| "Sic Transit" defeat | 0x0986 (test at 0x096E..) | map.c (D) |
+| keyboard-only mode (no mouse, `k`) | 0x3603, 0x5901, 0x2983, [C1D6] bullets, D33A keys | not ported (GAPS_NOTES 1 row 2, 3) |
+| non-VGA video | 0x67E4 / 0x680F / 0x6887 branches, [9B26] != 2 | not ported (VGA only) |
 
 ## 7. Porting plan (order, dependencies, checks)
 

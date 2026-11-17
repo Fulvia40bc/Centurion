@@ -79,7 +79,14 @@ static void pic_draw(const pic_t *p, int x, int y) {
     }
 }
 /* 13A8(&arch, 3): picture slot 3 = DS:0250 + 8 * 3 -> "raceest.cbm" (descriptor C0B6); 1 = loaded */
-int rc_picture_13A8(void) { return pic_load(&g_raceest, dstr(W(0x0250 + 8 * 3))); }
+int rc_picture_13A8(void) {
+    pic_t *p = &g_raceest;
+    if (!pic_load(p, dstr(W(0x0250 + 8 * 3)))) return 0;
+    /* race.c bug 14 (--original keeps it): 88A7's in-place expansion gives the last pixel t[t[hi] & 15] (map.c); kept here
+       as the nibble that rc_blit_8790 maps to it. RACEEST: 0x36, not 0x2C (V, scr_chariot_race.bin (319,199)) */
+    if (g_original_bugs) p->px[p->w * p->h - 1] = B(0x60C0 + 16 * p->lut + (p->px[p->w * p->h - 2] & 15)) & 15;
+    return 1;
+}
 /* 1273("gallery1.cbm" DS:83FA, &arch, C356) */
 int rc_gallery1_1273(void) { return pic_load(&g_gallery1, dstr(0x83FA)); }
 void rc_gallery1_free_86A0(void) { pic_free(&g_gallery1); }

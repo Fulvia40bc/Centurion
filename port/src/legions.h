@@ -38,7 +38,6 @@ enum legions_ev {
     LEV_HIGHLIGHT,      /* 8E62 sprite [C10C] at zone a's anchor (1AB8/1ABA); b = 1: at anchor - (3, 4), a sea with a free fleet */
     LEV_TREASURY,       /* 44E5(a): treasury at (211,167) */
     LEV_RECRUITS,       /* 4510(a): recruits at (225,128) */
-    LEV_MUSIC_STOP,     /* 5D20: [3EEE] = 0xFF (current music) is written here first; the event is the driver call 074B */
     LEV_DISK_SWAP       /* 1E21 disk swap prompt (before a battle) */
 };
 extern void (*legions_ui)(int ev, int a, int b, const void *data);   /* default: nothing */

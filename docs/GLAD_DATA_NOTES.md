@@ -172,7 +172,7 @@ the archive.
 
 Every string in DS:7B06-0x801F is referenced by the section (scan of the block, V); no unused text.
 
-## 5. Music CN4A..CN4D (D for the use; the song format is the sound driver's, not decoded)
+## 5. Music CN4A..CN4D (D for the use; the song format and the driver: docs/MUSIC_NOTES.md; played by port/src/music.c)
 All four start `7F 00 00 01 00 00 01 01 00 01 ...`, the same header family as CN6/CN9. 4 cn4a = title, the pause before
 the arena; 5 cn4b = VERSUS, fight start, crowd mood 1; 6 cn4c = crowd mood 2 (excited); 7 cn4d = selection, crowd mood 0
 (bored). The show uses all four music slots, so it unloads the map song 1 first. Details: GLAD_SCREEN_NOTES 7.

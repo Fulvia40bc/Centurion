@@ -22,8 +22,7 @@ from cmp_naval_frame import groups, EXE, filled_inputs, drawn_count
 CLASSES = [
     (0x0042, 0x0085, 'clock: tick count DS:42 and the 16 timer slots (time a box waited for a click; DOSBox frames slower than the wait)'),
     (0x0086, 0x00C7, 'interrupt handlers: timer divider [8A], keyboard [A2..A5], mouse [B2..B8] (input)'),
-    (0x0680, 0x068F, 'mouse cursor (1BE6/1D55/1D8A, not ported: the system pointer)'),
-    (0xA674, 0xA691, 'mouse cursor visibility stack (1D55 pushes [686] to A674 + [68A], 1D8A pops; depth < 30; not ported)'),
+    (0x0680, 0x0683, 'mouse cursor position [680]/[682] (1BE6 moves it to the mouse: a script clicks where it can, not where the player did)'),
     (0x9812, 0x9817, 'intro water-colour phase (C1BB: time)'),
     (0x9AFA, 0x9AFB, 'draw colour left by the EXE menu / message box (screen.c draws them without DS)'),
     (0x9B48, 0x9B50, 'state of the EXE menu / message box drawing'),

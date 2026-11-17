@@ -8,11 +8,17 @@
  * A922 the 4 header bytes read from each file, A64C the Fine Tuning sub-menu title, 5B12 the file name "s.csv".
  * Save files are read and written in the current folder, as the original does on its current drive.
  *
- * Not ported: the mouse cursor (0x1D55 push / 0x1D8A pop / 0x1CCE show / 0x1D19 hide: no cursor sprite in the port) and
- * the DOS drive switch of Save / Load when DS:0698 != 0 (0x0373 get drive, 0x0363 set drive B(C0E4): two floppies).
+ * The mouse cursor (0x1D55 push / 0x1D8A pop / 0x1CCE show / 0x1D19 hide) is screen.c's, called where the EXE calls it.
+ * Not ported: the DOS drive switch of Save / Load when DS:0698 != 0 (0x0373 get drive, 0x0363 set drive B(C0E4): two floppies).
  * The disk prompts 0x7B1E are ported (they only show when DS:0698 != 0, 0 in every snapshot).
  * The title / editor colours [6348] / [6346] are the start-up's VGA values (0x0146..0x0152), which the port writes in
- * map.c map_startup before the map loop; a DS straight from OVL0 / a .CSV has 7 / 7 there. */
+ * map.c map_startup before the map loop; a DS straight from OVL0 / a .CSV has 7 / 7 there.
+ *
+ * 1990 BUG fixed by default (--original keeps it), 2026-11-17:
+ *   1. Fine Tuning 0x19BC draws the four level names (1A5E, 899C text) while the arrow is visible: 5614's pop has just
+ *      saved the 24 x 16 box under the arrow and drawn it, so the names are drawn over the arrow, and the next move of the
+ *      mouse (1BE6) puts back the box saved before them: a hole in the names, until the menu is drawn again (D; the
+ *      port's shot V). Fixed: 1A5E between 1D55(0) and 1D8A, as every other drawer of the EXE. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -291,7 +297,8 @@ static void descriptions7a54(int last) {
    the screen (680F) and the whole work buffer copied to it (6973); then 54C8(5BCC, 0). Returns 0..8 or 0xFF. */
 static int slot_screen(uint16_t title, menu_t *m) {
     descriptions7a54(list7996());
-    ui_copy_rect(g_wrk, g_scr, FULL);                                 /* 691B(0, 0, 319, 199) */
+    cursor_push_1D55(0);                                              /* 0x779A / 0x7906 (popped by the callers) */
+    save691b_rect(FULL);                                              /* 691B(0, 0, 319, 199) */
     if (W(0x9B26) != 6) for (int i = 0; i < 18; i++) B(0xC0D0 + i) = B(0xC1DA + i);   /* 67E4: draw into the work buffer */
     setW(0x5BD8, title);
     menu_load_ds(m, 0x5BCC);
@@ -307,7 +314,7 @@ static int slot_screen(uint16_t title, menu_t *m) {
         ui_copy_rect(g_wrk, tmp, clip);                               /* 8E62 clips each glyph to the rect */
     }
     for (int i = 0; i < 18; i++) B(0xC0D0 + i) = B(0x9AB6 + i);       /* 680F: the screen's descriptor again */
-    ui_copy_rect(g_scr, g_wrk, FULL);                                 /* 6973(0, 0, 319, 199) */
+    restore6973_rect(FULL);                                           /* 6973(0, 0, 319, 199) */
     int r = menu_choose(m, -1, -1);                                   /* 54C8(5BCC, 0) */
     return r < 0 ? 0xFF : r;
 }
@@ -386,16 +393,20 @@ static int describe7852(int s) {
 static int save_slot7784(void) {
     menu_t m;
     int r = slot_screen(0x5B18, &m);
+    cursor_hide_1D19();                                               /* 0x781E */
     setW(0x9B69, W(0x6348));
     text8be4(g_scr, 0xA0, 0x2E, dsp(0x5B18), W(0x9B69));
     if (r != 0xFF) r = describe7852(r);
+    cursor_pop_1D8A();                                                /* 0x7846 */
     return r;
 }
 
 /* 0x78F0 select_load_slot: the slot screen titled "Select a Game to Load" (DS:5B4A). Returns 54C8's value. */
 static int load_slot78f0(void) {
     menu_t m;
-    return slot_screen(0x5B4A, &m);
+    int r = slot_screen(0x5B4A, &m);
+    cursor_pop_1D8A();                                                /* 0x798A */
+    return r;
 }
 
 /* 0x762D save_game */
@@ -450,11 +461,15 @@ static void load76c2(void) {
 }
 
 /* ---- difficulty ---- */
-/* 0x1A5E: the four module levels, name DS:W(0484 + 2*B(048E+i)) at (195, 102 + 10*i) in colour 15 */
+/* 0x1A5E: the four module levels, name DS:W(0484 + 2*B(048E+i)) at (195, 102 + 10*i) in colour 15. 1990 draws them with
+   899C while the arrow is visible (19D4, right after 5614's pop saved the box under the arrow and drew it): 1990 BUG 1
+   (header), fixed by hiding the arrow around them. */
 static void show_levels1a5e(void) {
+    if (!g_original_bugs) cursor_push_1D55(0);                       /* FIX 1 (port): hidden while the names are drawn */
     setW(0x9B69, 0xF);
     for (int si = 0, di = 0x66; si < 4; si++, di += 10)
         ui_text_attr(g_scr, 0xC3, di, dsp(W(0x484 + 2 * B(0x48E + si))), W(0x9B69));
+    if (!g_original_bugs) cursor_pop_1D8A();
 }
 
 /* 0x19BC fine_tuning: menu DS:05CA (Land Battle, Racing Chariots, Gladiatorial Combat, Naval Battle, Continue) with
@@ -465,7 +480,7 @@ static void fine_tuning19bc(void) {
     menu_t m, sub;
     for (;;) {
         menu_load_ds(&m, 0x5CA);
-        ui_menu_draw_mode(g_scr, &m, 2, -1);                         /* 5614(05CA, 2) */
+        scr_menu_draw5614(&m, 2);                                     /* 19D1: 5614(05CA, 2), the cursor push / pop inside */
         show_levels1a5e();
         int r = menu_choose(&m, -1, -1);                              /* 54C8(05CA, di) */
         di = r < 0 ? 0xFF : r;
@@ -487,7 +502,7 @@ static void fine_tuning19bc(void) {
 static void difficulty1b32(void) {
     menu_t m;
     menu_load_ds(&m, 0x5B8);
-    ui_menu_draw_mode(g_scr, &m, 2, -1);                             /* 5614(05B8, 2) */
+    scr_menu_draw5614(&m, 2);                                         /* 1B3A: 5614(05B8, 2) */
     for (;;) {
         int di = B(0x48E);
         for (int si = 1; si < 4; si++) if (B(0x48E + si) != B(0x48E)) di = 4;
@@ -496,7 +511,7 @@ static void difficulty1b32(void) {
         if (di == 4) {                                                /* 0x1B9C */
             fine_tuning19bc();
             menu_load_ds(&m, 0x5B8);
-            ui_menu_draw_mode(g_scr, &m, 2, -1);
+            scr_menu_draw5614(&m, 2);                                 /* 1BA7: 5614(05B8, 2) */
             continue;
         }
         if (di != 0xFF && di != 5)
@@ -508,10 +523,13 @@ static void difficulty1b32(void) {
 /* ---- 0x1A8B game_control_menu (year button / Esc on the map) ---- */
 int game_control_menu(void) {
     int quit = 0;                                                     /* [bp-6] */
-    ui_copy_rect(g_wrk, g_scr, FULL);                                 /* 691B(0, 0, 319, 199) */
+    cursor_push_1D55(0);                                              /* 0x1A96 */
+    save691b_rect(FULL);                                              /* 691B(0, 0, 319, 199) */
     menu_t m;
     menu_load_ds(&m, 0x5A6);
-    int r = menu_choose(&m, 2, -1);                                   /* 5614(05A6, 2); 54C8(05A6, 0) */
+    scr_menu_draw5614(&m, 2);                                         /* 5614(05A6, 2) */
+    if (W(0xBA)) cursor_show_1CCE();                                  /* 0x1AC0 */
+    int r = menu_choose(&m, -1, -1);                                  /* 54C8(05A6, 0) */
     unsigned c = r < 0 ? 0xFF : (unsigned)r;
     if (c <= 5) switch (c) {                                          /* jump table 0x1ADD */
     case 0: save762d(); break;                                        /* 0x1AE9 */
@@ -519,7 +537,7 @@ int game_control_menu(void) {
     case 2: new_game(); break;                                        /* 0x1AF5 */
     case 3: {                                                         /* 0x1AFB About */
         ui_box_t box = { SW(0x5A6), SW(0x5A8), SW(0x5AA), SW(0x5AC) };
-        ui_copy_rect(g_scr, g_wrk, box);                              /* 6973: the menu goes */
+        restore6973_rect(box);                                        /* 6973: the menu goes */
         ds_strcpy(PACK_BUF, 0x5EE);                                   /* "CENTURION\nDefender of Rome\n..." */
         ds_strcat(PACK_BUF, 0x46E);                                   /* "Version 1.00A 5/25/90" */
         message_box(dsp(PACK_BUF));
@@ -528,5 +546,6 @@ int game_control_menu(void) {
     case 4: difficulty1b32(); break;                                  /* 0x1B32 */
     case 5: if (yes_no(dsp(0x672))) quit = -1; break;                 /* 0x1BC9 "Really Quit?" */
     }
-    return quit;                                                      /* the caller redraws the map (0x494A(0xFF)) */
+    cursor_pop_1D8A();                                                /* 0x1BD9 */
+    return quit;                                                     /* the caller redraws the map (0x494A(0xFF)) */
 }

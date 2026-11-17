@@ -43,6 +43,16 @@ C:/work/Centurion/tools/dosbox/results/battle/b11_frame_tick0.bin`). Run from a 
 
 ## Needs Erik
 
+OPEN (2026-11-17, from the review of the cursor / intro / music ports):
+4. Land battle, gap 1 (battle.c, GAPS_NOTES 2): when no commander is free, EXE 4733 frees every commander not on duty, the
+   fallen included, so the general who has just died can be "assigned" to his own legion in the same message. The port
+   keeps this by default (G that it is unintended; no game text contradicts it; reachable only after about 11 commanders
+   have fallen). Fix it by default (leave the fallen one out of the roll; `--original` would keep 1990), or keep it?
+5. End Turn, gap 12 (enemy.c fixes 1-3): 1990 reads stale stack words in three corner cases; the port stops cleanly by
+   default and also with `--original` (the first call's stack contents cannot be had). The two 4F27 cases could be
+   modelled for `--original` with a static that keeps the previous army's target and first candidate (GAPS_NOTES 6).
+   Wanted, or leave `--original` as it is there?
+
 RULED 2026-11-17: Erik keeps fixes 1 and 2 as the defaults; the bribe text (3) stays as a joke.
 Three decisions from the circus port (2026-11-12):
 1. Gladiators, glad.c fix 7: which man's move table is the slip? The port slows the AI's high attack by one step (the hit on
@@ -54,6 +64,19 @@ Three decisions from the circus port (2026-11-12):
    a joke to keep, or a slip to fix (a fix needs a design)?
 
 ## Open
+
+### 2026-11-17  Claude: cursor, intro and music ported and reviewed (no action needed)
+Status: done
+Context: the mouse cursor (screen.c, CURSOR_NOTES), the intro (intro.c, INTRO_NOTES), the AdLib music (music.c + opl2.c,
+MUSIC_NOTES), gap 1 (the new commander after a general falls, battle.c) and the 13A8 last pixel are in. Three adversarial
+reviews; their findings applied the same day: Difficulty / Fine Tuning now draw through 5614's cursor push / pop (stale
+save-under patches gone); a new 1990 bug fixed by default (Fine Tuning draws the level names over the visible arrow, a
+move then leaves a hole in them; `--original` keeps it); KSL of the OPL2 doubled to the chip's; B0E0's words accepted;
+Ctrl+S by the physical key; Shift on the keypad as the BIOS; `--intro --load` hides the arrow; `--music-wav` rejects
+SECONDS <= 0; the three copies of 4733's message are one; cmp_naval_resume now compares the cursor words. All regression
+checks unchanged (End Turn t1-t11 0 bytes, battles identical, frames 0 px, zones 37/37, every naval check 0 px / 0 bytes
+except the known 78 px pennant). Not verified: anything in a window (sound, pacing, the pointer), the intro and the
+sound against DOSBox (no capture). Build: C:\work\Centurion-native\centurion-finish.exe.
 
 ### 2026-11-09 21:00  Claude: turn 5+ End Turn ported (no action needed)
 Status: done

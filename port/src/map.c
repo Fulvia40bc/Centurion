@@ -8,9 +8,14 @@
  *   zone_at       0x6C67          zone under a point, run-length rows DS:3A96, the Asterix village (0xFE) message
  *   map_startup   resident overlay 0x0146..0x0152 (VGA colours) and 0x019E..0x01D5 (INIT sprite descriptors)
  *
- * Not ported here (as screen.c): the mouse cursor (0x1D55 / 0x1D8A / 0x1CCE), the music driver (the file loading of
- * 0x5D73 / 0x5EB5 and the driver calls of 0x5D29 / 0x5D20; their DS writes, the slot table DS:A6B0 and [3EEE], are done)
- * and the disk swap prompts (0x1E21). The fleet orders (0x2C6F, 0x2F5A, 0x2B40) are in fleet.c. The victory sequence
+ * 1990 bug fixed (--original keeps it; docs/FRAME_DIFF_NOTES.md 3): the picture loader 13F8 / 88A7 expands in place and
+ * re-reads the last packed byte after overwriting it, so the last pixel of every 13A8 picture is t[t[hi] & 15] instead of
+ * t[lo]: MAP.CBM (319,199) is 105 in the game, 111 here (V: scr_newgame_map, scr_game_control_menu, screen_map.bin).
+ * The same for RACEEST (race.c bug 14) and ARENABTM (glad.c bug 8).
+ *
+ * The mouse cursor (screen.c) is set up by map_startup (section 1 B2CF..B2E4), shown by map_loop (0x07E9) and hidden
+ * around map_build (0x4955 / 0x4A19). The music calls (0x5D73 / 0x5D29 / 0x5D20, with the driver) are music.c's
+ * (2026-11-17; they were here as their DS parts). Not ported: the disk swap prompts (0x1E21). The fleet orders (0x2C6F, 0x2F5A, 0x2B40) are in fleet.c. The victory sequence
  * (section 4 DF58, thunk B092) is race.c's race_victory_df58; after it the game ends (0x09A7 -> 0x09AE exit_game).
  */
 #include <stdio.h>
@@ -50,6 +55,10 @@ static void map_image_load(void) {
         memset(g_mapimg, 0, sizeof(g_mapimg));
         for (int y = 0; y < h && y < SCREEN_H; y++)
             for (int x = 0; x < w && x < SCREEN_W; x++) g_mapimg[y * SCREEN_W + x] = t[px[y * w + x] & 0xF];
+        /* 1990 bug (--original keeps it): 13F8 loads the packed bytes at offset size-1 of the picture buffer and 88A7
+           expands them in place, re-reading the last byte (0x8910) after 0x890F overwrote it with the colour of its
+           high nibble: the last pixel is t[t[hi] & 15]. MAP.CBM: 105, not 111 (V, segment 3942 in both snapshots) */
+        if (g_original_bugs) g_mapimg[SCREEN_W * SCREEN_H - 1] = t[t[px[w * h - 2] & 0xF] & 0xF];
         free(px);
         g_have_map = 1;
         break;
@@ -106,7 +115,12 @@ void map_startup(void) {
     map_image_load();
     int empty = 1;
     for (int i = 0; i < 14; i++) if (W(W(0x6350 + 2 * i))) empty = 0;
-    if (!empty || !g_init_n) return;
+    if (!empty || !g_init_n) {
+        /* PORT: a DS image the port wrote before the cursor was ported (the test .bin files) has the INIT descriptors but
+           [684] = 0: no arrow at all. 1DF5's write alone (not B6 / B8: a DOSBox snapshot's pointer stays as captured). */
+        if (W(0x684) == 0) setW(0x684, W(0xC0E2));
+        return;
+    }
     for (int i = 0; i < g_init_n; i++) {
         uint16_t d = (uint16_t)(0xCE48 + 14 * i);
         memcpy(&g_ds[d], g_init_hdr[i], 10);
@@ -114,6 +128,13 @@ void map_startup(void) {
         setW((uint16_t)(d + 0x0C), 0x371B);
         setW(W(0x6350 + 2 * i), d);
     }
+    /* section 1 0xB2CF..0xB2E4, the mouse cursor (docs/CURSOR_NOTES.md 3): 1C7F the save-under record ([A698] = 16 rows,
+       VGA [A696] = 24 bytes, [A692] = 0, [A694] = its DOS block: 3929 in every capture; the port keeps the bytes in
+       screen.c), 066A(160, 100) (the pointer: [B6] / [B8] here, the driver is warped by map_build(0) next; [680] / [682]
+       are 160 / 100 in the static DS), 1DF5([C0E2]): [684] = the arrow, INIT entry 0 */
+    setW(0xA698, 16); setW(0xA696, 24); setW(0xA692, 0); setW(0xA694, 0x3929);
+    setW(0xB6, 160); setW(0xB8, 100);
+    setW(0x684, W(0xC0E2));
 }
 
 /* 0x8E62 sprite(spr, x, y): the descriptor at DS:spr {w, xhot, yhot, bytes per row, rows, transparent nibble, colour
@@ -146,6 +167,7 @@ static void sprite8e62(uint8_t *fb, uint16_t spr, int x, int y) {
     }
 }
 void map_sprite_8e62(uint8_t *fb, uint16_t spr, int x, int y) { sprite8e62(fb, spr, x, y); }   /* fleet.c: 2B40's markers */
+void map_init_sheet(void) { init_sheet_load(); }   /* main.c TEST HOOKS on a snapshot: the arrow's pixels (no DS write) */
 
 /* ---- the flood fill (0x22CC alloc of a 500-entry ring of {x, y}, 0x22EA fill, 0x22E2 free) ---- */
 /* 0x83BD get_pixel(x, y) of the work buffer. Outside the picture the original reads past its row table; the port
@@ -246,41 +268,13 @@ static void army_icons(void) {
     }
 }
 
-/* 0x5D73 music_load(m), its DS part (D): the table DS:A6B0 has 4 slots {u16 handle, u8 loaded, u8 id}. Nothing when a
-   loaded slot (loaded != 0) has id m (0x5D7D); else the first slot with loaded == 0 (0x5DB1; none: nothing) gets
-   handle = 5EB5(m) (0x5DEE), and only when that is nonzero also id = m (0x5E02) and loaded = 0xFF (0x5E0F). 5EB5 loads
-   name[m] + ".lzw" (table 3EF0) and returns its DOS segment, or returns 0 at once when the sound is off ([3EEC] == 0,
-   word compare) and m < 0x11 (unsigned). The port loads nothing: it writes handle = 1 in place of the segment and takes
-   the load as successful (G: the file is in its archive and 863E finds the memory). From OVL0 [3EEC] is 0 (V), so in a
-   port game started with --play or a .CSV only the 0 handle is written, as in the original with the sound off; DS
-   images captured in DOSBox have [3EEC] = FFFF (V) and then the slot is taken as in the original. */
-void music_load_5D73(uint8_t m) {                  /* also naval.c (BF50 loads cn9a..cn9d) */
-    for (int i = 0; i < 4; i++)
-        if (B(0xA6B2 + 4 * i) != 0 && B(0xA6B3 + 4 * i) == m) return;
-    int k = 0;
-    while (k < 4 && B(0xA6B2 + 4 * k) != 0) k++;
-    if (k == 4) return;
-    uint16_t h = (W(0x3EEC) != 0 || m >= 0x11) ? 1 : 0;
-    setW(0xA6B0 + 4 * k, h);
-    if (h == 0) return;
-    B(0xA6B3 + 4 * k) = m;
-    B(0xA6B2 + 4 * k) = 0xFF;
-}
-/* 0x5D29 music_play(m): 5D73(m) first; then, when [3EEE] != m, every slot i 0..3 whose id DS:A6B3[4i] is m (the loaded
-   byte is not tested) is started (072E, the driver: not ported) and [3EEE] = m. Also used by nego.c (CN6, music 8). */
-void music_play_5D29(uint8_t m) {
-    music_load_5D73(m);
-    if (B(0x3EEE) == m) return;
-    for (int i = 0; i < 4; i++)
-        if (B(0xA6B3 + 4 * i) == m) B(0x3EEE) = m;
-}
-
-/* 0x494A map_build(z): 1D55(0) (cursor, not ported); the MAP picture (archive 5, loaded once: the port keeps it, the
+/* 0x494A map_build(z): 1D55(0); the MAP picture (archive 5, loaded once: the port keeps it, the
    original tests [254]); mouse range x 0..311 (06E4), y 0..185 (0709); z != FFh: pointer to the anchor of z (066A);
    67E4 (draw into the work buffer); 8790 (the picture); 22CC; for each province k 0..26 with status +0x15 != 0:
    22EA(seed DS:3C52[k], colour 9); 22E2; 4A24([634C]); 4AA6; 2AF8; 423A; 53BC; 680F; 6973(0, 0, 319, 199) (work buffer
-   to the screen); 5D29(1) (the map music: its DS part); 1D8A. */
+   to the screen); 5D29(1) (the map music, CN2); 1D8A. */
 void map_build(int z) {
+    cursor_push_1D55(0);                                              /* 0x4955 */
     map_image_load();
     setW(0xBC, 0); setW(0xC0, 0x137);
     setW(0xBE, 0); setW(0xC2, 0xB9);
@@ -293,8 +287,10 @@ void map_build(int z) {
     fleet_icons();
     legion_icons();
     army_icons();
-    memcpy(g_scr, g_wrk, sizeof(g_scr));
+    memmove(&g_ds[0xC0D0], &g_ds[0x9AB6], 18);                       /* 680F: the screen is the target (the cursor's) */
+    restore6973_rect((ui_box_t){ 0, 0, 0x13F, 0xC7 });               /* 6973(0, 0, 319, 199) */
     music_play_5D29(1);
+    cursor_pop_1D8A();                                                /* 0x4A19 */
     screen_present();
 }
 
@@ -326,8 +322,6 @@ int zone_at_raw(int x, int y) { return zone_run(x, y); }
 static int in_rect8238(uint16_t r, int x, int y) {
     return x >= SW(r) && x <= SW(r + 4) && y >= SW(r + 2) && y <= SW(r + 6);
 }
-/* 0x5D20 music_stop: [3EEE] = FFh (current music), then the driver (not ported) */
-static void music_stop(void) { B(0x3EEE) = 0xFF; }
 
 /* 0x08EF..0x0919: the right button on a zone: legions there (0x3BAF "Select Legion", 0x3F23, 0x3EA3, 0x382A) */
 static void right_button(int btn, uint8_t z) {
@@ -339,7 +333,7 @@ static void right_button(int btn, uint8_t z) {
     legions_move(l);
 }
 
-/* main 0x07C5..0x07EE (the end of the start-up: [9AFA] = 0, 7E74 fill (0, 0)-(319, 199), 494A(0), 1CCE cursor shown)
+/* main 0x07C5..0x07EE (the end of the start-up: [9AFA] = 0, 7E74 fill (0, 0)-(319, 199), 494A(0), 0x07E9 1CCE cursor shown)
    and the map loop 0x07EF..0x09B9. Returns where the original calls 0x0EE7 exit_game(0). The port also leaves when the
    window is closed or the script has ended (screen_quit()). */
 void map_loop(void) {
@@ -347,13 +341,14 @@ void map_loop(void) {
     setW(0x9AFA, 0);
     memset(g_scr, 0, sizeof(g_scr));
     map_build(0);
+    cursor_show_1CCE();                                   /* 0x07E9 */
     while (!quit && !screen_quit()) {                     /* 0x09A7 */
         int btn = wait_input();                           /* 0x07EF, [bp-5] */
         if (btn != 0) {
             int x = SW(0xB6), y = SW(0xB8);
             if (in_rect8238(0x3C42, x, y)) end_turn();    /* 0x080F */
             else if (in_rect8238(0x3C4A, x, y)) {         /* 0x0828: the year button = Game Control */
-                music_stop();
+                music_stop_5D20();
                 quit = game_control_menu();
                 map_build(0xFF);
             } else {
@@ -362,7 +357,7 @@ void map_loop(void) {
                     if (B(0x5285 + 32 * z) != 0) {        /* a Roman province */
                         B(0xC080) = z;
                         if (btn == 1) {
-                            music_stop();
+                            music_stop_5D20();
                             if (z == 0) rome_screen(); else province_screen(z);
                         } else right_button(btn, z);
                     } else zone_info(z);                  /* 0x087F */
@@ -383,7 +378,7 @@ void map_loop(void) {
         } else {                                          /* 0x091B: toupper([C07F]) (9DDC) */
             int key = toupper(B(0xC07F));
             switch (key) {
-            case 0x1B: music_stop(); quit = game_control_menu(); map_build(0xFF); break;   /* 0x0828 */
+            case 0x1B: music_stop_5D20(); quit = game_control_menu(); map_build(0xFF); break;   /* 0x0828 */
             case 'E': end_turn(); break;                                                    /* 0x080F */
             case 'F': fleet_list(); break;                                                  /* 0x2FD6 */
             case 'L': legion_list(); break;                                                 /* 0x4280 */

@@ -10,8 +10,15 @@
  *
  * Input sources: the window (sdl2_platform.c) or a script (headless tests, screen_script()). The port always has a
  * mouse: W(0x00BA) = FFFF in every snapshot, and the keyboard-only paths (the keyboard cursor of 0x3603, 0x5901) are
- * not ported. Not ported either: the mouse cursor sprite 0x1BE6 / 0x1D55 / 0x1D8A (the window shows the system
- * pointer) and the music toggle that the INT 9 hook does on Ctrl+S (03FF; the key itself is swallowed as 0x03AA does).
+ * not ported. The INT 9 hook's Ctrl+S music toggle (03FF) is music.c's, called from the platform's event loop (2026-11-17);
+ * the key itself is swallowed as 0x03AA does.
+ *
+ * The mouse cursor (2026-11-17, docs/CURSOR_NOTES.md): the game's own software arrow, 1BE6 move / 1CCE show / 1D19 hide /
+ * 1D55 push / 1D8A pop with the save-under 86B2 / 8790, drawn into the current target like the EXE (D; V: the naval
+ * resume BB7E -> 2C27 is pixel-exact with it). It moves only where the EXE's wait loops call 1BE6 (359B, 35DB, 2900,
+ * the gladiators' card grid), so in a window it stands still while the game computes, as in DOSBox. The system pointer
+ * is hidden once the arrow is first drawn in a window. Not drawn: the land battle's screens (battle_ui.c keeps the
+ * system pointer, see there). No 1990 bug, no Easter egg in it.
  *
  * Real-time loops (the naval battle, naval.c) add three things, none of which changes how an older script runs:
  *   - script lines "hold KEY N" (KEY = up, down, left, right, home, pgup, end, pgdn): that direction key is held for the
@@ -263,13 +270,106 @@ static void pump_input(void) {
         int c = k;
         if (k == '=' && shift && g_in.key_down['+']) continue;   /* the platform also sets '+' for Shift+'=' */
         if (k == 0x7F) continue;                                   /* Delete: AL = 0 */
-        if (k >= 'a' && k <= 'z') c = ctrl ? (k & 0x1F) : (shift ^ caps) ? k - 0x20 : k;
+        if (g_in.key_down[k] == 2) c = k;                         /* the keypad: the BIOS's code as it is (platform.h) */
+        else if (k >= 'a' && k <= 'z') c = ctrl ? (k & 0x1F) : (shift ^ caps) ? k - 0x20 : k;
         else if (shift && k >= 0x20) c = us_shift(k);
         if (g_kn < KBUF) g_kbuf[g_kn++] = (uint8_t)c;
     }
 }
 
 void screen_present(void) { pump(); }
+
+/* ---- the mouse cursor: EXE 0x1BE6 / 0x1CCE / 0x1D19 / 0x1D55 / 0x1D8A (docs/CURSOR_NOTES.md sections 2-4, D) ----
+   DS: [680] / [682] = where it is drawn (the hot spot), [684] = its sprite descriptor (set once at start-up by 1DF5 to
+   [C0E2] = INIT entry 0, the 11x16 arrow, CE48), [686] = visible (0 / FFFF), [68A] = depth of the visibility stack
+   DS:A674 (30 bytes). The save-under {A692 offset, A694 segment, A696 width 24, A698 rows 16} is the port's g_under (the
+   DOS block 3929:0000 of the captures). Everything is drawn into the current target [C0D0], as the EXE does: segment
+   [C0D4] A000 = g_scr, else the work buffer g_wrk (a DS whose start-up never set the descriptor has 0 there: the screen).
+   84BB (1BE6's wait for the vertical retrace) has nothing to do in the port. */
+static uint8_t g_under[24 * 16];
+static int g_pointer_off;                    /* the window's system pointer is hidden (the arrow is drawn) */
+static uint8_t *cur_target(void) { return (W(0xC0D4) == 0xA000 || W(0xC0D4) == 0) ? g_scr : g_wrk; }
+static int cur_hx(void) { return SW((uint16_t)(W(0x684) + 2)); }
+static int cur_hy(void) { return SW((uint16_t)(W(0x684) + 4)); }
+/* 86B2 -> 8730 (VGA): 16 rows of 24 bytes from (x, y) on, with no clipping at all: past x 319 it reads on into the next
+   row, past row 199 the off-screen video memory (0 in DOSBox, V: mem_narbonensis_province_640k; 0 here) */
+static void save86b2(int x, int y) {
+    const uint8_t *fb = cur_target();
+    long o = (long)y * SCREEN_W + x;
+    for (int r = 0; r < 16; r++, o += SCREEN_W)
+        for (int c = 0; c < 24; c++) g_under[24 * r + c] = (o + c >= 0 && o + c < SCREEN_W * SCREEN_H) ? fb[o + c] : 0;
+}
+/* 8790 -> 8840 (VGA): back to (x, y), clipped at the right edge (cut = 24 + x - 320) and the bottom (rows = 200 - y, at
+   most 16); no left / top clipping (the hot spot is (0, 0) and every mouse range starts at 0) */
+static void restore8790(int x, int y) {
+    uint8_t *fb = cur_target();
+    int cut = 24 + x - SCREEN_W, rows = SCREEN_H - y;
+    if (cut < 0) cut = 0;
+    if (rows > 16) rows = 16;
+    if (rows <= 0 || cut >= 24 || x < 0 || y < 0) return;      /* the port: never out of the picture */
+    for (int r = 0; r < rows; r++) memcpy(&fb[(y + r) * SCREEN_W + x], &g_under[24 * r], (size_t)(24 - cut));
+}
+/* 8E62(W(684), x, y): the arrow (map.c's sprite blitter, INIT sheet; clipped to the picture) */
+static void sprite_arrow(int x, int y) {
+    map_sprite_8e62(cur_target(), W(0x684), x, y);
+    if (g_window && !g_pointer_off) { platform_pointer(0); g_pointer_off = 1; }
+}
+/* 0x1BE6(x, y): hidden -> nothing (the position is not taken); not moved -> nothing; else restore the old box, save the
+   new one, draw, [686] = FFFF, [680] = x, [682] = y */
+void cursor_move_1BE6(int x, int y) {
+    if (W(0x686) == 0) return;
+    if (SW(0x680) == x && SW(0x682) == y) return;
+    int hx = cur_hx(), hy = cur_hy();
+    if (W(0x686)) restore8790(SW(0x680) - hx, SW(0x682) - hy);
+    save86b2(x - hx, y - hy);
+    sprite_arrow(x, y);
+    setW(0x686, 0xFFFF); setW(0x680, (uint16_t)x); setW(0x682, (uint16_t)y);
+}
+/* 0x1CCE show: if hidden, save the box at [680] / [682] and draw */
+void cursor_show_1CCE(void) {
+    if (W(0x686) != 0) return;
+    save86b2(SW(0x680) - cur_hx(), SW(0x682) - cur_hy());
+    sprite_arrow(SW(0x680), SW(0x682));
+    setW(0x686, 0xFFFF);
+}
+/* 0x1D19 hide: if visible, the box back */
+void cursor_hide_1D19(void) {
+    if (W(0x686) == 0) return;
+    restore8790(SW(0x680) - cur_hx(), SW(0x682) - cur_hy());
+    setW(0x686, 0);
+}
+/* 0x1D55(n): at depth 30 nothing at all (not even the hide / show: a quirk, kept; the deepest stack seen is 3); else push
+   the low byte of [686], then n = 1 show, 0 hide, any other n (2, End Turn 0x09CB) keeps the state */
+void cursor_push_1D55(int n) {
+    if (B(0x68A) >= 30) return;
+    B((uint16_t)(0xA674 + B(0x68A))) = (uint8_t)W(0x686);
+    B(0x68A)++;
+    if (n == 1) cursor_show_1CCE();
+    else if (n == 0) cursor_hide_1D19();
+}
+/* 0x1D8A pop: depth - 1; hide if visible; [686] = the pushed byte sign-extended (the entry is not cleared); if that is
+   nonzero, 1CCE's body inline (no test of [686] first): save and draw at the old [680] / [682] */
+void cursor_pop_1D8A(void) {
+    if (B(0x68A) == 0) return;
+    B(0x68A)--;
+    if (W(0x686)) cursor_hide_1D19();
+    setW(0x686, (uint16_t)(int16_t)(int8_t)B((uint16_t)(0xA674 + B(0x68A))));
+    if (W(0x686)) {
+        save86b2(SW(0x680) - cur_hx(), SW(0x682) - cur_hy());
+        sprite_arrow(SW(0x680), SW(0x682));
+        setW(0x686, 0xFFFF);
+    }
+}
+/* TEST HOOK (main.c, a resume from a DOSBox snapshot): the snapshots do not hold the save-under (3929:0000), so with the
+   arrow visible ([686] != 0) it is filled from the loaded screen's box at [680] / [682] (arrow included: a hide then puts
+   the captured arrow back, exact for every resume of tools/dosbox/results/naval, CURSOR_NOTES 7; G for a resume that would
+   move the arrow before that area is redrawn) */
+void cursor_seed(void) {
+    if (W(0x686)) save86b2(SW(0x680) - cur_hx(), SW(0x682) - cur_hy());
+}
+/* 691B / 6973 (screen <-> work buffer copies) bracket their copy with 1D55(0) ... 1D8A (0x693C / 0x696A, 0x6994 / 0x69C2) */
+void save691b_rect(ui_box_t r) { cursor_push_1D55(0); ui_copy_rect(g_wrk, g_scr, r); cursor_pop_1D8A(); }
+void restore6973_rect(ui_box_t r) { cursor_push_1D55(0); ui_copy_rect(g_scr, g_wrk, r); cursor_pop_1D8A(); }
 
 /* ---- the original's input routines ---- */
 /* 0x0644 mouse poll: [B2] = buttons, [B6] = x, [B8] = y (INT 33h fn 3). take = the poll of 0x359B, which may take the
@@ -402,7 +502,8 @@ int wait_input(void) {
         }
         if (g_quit) { B(0xC07F) = 0; return 0; }
         if (g_wait > 0) g_wait = 0;                            /* script: a "wait" passes while the game blocks for input */
-        poll0644(1);                                           /* 0x35A5 (+ 0x1BE6 cursor, not ported) */
+        poll0644(1);                                           /* 0x35A5 */
+        cursor_move_1BE6(SW(0xB6), SW(0xB8));                  /* 0x35B0 */
         int k = (g_scripted && W(0xB2)) ? 0 : key3603();       /* script: a click and a key are never taken in one poll */
         if (k) { B(0xC07F) = (uint8_t)k; return 0; }
         if (g_window && !W(0xB2)) platform_sleep_ms(5);
@@ -414,6 +515,7 @@ void wait_release(void) {
     while (W(0xB2) != 0) {
         if (g_quit) { setW(0xB2, 0); break; }
         poll0644(0);
+        cursor_move_1BE6(SW(0xB6), SW(0xB8));                  /* 0x35EB */
         if (g_window && W(0xB2)) platform_sleep_ms(5);
     }
 }
@@ -431,12 +533,14 @@ void wait_click(void) {
    NULL does nothing; "" still shows a box. */
 void message_box(const char *s) {
     if (!s) return;
+    cursor_push_1D55(0);                                       /* 0x59E8: hidden, also during the click wait */
     ui_box_t r = ui_text_rect(s, ui_text_advance(ui_click_text()), 1, 0x9F, 0x63);
     r.x0 -= 7; r.y0 -= 7; r.x1 += 7; r.y1 += 7;
-    ui_copy_rect(g_wrk, g_scr, r);                             /* 691B */
+    save691b_rect(r);                                          /* 691B */
     ui_message_draw(g_scr, s);
     wait_click();                                              /* 35F9 */
-    ui_copy_rect(g_scr, g_wrk, r);                             /* 6973 */
+    restore6973_rect(r);                                       /* 6973 */
+    cursor_pop_1D8A();                                         /* 0x5A8F */
     if (g_window) pump();
 }
 
@@ -452,22 +556,28 @@ void menu_load_ds(menu_t *m, uint16_t rec) {
    of the input). */
 static int menu_run54c8(const menu_t *m) {
     int r;
+    cursor_push_1D55(1);                                       /* 0x54DB: shown while the menu waits */
     wait_release();
     do {
         int b = wait_input();
-        if (b == 0 && g_quit) return -1;
+        if (b == 0 && g_quit) { cursor_pop_1D8A(); return -1; }
         r = b == 1 ? ui_menu_hit(m, SW(0xB6), SW(0xB8)) : ui_menu_hotkey(m, B(0xC07F));
     } while (r == -2);
-    ui_menu_highlight(g_scr, m, r, 1);
+    scr_menu_mark585b(m, r, 1);
     wait_release();
+    cursor_pop_1D8A();                                         /* 0x5513 */
     return r;
 }
+/* 0x5614 menu_draw(rec, mode) and 0x585B mark(rec, item, on) on the screen, each between 1D55(0) and 1D8A (0x5622 /
+   0x56AB, 0x5873 / 0x58F6) */
+void scr_menu_draw5614(const menu_t *m, int mode) { cursor_push_1D55(0); ui_menu_draw_mode(g_scr, m, mode, -1); cursor_pop_1D8A(); }
+void scr_menu_mark585b(const menu_t *m, int item, int on) { cursor_push_1D55(0); ui_menu_highlight(g_scr, m, item, on); cursor_pop_1D8A(); }
 
 /* 0x5614 menu_draw(rec, mode) (mode < 0: not drawn, the caller drew it), the caller's 0x585B(rec, pre, ON) for pre >= 0
    (0x1A31 / 0x1B63 / 0x7D21 / 0x7D76 show the current setting so), then 0x54C8. Index, or -1 for Esc. */
 int menu_choose(menu_t *m, int mode, int pre) {
-    if (mode >= 0) ui_menu_draw_mode(g_scr, m, mode, -1);
-    if (pre >= 0) ui_menu_highlight(g_scr, m, pre, 1);
+    if (mode >= 0) scr_menu_draw5614(m, mode);
+    if (pre >= 0) scr_menu_mark585b(m, pre, 1);
     return menu_run54c8(m);
 }
 
@@ -479,6 +589,7 @@ int menu_choose(menu_t *m, int mode, int pre) {
    691B(X0, Y0, X1, Y1); 5614(3E5A, 2); [9B69] = 15, 8BE4(s, (X0 + X1) / 2, Y0 + 7); r = 54C8(3E5A, 1); 6973; 1D8A.
    Returns 1 for Yes (r == 0: cmp r, 1; sbb; neg), 0 for No or Esc. */
 int yes_no(const char *s) {
+    cursor_push_1D55(0);                                       /* 0x5C2B */
     ui_box_t r = ui_text_rect(s, 0x4A, 1, 0x9F, 0x63);
     setW(0x3E5A, (uint16_t)r.x0); setW(0x3E5C, (uint16_t)r.y0); setW(0x3E5E, (uint16_t)r.x1); setW(0x3E60, (uint16_t)r.y1);
     setW(0x3E5E, (uint16_t)(W(0x3E5E) + 7));
@@ -496,13 +607,14 @@ int yes_no(const char *s) {
     setW(0x3E54, (uint16_t)(h - 0x10)); setW(0x3E48, (uint16_t)(h - 0x10));
     setW(0x3E58, (uint16_t)(h - 6));    setW(0x3E4C, (uint16_t)(h - 6));
     ui_box_t box = { X0, Y0, X1, Y1 };
-    ui_copy_rect(g_wrk, g_scr, box);                           /* 691B */
+    save691b_rect(box);                                        /* 691B */
     menu_t m;
     menu_load_ds(&m, 0x3E5A);
-    ui_menu_draw_mode(g_scr, &m, 2, -1);                       /* 5614(3E5A, 2) */
+    scr_menu_draw5614(&m, 2);                                  /* 5614(3E5A, 2) */
     ui_text_block(g_scr, cdiv2(X1 + X0), Y0 + 7, s, 15);       /* 8BE4 in white */
     int a = menu_run54c8(&m);                                  /* 54C8(3E5A, 1) */
-    ui_copy_rect(g_scr, g_wrk, box);                           /* 6973 */
+    restore6973_rect(box);                                     /* 6973 */
+    cursor_pop_1D8A();                                         /* 0x5D0C */
     if (g_window) pump();
     return a == 0;
 }

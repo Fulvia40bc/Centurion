@@ -228,7 +228,7 @@ of every frame (V by eye).
 - **D11B:** arrows against the circles.
 - **BA7A:** the corvus tip, via D070.
 
-## 6. Music CN9A..CN9D (D for the use; the song format is the sound overlay's, not decoded)
+## 6. Music CN9A..CN9D (D for the use; the song format and the AdLib driver: docs/MUSIC_NOTES.md)
 
 Music table DS:3EF0 ({name, archive}): 13 cn9a, 14 cn9b, 15 cn9c, 16 cn9d, all archive 8.
 - **Loading:** BF50 loads all four (5D73 of DS:9705..9708 = 0D 0E 0F 10) and starts 13.
@@ -239,7 +239,7 @@ Music table DS:3EF0 ({name, archive}): 13 cn9a, 14 cn9b, 15 cn9c, 16 cn9d, all a
   question (B3BA, B41C).
 - **Leaving:** BD8A unloads song 1 (the map music) when the battle starts. C34F stops the music and unloads 13..16.
 - **Data:** every CN9 starts `7F 00 00 ...`, the same header as CN6 (NEGO_DATA_NOTES sec. 6).
-- **Port:** the port only needs the DS bookkeeping of map.c's music_load_5D73 / music_play_5D29.
+- **Port:** music.c (2026-11-17): the DS bookkeeping and, in a window game, the driver and the sound.
 
 ## 7. Erik's report: what the data side shows (D)
 
@@ -283,7 +283,7 @@ Music table DS:3EF0 ({name, archive}): 13 cn9a, 14 cn9b, 15 cn9c, 16 cn9d, all a
 - **Corvus offsets:** the exact meaning of the corvus base offset tables 95F4/9624/9654/9684 (x/y per size x heading for
   the two sides).
 - **Speed level names:** where the speed level names DS:9830.. are drawn (C71B panel?).
-- **CN9 song format:** sound overlay.
+- **CN9 song format:** decoded, docs/MUSIC_NOTES.md (closed 2026-11-17).
 
 ## 10. Easter eggs and jokes (report to Erik)
 - **The shark:** after a flagship sinks, a little black fin circles the wreck, with a 1-in-10 chance per loop to dive.

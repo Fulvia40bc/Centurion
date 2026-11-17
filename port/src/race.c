@@ -59,6 +59,9 @@
  *      Slave), and the leader's lap C350 goes past 3, so D392 draws laps frames 4, 5, ... past the end of the 4-frame
  *      LAPS sheet (whatever follows the descriptors in 1990; nothing in the port). Fix: racing = laps < 3, and the lap
  *      counter frame at most 3.
+ *  14. The last pixel of RACEEST.CBM (319,199) (docs/FRAME_DIFF_NOTES.md 3; D, V): the picture loader 13F8 / 88A7
+ *      expands in place and re-reads the last packed byte after writing over it, so the game shows t[t[hi] & 15] = 0x36
+ *      there instead of t[lo] = 0x2C (V: scr_chariot_race.bin). Fix: the picture as packed (race_gfx.c rc_picture_13A8).
  * Kept (D, quirks or design): the 3rd place lengthening the odds like a loss (cb41 falls into cb48); the Emperor without
  * skill drift (cb61, no case 3; skill is not used at Senator / Emperor); the dead leader branch (dbfd); the one-point gaps of
  * the curve zones; the step frozen in the curve approach; a crashing chariot that can still finish; the bribe that may do
@@ -79,8 +82,8 @@
  *     the bribed driver loses rng(10) = 0..9 top speed (c7d4..c7e5) and stays at 101..110, above the player's 100, and
  *     the AI is otherwise unchanged. A fix would need a design (none proposed; RACE_LOGIC_NOTES 11.15).
  *
- * PORT ADDITIONS: the mouse cursor (1D19 / 1CCE ...) and the disk prompt 1E21 are not drawn; music is the DS part only
- * (map.c / naval.c). The credits of the victory sequence (section 1 B9A1, thunk B0CE) are in credits.c. When
+ * PORT ADDITIONS: the mouse cursor is screen.c's (DF5E's 1D19, and 5614 / 585B / 691B / 6973 hide it while they draw);
+ * the disk prompt 1E21 is not drawn; the music calls are music.c's. The credits of the victory sequence (section 1 B9A1, thunk B0CE) are in credits.c. When
  * the input ends (window closed, script run out): at a pre-race menu the race is cancelled as by "Exit" + Yes (C70F); in the
  * parades and the crash scene as by a key; in the race the race stops and the result (C9B6) is skipped (154E is written
  * and the bet paid, as d09e / c5bd come before). The original has no way out of the race.
@@ -107,7 +110,6 @@
 #define RACE_INTERNAL
 #include "race.h"
 
-void music_load_5D73(uint8_t m);          /* map.c (the DS part of 5D73) */
 void gl_box_3233(int x0, int y0, int x1, int y1, int c);   /* glad_gfx.c: EXE 3233 (glad.h's names clash with race.h's) */
 void province_frame30e6(int x, int y);    /* province.c: 0x30E6 on the screen */
 void province_panel3512(void);            /* province.c: 0x3512 on the screen */
@@ -131,22 +133,15 @@ static void ds_cpy(uint16_t d, const char *s) { char t[1024]; snprintf(t, sizeof
 static void ds_cat_num(uint16_t d, long v) { char b[24]; snprintf(b, sizeof(b), "%ld", v); ds_cat(d, b); }   /* 9FDC / A022 + 9DF2 */
 static int sub_050F(int v, int step, int lim) { int r = (int16_t)(v - step); return r < lim ? lim : r; }
 
-/* ---------------------------------------------------------------- music (the DS part, as naval.c / glad.c) */
-static void music_stop_5D20(void) { B(0x3EEE) = 0xFF; }
-static void music_unload_5E1A(uint8_t n) {
-    for (int i = 0; i < 4; i++) {
-        if (B(0xA6B2 + 4 * i) == 0 || B(0xA6B3 + 4 * i) != n) continue;
-        setW((uint16_t)(0xA6B0 + 4 * i), 0); B(0xA6B2 + 4 * i) = 0; B(0xA6B3 + 4 * i) = 0xFF; B(0x3EEE) = 0xFF;
-        break;
-    }
-}
 
 /* ---------------------------------------------------------------- menus (5614 / 54C8 / 585B on the screen) */
 static void menu_draw_5614(uint16_t rec, int mode) {
     menu_t m;
     menu_load_ds(&m, rec);
+    cursor_push_1D55(0);                                             /* 0x5622 */
     if (mode == 1) { province_frame30e6(m.x, m.y); ui_menu_draw_mode(g_scr, &m, 0, -1); }
     else ui_menu_draw_mode(g_scr, &m, mode, -1);
+    cursor_pop_1D8A();                                               /* 0x56AB */
 }
 static uint16_t menu_run_54C8(uint16_t rec) {
     menu_t m;
@@ -157,7 +152,7 @@ static uint16_t menu_run_54C8(uint16_t rec) {
 static void menu_mark_585B(uint16_t rec, uint16_t item, int on) {
     menu_t m;
     menu_load_ds(&m, rec);
-    ui_menu_highlight(g_scr, &m, item, on);                          /* FF (Esc): nothing (G for 1990) */
+    scr_menu_mark585b(&m, item, on);                                 /* FF (Esc): nothing (G for 1990) */
 }
 
 /* ---------------------------------------------------------------- the sprite trees */
@@ -1369,7 +1364,7 @@ static void stats_box(int lh) {
     const char *s = dstr(0xAC60);
     ui_box_t r = ui_text_rect(s, 0, 1, 0x9F, 0x63);
     r.x0 -= 7; r.y0 -= 7; r.x1 += 7; r.y1 += 7;
-    ui_copy_rect(g_wrk, g_scr, r);
+    save691b_rect(r);
     ui_box(g_scr, r.x0, r.y0, r.x1, r.y1, SW(0x6346));
     setW(0x9B69, 0);
     int cx = (int16_t)(r.x1 + r.x0) / 2;
@@ -1378,7 +1373,7 @@ static void stats_box(int lh) {
     ui_text_block(g_scr, cx, r.y1 - lh - 5, ui_click_text(), 0xF);
     if (!screen_headless()) screen_present();
     wait_click();
-    ui_copy_rect(g_scr, g_wrk, r);
+    restore6973_rect(r);
     if (!screen_headless()) screen_present();
 }
 static long l32(uint16_t lo) { return (long)(int32_t)((uint32_t)W(lo) | (uint32_t)W(lo + 2) << 16); }
@@ -1456,7 +1451,7 @@ void race_victory_df58(void) {
     if (W(0xC1DE) == 0) { memmove(&g_ds[0xC1DA], &g_ds[0x9AB6], 18); setW(0xC1DE, 0x2687); }
     nv_target_screen_680F();
     music_load_5D73(0);
-    /* 1D19 cursor hide (not ported) */
+    cursor_hide_1D19();                                              /* df5e */
     stats_DF74();
     gallery_BDA4();
     parade_BF6A(1);

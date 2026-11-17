@@ -52,7 +52,9 @@ int gl_picture_13A8(void) {
     uint8_t *px = cbm_member(dstr(W(0x0250 + 8 * 4)), &w, &h, &xo, &yo, &tr, &lut);
     if (!px) { fprintf(stderr, "glad: %s missing\n", dstr(W(0x0250 + 8 * 4))); return 0; }
     const uint8_t *t = assets_lut(lut);
+    uint8_t last = t ? t[t[px[w * h - 2] & 15] & 15] : px[w * h - 1];   /* glad.c bug 8: 88A7's in-place last pixel */
     for (int i = 0; i < w * h; i++) px[i] = t ? t[px[i] & 15] : px[i];
+    if (g_original_bugs) px[w * h - 1] = last;                          /* ARENABTM: 242, not 55 (D) */
     g_btm = px; g_btm_w = w; g_btm_h = h;
     return 1;
 }

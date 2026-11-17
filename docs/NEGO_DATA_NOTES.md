@@ -252,7 +252,7 @@ beard. W Britannia (Caswallon): horned helmet and a spear. **X Narbonensis (Galb
 Y Scythia (Chrysogones): fur-trimmed hood. Z Sarmatia (Malodor the Impaler): long hair and beard, bare-chested.
 PNGs (scratch): `...\scratchpad\nego\png\leader?.cbm.png`, sheets `leaders_AI.png`, `leaders_JR.png`, `leaders_SZ.png`.
 
-## 6. CN6.LZW: music (D for the use, format not decoded)
+## 6. CN6.LZW: music (D for the use; the format and the driver are decoded in docs/MUSIC_NOTES.md, played by port/src/music.c)
 DS:3EF8 is the song table, 4 bytes per song {name pointer, archive}: 0 cn1 (3), 1 cn2 (5), 2 cn3a (0), 3 cn3b (0), 4..7 cn4a..cn4d
 (6), **8 cn6 (7 = MNEGO)**, 9 cn7a (2), ... cn9d, then "speaker", "adl" (driver names). 0x5D29(n) plays song n (loads it via 5D73,
 then the overlay driver 072E); 0x5E1A(n) unloads. In the EXE, song 8 is played only at 62CC (Cleopatra's feast) and unloaded at
@@ -310,7 +310,7 @@ horned helmet (anachronistic Viking cliche, G). Mild nudity in LOVE1 0 and LOVE2
 - 5AE4's box and wrapping for the speech area (TEXTBOX_NOTES) were not re-checked here.
 - 0x00F8 and 0x01AE (timer reset / ticks) in 4852 and 6443: G from use.
 - The exact meaning of `P+0x0E` in the mood rule (GAMELOOP_NOTES calls it unrest, G).
-- CN6 / song format.
+- CN6 / song format: decoded, docs/MUSIC_NOTES.md (closed 2026-11-17).
 - Whether [634E] can reach 102 (mood 3 would overrun the A table).
 
 ## 11. Scripts (scratch, not in the repo)

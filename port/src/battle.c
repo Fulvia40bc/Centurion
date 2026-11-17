@@ -6,14 +6,35 @@
  * strength snapshot (C296), the 48x48 grid (C2AE) and the tactics buffer (76EA) are "calloc"ed at fixed DS addresses below,
  * so out-of-range reads behave as in the original (they read whatever DS holds there).
  *
- * Not here yet: graphics and the orders mode (D0F2..DC72). Orders are applied through battle_orders_hook at the point where
- * the original polls for them (after each tick), so a recorded battle can be replayed. The report is printed on stderr.
+ * Not here: graphics and the orders mode (D0F2..DC72, battle_ui.c). Orders are applied through battle_orders_hook at the
+ * point where the original polls for them (after each tick), so a recorded battle can be replayed. The report is printed
+ * on stderr too.
+ *
+ * 2026-11-17: the battle's call of EXE 0x4733 at E58E..E5AA is ported (docs/GAPS_NOTES.md gap 1): when the legion's
+ * general fell in the battle (commander status 2) and the legion still exists, a new commander is rolled and announced
+ * ("<name> is assigned\nto command <numeral><legion>"). Before, the legion kept its dead commander (no morale bonus, no
+ * voice for orders in its later battles) and every later dice roll was one off. 1990 quirk kept (G that it is
+ * unintended, no game text contradicts it): with no commander free, 4733 frees every commander not on duty, the fallen
+ * included, so the general who just died can be "assigned" to his own legion again. DF24's cursor push / pop (DF50,
+ * DFB1 / E20C) are made around the whole battle (screen.c).
+ *
+ * 2026-11-17, the music (music.c, docs/MUSIC_NOTES.md 4): DF31 stop; BEC2 / BECD load the fanfare C2A6 and the battle
+ * song C2A7 (CN7A / CN7B against the barbarians, CN8A / CN8B else); BF28 / BFA9 unload both when the set-up is left
+ * (C153 failed, Esc in a menu); E052 when [3EE9] == FFh (the music on): timer 2, play the fanfare and wait until 432
+ * ticks (5.93 s) have passed; E077 play the battle song; E236 stop (E21A's start); E4ED the fanfare again at the report;
+ * E1F4 stop and unload both. PORT: the E052 wait is also made only when the port's driver runs (music_on()): a DOSBox
+ * snapshot's DS has [3EE9] = FF, and a headless battle must not wait or move the clock DS:42 (no sound to wait for).
  */
 #include <stdio.h>
 #include <string.h>
 #include "state.h"
 #include "assets.h"
+#include "platform.h"
 #include "screen.h"   /* battle_auto: g_battle_ui_attached, screen_scripted() */
+
+void     nv_t_start_00D7(int n);          /* naval.c: EXE 00D7 / 0183, the timer slots; nv_tick one 72.8 Hz tick */
+uint16_t nv_t_since_0183(int n);
+void     nv_tick(void);
 
 #define UNITS   W(0xC292)
 #define NUNITS  W(0xC294)
@@ -557,8 +578,26 @@ void battle_report_text(int L, int won, char *out, size_t n) {
     for (size_t k = 0; k < sizeof(p) / sizeof(p[0]); k++) strncat(out, p[k], n - strlen(out) - 1);
 }
 
+/* 4733 at 47C6..480B, the message after assign_commander(L): AC60 = the new commander's name [1A1C + 6c] + DS:1F89
+   " is assigned\nto command " + 6738(legion +0x0A) (C072) + the legion's name; 59D4(AC60) = show(): each caller's own
+   way (the battle: battle_message_hook, drawn over the battle screen with its report, or stderr; End Turn 50E0 (enemy.c):
+   game_message; Legions (legions.c): legions_message). Nothing when the legion's +0x0D is FFh (474C). */
+void commander_msg_4733(int L, void (*show)(const char *s)) {
+    uint16_t leg = LEG(L);
+    if (B(leg + 0xD) == 0xFF) return;
+    char num[32];
+    roman_numeral(B(leg + 0xA), num);
+    strcpy((char *)&g_ds[0xC072], num);
+    strcpy((char *)&g_ds[0xAC60], dstr(W(0x1A1C + 6 * B(leg + 0x10))));
+    strcat((char *)&g_ds[0xAC60], dstr(0x1F89));
+    strcat((char *)&g_ds[0xAC60], dstr(0xC072));
+    strcat((char *)&g_ds[0xAC60], dstr(leg));
+    show(dstr(0xAC60));
+}
+
 static uint16_t result(int L, int Z) {                          /* E21A */
     uint16_t rc = 0, ri = 0, ec = 0, ee = 0, ei = 0, won = 0;
+    music_stop_5D20();                                          /* e236 */
     for (int i = 1; i < NUNITS; i++) {
         uint16_t u = U(i);
         if (W(u) == 0) continue;
@@ -600,6 +639,7 @@ static uint16_t result(int L, int Z) {                          /* E21A */
     {
         static char text[600];
         battle_report_text(L, won != 0, text, sizeof(text));
+        music_play_5D29(B(0xC2A6));                             /* e4ed: the fanfare again, as the box is drawn */
         if (battle_report_hook) battle_report_hook(won != 0, NULL, text, rcas, ecas, rsurv, esurv);
         fprintf(stderr, "battle: %s Legion %s met the army of %s. %s used %s against %s of %s.\n"
                         "battle: casualties Rome %u, %s %u; survivors %u, %u\n",
@@ -609,17 +649,23 @@ static uint16_t result(int L, int Z) {                          /* E21A */
     if (won) setW(0xC0FA, (uint16_t)(W(0xC0FA) + 1));
     uint32_t t = ((uint32_t)W(0xC088) << 16 | W(0xC086)) + rcas; setW(0xC086, (uint16_t)t); setW(0xC088, (uint16_t)(t >> 16));
     t = ((uint32_t)W(0xC084) << 16 | W(0xC082)) + ecas; setW(0xC082, (uint16_t)t); setW(0xC084, (uint16_t)(t >> 16));
-    if (B(CMDR + 4) == 2 && B(leg + 0xD) != 0xFF) {
-        g_enemy_unported = 1;
-        fprintf(stderr, "battle: the commander fell; a new one must be assigned (EXE 0x4733, not ported)\n");
+    if (B(CMDR + 4) == 2 && B(leg + 0xD) != 0xFF) {                /* E58E..E5AA: the general fell, the legion lives: 4733(L) */
+        assign_commander(L);                                        /* 4733's roll (076B) and record writes */
+        commander_msg_4733(L, message);                             /* 47C6..480B: "<name> is assigned\nto command ..." */
     }
-    return won;
+    return won;                                                     /* E5AD */
 }
 static uint16_t finish(int A, int L, int Z) {                  /* DF24 0xE000..0xE205 around the main loop */
     uint16_t leg = LEG(L);
     setW(0xC28E, B(leg + 0xF) == 0);
     if (B(0xC2A2)) { B(leg + 0xF) = 0xFF; setW(0xC290, 0); }
     B(0xAA4E) = B(0xAA4F) = 0; setW(0xC2B0, 0); setW(0xC2B2, 0);
+    if (B(0x3EE9) == 0xFF && music_on()) {                      /* E052: the fanfare heard whole (port: music_on) */
+        nv_t_start_00D7(2);                                     /* e05d */
+        music_play_5D29(B(0xC2A6));                             /* e064 */
+        while (nv_t_since_0183(2) < 0x1B0) { nv_tick(); platform_pump(); }   /* e06b: 432 ticks; the window kept alive */
+    }
+    music_play_5D29(B(0xC2A7));                                 /* e077: the battle song */
     fight();
     uint16_t ret = result(L, Z);
     if (W(0xC29A) != (uint16_t)Z) memcpy(&g_ds[(uint16_t)(0xC114 + 14 * A)], &g_ds[0xC29A], 12);
@@ -627,18 +673,32 @@ static uint16_t finish(int A, int L, int Z) {                  /* DF24 0xE000..0
         uint16_t p = (uint16_t)(Z << 5);
         setW(p + 0x5272, W(0xC29C)); B(p + 0x527C) = B(0xC2A2); setW(p + 0x5270, W(0xC29E));
     }
+    music_stop_5D20();                                          /* e1f4 */
+    music_unload_5E1A(B(0xC2A6));
+    music_unload_5E1A(B(0xC2A7));
     return ret;
 }
 
 /* Resume a battle captured at the Choose Formation menu (units built, enemy formation already rolled). */
 uint16_t battle_from_formation(int A, int L, int Z, uint8_t pf, uint8_t pt) {
-    if (!setup_after_formation(pf, pt)) return 0;    /* Esc in the tactic menu: nothing written back */
+    if (!setup_after_formation(pf, pt)) {                      /* Esc in the tactic menu: nothing written back */
+        music_unload_5E1A(B(0xC2A6)); music_unload_5E1A(B(0xC2A7));   /* c0c0 -> bfa9 */
+        return 0;
+    }
     return finish(A, L, Z);
 }
 
 /* The whole battle, EXE thunk 0xB06E -> DF24(A = army or 0xFF, L = legion, Z = zone); pf/pt = the player's menu choices.
    tactics = TACTICS.LZW from BATL.DAT, or NULL to use what DS:[76EA] already points at. Returns 0xFFFF = Rome won. */
+static uint16_t battle_df24(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tactics, size_t tactics_len);
 uint16_t battle(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tactics, size_t tactics_len) {
+    cursor_push_1D55(0);                                        /* DF50: hidden for the whole battle */
+    uint16_t r = battle_df24(A, L, Z, pf, pt, tactics, tactics_len);
+    cursor_pop_1D8A();                                          /* DFB1 / E20C, after the report and 4733 */
+    return r;
+}
+static uint16_t battle_df24(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tactics, size_t tactics_len) {
+    music_stop_5D20();                                          /* DF31 */
     B(0xC28C) = B(LEG(L) + 0x10);
     setW(0xC0F8, (uint16_t)(W(0xC0F8) + 1));
     if (A == 0xFF) {
@@ -666,11 +726,16 @@ uint16_t battle(int A, int L, int Z, uint8_t pf, uint8_t pt, const uint8_t *tact
         memcpy(&g_ds[DS_TACTICS], tactics, tactics_len); setW(0x76EA, DS_TACTICS);
     }
     if (battle_setup_hook) battle_setup_hook(Z);
-    if (!build_units(L)) return 0;
+    music_load_5D73(B(0xC2A6));                                 /* BEC2: the fanfare */
+    music_load_5D73(B(0xC2A7));                                 /* BECD: the battle song */
+    if (!build_units(L)) { music_unload_5E1A(B(0xC2A6)); music_unload_5E1A(B(0xC2A7)); return 0; }   /* BF28 */
     roll_enemy_formation();
     if (battle_menu_hook) {
         int r = battle_menu_hook(0);
-        if (r < 0) return 0;                           /* Esc in the formation menu: nothing written back */
+        if (r < 0) {                                   /* Esc in the formation menu: nothing written back */
+            music_unload_5E1A(B(0xC2A6)); music_unload_5E1A(B(0xC2A7));   /* BFA9 */
+            return 0;
+        }
         pf = (uint8_t)r;
     }
     return battle_from_formation(A, L, Z, pf, pt);
@@ -787,7 +852,8 @@ void battle_cmd_retreat(void) {                                 /* D77C "Run Awa
 
 /* EXE 0x4733: assign a free commander (status 1) to legion L at random; if none is free, every commander not on duty
    (status 1 or 2: the dead come back) is made free first. The roll and the record writes only; the message "<name> is
-   assigned\nto command <numeral><legion>" is built and shown by the callers (commander_msg_4733 in enemy.c / legions.c). */
+   assigned\nto command <numeral><legion>" is built and shown by commander_msg_4733 (above), which every caller of 4733
+   (this file's result(), enemy.c 50E0, legions.c) calls right after, with its own way of showing it. */
 void assign_commander(int L) {
     uint16_t leg = LEG(L);
     if (B(leg + 0xD) == 0xFF) return;
@@ -799,7 +865,7 @@ void assign_commander(int L) {
     uint8_t c = list[rng_roll(n)];   /* n == 0 (all 24 on duty) would read a stale local in the original */
     B(leg + 0x10) = c;
     B(0x1A20 + 6 * c) = 0;
-    /* the message (47C6..480B) is shown by the callers: enemy.c / legions.c commander_msg_4733 */
+    /* the message (47C6..480B): commander_msg_4733, called by each caller after this */
 }
 
 /* Battles started by End Turn. battle_choices supplies the player's formation and tactic (headless runs: from the command

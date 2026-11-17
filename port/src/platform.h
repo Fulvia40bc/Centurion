@@ -14,7 +14,7 @@ typedef struct {
 #define KEY_RIGHT 2
 
 typedef struct {
-    int key_down[256];
+    int key_down[256];    /* 1 = pressed; 2 = from the keypad: the BIOS's code as it is (no Shift table) */
     int key_special[8];   /* KEY_LEFT / KEY_RIGHT etc. */
     int mouse_x, mouse_y;
     uint8_t mouse_buttons;
@@ -25,8 +25,12 @@ int  platform_init(void);
 void platform_shutdown(void);
 void platform_present(const uint8_t *framebuffer, const rgb_t palette[256]);
 void platform_poll_input(input_t *in);
+int  platform_pointer(int on);   /* show (1) / hide (0) the window's system pointer; returns the previous state */
 void platform_sleep_ms(uint32_t ms);
 uint32_t platform_ticks_ms(void);
-void audio_play_square(uint32_t freq_hz, uint32_t duration_ms);
+void platform_pump(void);        /* read the window's events into the queue without taking any (SDL_PumpEvents) */
+/* the music's audio device (music.c): 49716 Hz mono 16-bit, fill() called on the audio thread; 0 = running */
+int  platform_audio_open(void (*fill)(int16_t *buf, int n));
+void platform_audio_lock(int on);   /* 1: hold the audio callback off (the driver's cli), 0: let it run again */
 
 #endif

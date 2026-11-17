@@ -13,10 +13,8 @@
  * Port decisions:
  *  - The sheets "tab" / "love1" / "love2" ([C1EE] / [C10E] / [C1EC]) and the text buffer hold DOS heap addresses in the
  *    original: they are kept in C structs here, those DS words are not written.
- *  - Music (5D29 + 5D73 in map.c, 5D20 / 5E1A here): only the DS part ([3EEE], the slot table DS:A6B0, with 5D73's
- *    slot bookkeeping: with the sound on ([3EEC] != 0) "cn6" takes a free slot, which 5E1A leaves as {0, 0, 0xFF} as the
- *    original does; the handle word holds 1 instead of a DOS segment while it is loaded); no sound (the loading of
- *    Cleopatra's love theme CN6.LZW and the driver are not ported).
+ *  - Music (5D29 / 5D20 / 5E1A, music.c): Cleopatra's love theme CN6 plays in a window game with an audio device; the
+ *    DS part ([3EEE], the slot table DS:A6B0) is the same with or without it.
  *  - Time: in the window the 72.8 Hz timer comes from platform_ticks_ms. Headless (scripts) no time passes: every delay
  *    0x0143 and every 14-tick step of 0x48EF is over at once and takes no input, so a script never loses a line to a
  *    delay; the bedchamber's wait loop (0x642A) then ends at the script's next click or key after the one flash it always
@@ -32,7 +30,8 @@
  *       clamped: Aegyptus (wealth 200) is "ordinary". Fixed: index at most 3.
  *    3. Scythia's tribute tolerance 40CA[25] is 0: it reaches the tribute menu (state 12) but refuses even Low, so its
  *       three alliance speeches in TEXTY could never be heard. Fixed (Erik, 9 Nov): a tolerance of 0 accepts Low.
- *  - Not ported: the mouse cursor (1D55 / 1D8A / 1CCE), the disk check 0x1E21 (legions_ui LEV_DISK_SWAP, nothing in the
+ *  - The mouse cursor (1D55 / 1D8A around 5614, 691B, 6973; screen.c) is drawn since 2026-11-17.
+ *  - Not ported: the disk check 0x1E21 (legions_ui LEV_DISK_SWAP, nothing in the
  *    port), the Tandy / EGA paths of 67E4 / 680F / 6837.
  */
 #include <stdio.h>
@@ -65,8 +64,8 @@ static uint8_t *g_fb = g_scr;                                   /* [C0D0]: 0x67E
 static void target_back_67E4(void) { g_fb = g_wrk; }
 static void target_screen_680F(void) { g_fb = g_scr; }
 static ui_box_t box_of(int x0, int y0, int x1, int y1) { ui_box_t r = { x0, y0, x1, y1 }; return r; }
-static void save_691B(int x0, int y0, int x1, int y1) { ui_copy_rect(g_wrk, g_scr, box_of(x0, y0, x1, y1)); }
-static void restore_6973(int x0, int y0, int x1, int y1) { ui_copy_rect(g_scr, g_wrk, box_of(x0, y0, x1, y1)); }
+static void save_691B(int x0, int y0, int x1, int y1) { save691b_rect(box_of(x0, y0, x1, y1)); }
+static void restore_6973(int x0, int y0, int x1, int y1) { restore6973_rect(box_of(x0, y0, x1, y1)); }
 /* 6837 (VGA): [4F96] == 0 -> 6887: the whole work buffer to the screen; [4F96] = 0; the screen is the target */
 static void page_6837(void) {
     if (W(0x4F96) == 0) memcpy(g_scr, g_wrk, sizeof(g_scr));
@@ -284,17 +283,6 @@ static void click_7CB2(void) {
 }
 static void disk_1E21(void) { if (legions_ui) legions_ui(LEV_DISK_SWAP, 0, 0, NULL); }   /* floppy check: nothing in the port */
 
-/* 5D29 (map.c music_play_5D29, with 5D73's slot bookkeeping) / 5D20 / 5E1A: the DS part only, the slot table DS:A6B0
-   {handle, loaded, id} and [3EEE]; no file is loaded and no driver is called. 5E1A(n): the first slot with loaded != 0
-   and id n (0x5E29) is freed (868C, nothing here) and set to {0, 0, 0xFF}, and [3EEE] = 0xFF (0x5E6B..0x5E7C). */
-static void music_stop_5D20(void) { B(0x3EEE) = 0xFF; }
-static void music_unload_5E1A(uint8_t n) {
-    for (int i = 0; i < 4; i++) {
-        if (B(0xA6B2 + 4 * i) == 0 || B(0xA6B3 + 4 * i) != n) continue;
-        setW(0xA6B0 + 4 * i, 0); B(0xA6B2 + 4 * i) = 0; B(0xA6B3 + 4 * i) = 0xFF; B(0x3EEE) = 0xFF;   /* after 868C free */
-        break;
-    }
-}
 
 /* ---------------------------------------------------------------- 7B56 the scout report */
 static void scout_7B56(uint8_t z) {
@@ -453,7 +441,9 @@ uint16_t nego_run(uint8_t L, uint8_t z, uint16_t (*b06e)(int army, int L, int z)
         for (int k = 0; k < 4; k++) sprite_8E62(&g_tab, 4 + k, SW(0x4080), SW(0x4082));   /* tab 4..7, its frame */
         menu_t m;
         menu_load_ds(&m, 0x4080);
-        ui_menu_draw_mode(g_fb, &m, 0, -1);                    /* 5614(4080, 0) */
+        cursor_push_1D55(0);                                   /* 5614(4080, 0): 0x5622 .. 0x56AB */
+        ui_menu_draw_mode(g_fb, &m, 0, -1);
+        cursor_pop_1D8A();
         target_screen_680F();
         restore_6973(8, 0x97, 0x6E, 0xC6);
         do {                                                   /* 0x61B3: Esc is ignored */
@@ -518,7 +508,7 @@ uint16_t nego_run(uint8_t L, uint8_t z, uint16_t (*b06e)(int army, int L, int z)
             /* 0x62C2: Aegyptus. The feast, the bedchamber, the second portrait */
             blank_5AC2(1);
             click_7CB2();
-            music_play_5D29(8);                                /* "cn6" (MNEGO CN6.LZW), her love theme: no sound in the port */
+            music_play_5D29(8);                                /* "cn6" (MNEGO CN6.LZW), her love theme */
             sprite_8E62(&g_love2, 2, 0, 0);                    /* her barge on the Nile */
             setW(0x9AFA, W(0x6344));
             fill_7E74(8, 0x97, 0x6B, 0xC6);                    /* the reply menu erased */

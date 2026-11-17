@@ -5,8 +5,8 @@
  * Province records: 27 x 32 bytes from DS:5270. The loop pointer si = 0x5285 + 32*k (record +0x15, the status byte).
  * Legion records: 12 x 20 bytes from DS:1918 (zone at +0x0C, the loop pointer si = record + 0x0D).
  *
- * The revolt handler 0x0D13 is ported whole (its battles through battle_auto, as enemy.c's). Not needed: the mouse cursor
- * push / pop (0x1D55(2) at 0x09CB, 0x1D8A at 0x0CD9, 0x1D19 at 0x0E0C) and the disk check 0x1E21: UI only, no state.
+ * The revolt handler 0x0D13 is ported whole (its battles through battle_auto, as enemy.c's). The mouse cursor calls
+ * (0x1D55(2) at 0x09CB, 0x1D8A at 0x0CD9, 0x1D19 at 0x0E0C) are screen.c's; the disk check 0x1E21 is not needed.
  * A battle without choices (a headless run without --choices / a script without a "battle" line) is reported on stderr
  * and the handler stops there (g_enemy_unported).
  * Messages (0x59D4) go through game_message(); the map is redrawn (0x494A(0xFF) at 0x0CDF, 0x494A(k) at 0x0E2D) when a
@@ -49,8 +49,9 @@ static int mood(int k) {
     return v < 0 ? 0 : v > 3 ? 3 : v;
 }
 
-/* A part of End Turn that is not ported (the naval battle, enemy.c): with a screen open a message box says so; the caller
-   reports it on stderr too. The DS is not touched. */
+/* A battle End Turn cannot fight (a headless run without battle choices: battle_auto / naval_battle_b12a return 0; every
+   battle is ported): with a screen open a message box says so; the caller reports it on stderr too. The DS is not
+   touched. */
 void game_not_ported(const char *what) {
     char m[160];
     if (!what || !screen_ovl0()) return;
@@ -68,8 +69,8 @@ static void words_ac60(uint16_t first, uint16_t end) {
 
 /* 0x0D13: revolt check for province k. 0x0D98..0x0EDF: every legion in k (record +0x0C == k) fights the rebels:
    [1B6] = name 5222[k], 6738(legion +0x0A) -> C072 (= [1BA]), [1BC] = the legion's name (record + 0); AC60 = [1B4] "A
-   Rebellion in " + 1B6.. 1BE ("!!\n", numeral, name, " meets the rebel army\non the field of battle."); 59D4; 1D19 /
-   1E21 (cursor, disk: not needed); B06E(FFh, L, k): won -> status 1, +0x17 = 0, score +5 / +30 / +15, no more legions;
+   Rebellion in " + 1B6.. 1BE ("!!\n", numeral, name, " meets the rebel army\non the field of battle."); 59D4; 1D19 (the
+   cursor hidden) / 1E21 (disk: not needed); B06E(FFh, L, k): won -> status 1, +0x17 = 0, score +5 / +30 / +15, no more legions;
    lost -> 4816(L) (legion_lost), 494A(k) (the map, when a screen is open). 0x0E64: +0x17 == 0 (won back): AC60 =
    [1C6] "The Revolt in\n" + [1C8] name + [1CA] " Fails!"; else 541F(k) (enemy.c) and AC60 = [1C0] "Rebellious citizens
    in " + [1C2] name + [1C4] "\nthrow off the Roman yoke!..."; 59D4(AC60). */
@@ -98,6 +99,7 @@ static void revolt_check(int k) {
         setW(0x1BC, (uint16_t)(p - 0x0C));
         words_ac60(0x1B4, 0x1C0);
         game_message(dsp(0xAC60));                               /* 0x0E09 */
+        cursor_hide_1D19();                                      /* 0x0E0C (then 1E21, the disk check: nothing) */
         uint16_t won;
         if (!battle_auto(0xFF, L, k, &won)) {                    /* 0x0E1C: B06E(FFh, L, k) */
             g_enemy_unported = 1;
@@ -138,6 +140,7 @@ static void rank_update(void) {
 
 void end_turn(void) {
     int tribute = 0;                                            /* [bp-0x0A] */
+    cursor_push_1D55(2);                                         /* 0x09CB: pushed, kept as it is */
 
     /* 0x09CE */
     B(0x634E) = (uint8_t)add_cap(B(0x634E), 5, 100);
@@ -232,7 +235,8 @@ void end_turn(void) {
     if (B(0x634E) > 75) score_add(1);
     rank_update();
     setW(0x634C, (uint16_t)(W(0x634C) + 1));                    /* turn */
-    if (screen_ovl0()) map_build(0xFF);                          /* 0x0CDC: 494A(FFh), the new year shows before the events */
+    cursor_pop_1D8A();                                           /* 0x0CD9 */
+    if (screen_ovl0()) map_build(0xFF);                         /* 0x0CDC: 494A(FFh), the new year shows before the events */
     setW(0x634A, (uint16_t)(W(0x634A) + tribute));              /* treasury */
     {   /* 0x0CE9: [bp-4] = 27 after the loop, so this reads DS:55E1 */
         uint32_t acc = (uint32_t)W(0xC092) | ((uint32_t)W(0xC094) << 16);

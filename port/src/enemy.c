@@ -9,11 +9,21 @@
  *   enemy's (docs/FLEET_NOTES.md section 1).
  *
  * The naval path of 0x4F27 (0x51C5..0x523C) calls fleet.c (0x531F, 0x5244) and naval.c (0xB0C2 -> section 5 B12A: fought
- * on screen; with no screen, --end-turn, it returns 0 = cancelled and sets g_enemy_unported). NOT YET PORTED (reported on
- * stderr, and g_enemy_unported is set): a land battle
- * (0xB06E) when no battle choices are available; and the two places where the original reads an uninitialised local
- * (noted below). Messages (0x4BAC, 0x59D4, the tail of 0x4733) go through game_message() (endturn.c):
- * a message box when a screen is open, else stderr. Disk swaps (0x1E21) are not needed.
+ * on screen; with no screen, --end-turn, it returns 0 = cancelled and sets g_enemy_unported). A land battle (0xB06E) is
+ * fought on screen (battle_auto); only a headless run without battle choices cannot fight it (reported on stderr,
+ * g_enemy_unported set). Messages (0x4BAC, 0x59D4, the tail of 0x4733) go through game_message() (endturn.c): a message
+ * box when a screen is open, else stderr. Disk swaps (0x1E21) are not needed.
+ *
+ * 1990 bugs fixed (docs/GAPS_NOTES.md section 6; the original reads a stale stack word, the port stops cleanly and says
+ * so on stderr; --original does the same, as those stack contents cannot be had, G):
+ *   1. 0x4E2D, no free rebel slot (records 7..10 all active): 1990 spawns the rebels into record [bp-6] = DX left by
+ *      army 10's 4F27 call, which can overwrite a living army. Fixed: no rebel army rises.
+ *   2. 0x4F27 at 0x4FE5, a mode-0 army standing in Rome: switched off (+8 = 0), then 1990 marches on to the target the
+ *      previous 4F27 call stored ([bp-0Ah]: an "invades" message and a battle that returns "won" at once). Fixed: it
+ *      stops there.
+ *   3. 0x4F27 at 0x4F6F, a mode-0 army with no weaker neighbour: 1990 takes list[0] = the previous army's first candidate
+ *      zone (not necessarily a neighbour). Fixed: the army stays (the dice roll 076B(0) is still made).
+ *   4. 0x4CF2: an enemy fleet with no ships divides by zero (a CPU divide error in DOS). Fixed: its men per ship stay.
  */
 #include "state.h"
 #include "fleet.h"
@@ -42,23 +52,6 @@ void army_meets_4bac(uint16_t name, unsigned numeral, unsigned zone, unsigned ar
     setW(0x3D8A, zone >= 0x1B ? W(0x3D8E) : W(0x3D8C));
     strcpy(dsp(0xAC60), dsp(W(0x3D7A)));                             /* 9E32 */
     for (uint16_t si = 0x3D7C; si < 0x3D8C; si += 2) strcat(dsp(0xAC60), dsp(W(si)));   /* 9DF2 */
-    game_message(dsp(0xAC60));
-}
-
-/* 0x4733's message (47C6..480B), after battle.c's assign_commander() made the choice: AC60 = commander name [1A1C + 6c] +
-   1F89 " is assigned\nto command " + 6738(legion +0x0A) (C072) + legion name; 59D4(AC60). Nothing when the legion's
-   +0x0D is FFh (474C). As legions.c's commander_msg_4733. */
-static void commander_msg_4733(unsigned L) {
-    uint16_t rec = (uint16_t)(20 * L);
-    if (B(rec + 0x1925) == 0xFF) return;
-    uint8_t c = B(rec + 0x1928);
-    char num[32];
-    roman_numeral(B(rec + 0x1922), num);
-    strcpy(dsp(0xC072), num);
-    strcpy(dsp(0xAC60), dsp(W(0x1A1C + 6 * c)));
-    strcat(dsp(0xAC60), dsp(0x1F89));
-    strcat(dsp(0xAC60), dsp(0xC072));
-    strcat(dsp(0xAC60), dsp((uint16_t)(rec + 0x1918)));
     game_message(dsp(0xAC60));
 }
 
@@ -224,7 +217,7 @@ static void army_move(int i) {
             game_message(m);
         }
         uint8_t c = B(0x1A18);
-        if (c == 0xFF || B(0x1A20 + 6 * c) != 0) { assign_commander(12); commander_msg_4733(12); }   /* 0x50E0: 4733(12) */
+        if (c == 0xFF || B(0x1A20 + 6 * c) != 0) { assign_commander(12); commander_msg_4733(12, game_message); }   /* 0x50E0: 4733(12) */
         setW(0x1A0E, W(0x5270)); setW(0x1A10, W(0x5272));   /* 0x50E3: Rome's troops into the garrison */
         uint16_t won;
         if (!battle_auto(i, 12, 0, &won)) { unported("land battle 0xB06E (garrison)", i, 12); return; }

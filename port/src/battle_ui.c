@@ -7,15 +7,19 @@
  *                0524 3x3 dot, 97B6 line, 98BC/98DA/993E circle, C7B0 grid->screen, C752 screen->grid,
  *                691B/6973 save/restore (screen <-> work buffer), 359B/35DB/35F9 waits; see docs/TEXTBOX_NOTES.md
  *   report       E48B..E58B (OVL_BATTLE)
- * The menus (54C8) are still the port's approximation.
+ * The menus are 5614 / 54C8 on the DS records 73B6 / 73C8 (ui.c's drawing; the wait is this file's own poll loop).
+ *
+ * The mouse cursor: this file draws on its own pictures, not on screen.c's, and does not draw the EXE's arrow (1CCE at
+ * D1B3, 1D19 at D18F / BF0D, 1BE6 at D67C, the menus' 54C8): in a window the system pointer is shown for the battle
+ * (battle_play) and screen.c's arrow comes back after it. battle.c makes DF24's push / pop around the whole battle.
  *
  * Model of the original's two pictures in the orders mode: g_fb = the VGA screen (everything is drawn straight onto
  * it), g_work = the work buffer (seg 2687), used as the backup of the clean picture: 691B copies a rect of the screen
  * into it, 6973 copies it back.
  *
  * Input: the port always has a mouse, so the original's mouse paths ([00BA] != 0) are the ones translated. During a
- * tick, Space, Enter, '+' or a left or right mouse press open the orders mode (D0F2; the original's Insert cannot
- * reach the port through the SDL layer, see tick_hook) and the battle is frozen: buttons Select Roman
+ * tick, Space, Insert, Enter, '+' or a left or right mouse press open the orders mode (D0F2) and the battle is frozen:
+ * buttons Select Roman
  * Unit / Melee / Retreat / Done (DS:748E rects, hotkeys S M R D, Esc = Done). Click a Roman cohort: its panel and
  * path; click it again and drag to give it a destination, or press M / R (or the Melee / Retreat buttons) for it.
  * Without a selected cohort, Melee = "Release The Legion!" and Retreat = "Run Away! Run Away!", both of which end the
@@ -283,6 +287,7 @@ static int menu_hook(int which) {
         if (r >= 0) {                         /* 585B: the chosen item in colour 15, then the release wait */
             ui_menu_highlight(g_fb, &m, r, 1);
             do { present(); platform_sleep_ms(10); } while (!g_quit && (g_in.mouse_buttons & 5));
+            if (which) { draw_field(); present(); }   /* C0CF 6973: the field without the menu (seen during the fanfare) */
             return r;
         }
         platform_sleep_ms(10);
@@ -576,9 +581,9 @@ static int tick_hook(int tick) {
     for (;;) {
         if (g_quit) break;
         /* D104..D120: 0692(0), 0692(1): a left or right press; D123..D13D: 03AA's key in {20h, 10h (Insert), '+', 0Dh}.
-           The SDL layer reports keysyms of the unshifted key and no modifier state, so the US '+' (Shift + '=') arrives
-           as '='; '=' is accepted for it (plain '=' therefore triggers too, which the original does not). Insert
-           (03AA: scan code 52h -> 10h) never reaches key_down (sdl2_platform.c keeps only keysyms < 256): not ported. */
+           The SDL layer reports keysyms of the unshifted key, so the US '+' (Shift + '=') arrives as '=' (sdl2_platform.c
+           also sets '+' for it); '=' is accepted for it (plain '=' therefore triggers too, which the original does not).
+           Insert (03AA: scan code 52h -> 10h; also keypad 0 without Num Lock) is key_down[0x10] (sdl2_platform.c). */
         if (pressed0692(0) || pressed0692(1) || key(' ') || key(0x10) || key('+') || key(13) || key('=')) trigger = 1;
         if (platform_ticks_ms() >= due) break;
         platform_sleep_ms(5);
@@ -638,7 +643,9 @@ uint16_t battle_play(int A, int L, int Z) {
     battle_menu_hook = menu_hook; battle_setup_hook = setup_hook; battle_message_hook = msg_hook;
     battle_report_hook = report_hook; battle_orders_hook = tick_hook;
     g_tick_start = platform_ticks_ms();
+    int pointer = g_headless ? -1 : platform_pointer(1);  /* the system pointer for the battle's screens (header) */
     uint16_t r = battle(A, L, Z, 0, 0, tac, tn);
+    if (pointer >= 0) platform_pointer(pointer);
     battle_menu_hook = NULL; battle_setup_hook = NULL; battle_message_hook = NULL; battle_report_hook = NULL;
     battle_orders_hook = saved_orders;
     free(tac); free(g_ovl0); g_ovl0 = NULL;

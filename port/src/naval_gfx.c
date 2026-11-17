@@ -54,8 +54,8 @@ void nv_page_6837(void) {
     desc_copy(0x9AB6); nv_fb = g_scr;
 }
 static ui_box_t box_of(int x0, int y0, int x1, int y1) { ui_box_t r = { x0, y0, x1, y1 }; return r; }
-void nv_save_691B(int x0, int y0, int x1, int y1) { ui_copy_rect(g_wrk, g_scr, box_of(x0, y0, x1, y1)); }
-void nv_restore_6973(int x0, int y0, int x1, int y1) { ui_copy_rect(g_scr, g_wrk, box_of(x0, y0, x1, y1)); present(); }
+void nv_save_691B(int x0, int y0, int x1, int y1) { save691b_rect(box_of(x0, y0, x1, y1)); }         /* with 1D55(0) / 1D8A */
+void nv_restore_6973(int x0, int y0, int x1, int y1) { restore6973_rect(box_of(x0, y0, x1, y1)); present(); }
 /* 67B6 (VGA, or [4F96] == 1): 691B(0, 0, 319, 199), the screen into the work buffer */
 void nv_save_67B6(void) { nv_save_691B(0, 0, 0x13F, 0xC7); }
 

@@ -11,7 +11,8 @@
  *
  * The naval battle (section 5 B0E0 / B12A) is in naval.c. Messages of the logic routines (4BAC, 5244's 59D4) go through
  * game_message (endturn.c: a box when a screen is open, else stderr), so End Turn runs headless as before. The mouse
- * cursor calls (1D55 / 1D8A / 1CCE) and the disk check 1E21 do nothing in the port (house style).
+ * cursor calls (1D55 / 1D8A / 1CCE) are made where the EXE makes them (screen.c, 2026-11-17); the disk check 1E21 does
+ * nothing in the port.
  *
  * 1990 bugs fixed by default, the original kept under --original (g_original_bugs), FLEET_NOTES section 9:
  *   9.1 5244 "nowhere to retreat and is destroyed" left the three ship counts (and +9) in the record, and the next Build
@@ -39,12 +40,12 @@ static const char *dstr(uint16_t a) { return (const char *)&g_ds[a]; }
 
 /* ---------------------------------------------------------------- drawing helpers (on the screen, as after 680F) */
 static ui_box_t box_of(int x0, int y0, int x1, int y1) { ui_box_t r = { x0, y0, x1, y1 }; return r; }
-static void save691b(int x0, int y0, int x1, int y1) { ui_copy_rect(g_wrk, g_scr, box_of(x0, y0, x1, y1)); }
+static void save691b(int x0, int y0, int x1, int y1) { save691b_rect(box_of(x0, y0, x1, y1)); }
 static void text899c(int x, int y, const char *s) { ui_text_attr(g_scr, x, y, s, W(0x9B69)); }          /* 0x899C(y, x, s) */
 static void text8be4(int cx, int y, const char *s) { ui_text_block_attr(g_scr, cx, y, s, W(0x9B69)); }  /* 0x8BE4(y, x, s) */
 static void box3134(int x0, int y0, int x1, int y1, int fill) { ui_box(g_scr, x0, y0, x1, y1, fill); }
 /* 0x5614 menu_draw(rec, mode) on the live record */
-static void menu_draw5614(uint16_t rec, int mode) { menu_t m; menu_load_ds(&m, rec); ui_menu_draw_mode(g_scr, &m, mode, -1); }
+static void menu_draw5614(uint16_t rec, int mode) { menu_t m; menu_load_ds(&m, rec); scr_menu_draw5614(&m, mode); }
 /* 0x55EA menu_on(rec): [rec+0x10] = FFFFh, 56B6 */
 static void menu_on55ea(uint16_t rec) { menu_t m; setW((uint16_t)(rec + 0x10), 0xFFFF); menu_load_ds(&m, rec); ui_menu_enable(g_scr, &m); }
 /* 0x55FF menu_off(rec): [rec+0x10] = 0, 57F7 */
@@ -61,9 +62,9 @@ static void msgbox59d4(uint16_t s) { game_message(dstr(s)); }
 
 /* ---------------------------------------------------------------- 0x2DB2 fleet_table(title, z), ret 4 */
 static void fleet_table_2db2(uint16_t title, uint8_t z) {
-    /* 1D55(0) */
+    cursor_push_1D55(0);                                                      /* 0x2DBD */
     uint8_t n = fleets_in2d60(z);                                             /* [bp-3] */
-    if (n == 0) return;                                                       /* 2DCE -> 2E8B */
+    if (n == 0) { cursor_pop_1D8A(); return; }                                /* 2DCE -> 2E8B */
     if (W(0x1B90) == 0) {                                                     /* the box is not up yet */
         uint8_t lh = (uint8_t)(B(0x9B5C) + 2);                                /* [bp-2] */
         uint16_t si = 5;
@@ -86,7 +87,7 @@ static void fleet_table_2db2(uint16_t title, uint8_t z) {
     setW(0x9B69, 0xF);
     text8be4(0xA0, 5, dstr(title));                                           /* title 0 = DS:0000 = "" */
     setW(0x1B90, 0xFFFF);
-    /* 1D8A */
+    cursor_pop_1D8A();                                                        /* 0x2E8B */
 }
 
 /* ---------------------------------------------------------------- 0x2C6F select_fleet(z), ret 2 */
@@ -97,7 +98,7 @@ uint8_t fleet_select_2c6f(uint8_t z) {
     if (n == 0) return 0xFF;
     if (n > 3) n = 3;
     B(0x1B8C) = n;
-    /* 1D55(0) */
+    cursor_push_1D55(0);                                                      /* 0x2CA2 */
     if (n > 1 || B(12 * B(0xA69E) + 0x1116) != 0)                             /* several, or the only one has acted */
         fleet_table_2db2(B(0xA69C) != 0 ? 0x1390 : 0, z);                     /* "Select Fleet" when one is Ready */
     if (n > 1 && B(0xA69C) != 0) {                                            /* 2CD0: a choice to make */
@@ -118,7 +119,7 @@ uint8_t fleet_select_2c6f(uint8_t z) {
             pick = 0xFF;
         }
     }
-    /* 1D8A */
+    cursor_pop_1D8A();                                                        /* 0x2D53 */
     screen_present();
     return pick;
 }
@@ -127,13 +128,13 @@ uint8_t fleet_select_2c6f(uint8_t z) {
 /* The same frame as legions_move_header 3EA3, but W(1B90) is not set: the box goes with fleet_move's closing map_build. */
 void fleet_info_2f5a(uint8_t f) {
     setW(0x1B52, (uint16_t)((B(0x9B5C) + 6) * 2 + B(0x9B5D)));
-    /* 1D55(0) */
+    cursor_push_1D55(0);                                                      /* 0x2F75 */
     save691b(2, 0, 0x13D, W(0x1B52));
     box3134(2, 0, 0x13D, W(0x1B52), W(0x6346));
     setW(0x9B69, 0);
     text899c(0x50, 5, dstr(0x1314));
     province_fleet_row(g_scr, B(0x9B5C) + B(0x9B5D) + 5, f);                 /* 2E96 */
-    /* 1D8A */
+    cursor_pop_1D8A();                                                        /* 0x2FCD */
     screen_present();
 }
 
@@ -143,13 +144,14 @@ void fleet_move_2b40(uint8_t f) {
     uint16_t done = 0;                                                        /* di */
     uint16_t rec = (uint16_t)(12 * f);                                        /* [bp-8] */
     uint8_t z0 = B(rec + 0x1114);                                             /* [bp-3] */
-    /* 1D55(0) */
+    cursor_push_1D55(0);                                                      /* 0x2B62 */
     for (int k = 0; k < 8; k++) {                                             /* markers on the neighbouring seas only */
         uint8_t a = B((uint16_t)(0x50EC + (z0 << 3) + k));                    /* [bp-1] */
         if (a < 0x1B || a == 0xFF) continue;
         map_sprite_8e62(g_scr, W(0xC0F2), SW(0x1AB8 + 4 * a), SW(0x1ABA + 4 * a));   /* 8E62(y, x, [C0F2]) */
     }
-    screen_present();                                                         /* 1CCE */
+    cursor_show_1CCE();                                                       /* 0x2B9E */
+    screen_present();
     while (!done) {
         wait_release();                                                       /* 35DB */
         if (wait_input() == 0) {                                              /* 359B: a key */
@@ -173,7 +175,7 @@ void fleet_move_2b40(uint8_t f) {
         dest = z;                                                             /* the pointer goes to z even after a failed move */
     }
     map_build(dest);                                                          /* 494A */
-    /* 1D8A */
+    cursor_pop_1D8A();                                                        /* 0x2C64 */
 }
 
 /* ---------------------------------------------------------------- 0x4ADA fight_armies_at_sea(f, z), ret 4 */

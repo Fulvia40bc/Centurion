@@ -82,10 +82,40 @@ int assets_find(const char *name) {
 
 /* LZSS as used by the game's unlzss: 4KB window prefilled 0x20, wpos starts 0xFEE,
    flag byte LSB-first (1=literal, 0=match), match = 2 bytes: 12-bit pos + len-3 */
+static uint8_t *decode_entry(const dir_entry_t *e, const uint8_t *src, size_t *out_len);
 uint8_t *assets_decode(int idx, size_t *out_len) {
     if (idx < 0) return NULL;
     dir_entry_t *e = &g_entries[idx];
-    const uint8_t *src = g_dat + e->offset;   /* DIR offsets are absolute (incl. 4-byte sig) */
+    return decode_entry(e, g_dat + e->offset, out_len);   /* DIR offsets are absolute (incl. 4-byte sig) */
+}
+
+/* One member of the archive DIR/DAT, unpacked, for a caller that opens and closes its own (the music's 5EB5: 0F7B, 18C2,
+   01DC, 11A9): the archive assets_load keeps open is not touched. NULL when the archive or the member is missing. */
+uint8_t *assets_member(const char *dir_path, const char *dat_path, const char *name, size_t *out_len) {
+    FILE *f = fopen(dir_path, "rb");
+    if (!f) return NULL;
+    uint8_t r[20];
+    dir_entry_t e;
+    int found = 0;
+    while (!found && fread(r, 1, 20, f) == 20) {
+        memcpy(e.name, r + 6, 13); e.name[13] = 0;
+        found = strcasecmp(e.name, name) == 0;
+    }
+    fclose(f);
+    if (!found) return NULL;
+    e.offset = r[0] | (r[1] << 8) | ((uint32_t)r[2] << 16) | ((uint32_t)r[3] << 24);
+    e.length = (uint16_t)(r[4] | (r[5] << 8));
+    e.format = r[19];
+    uint8_t *src = malloc(e.length ? e.length : 1), *out = NULL;
+    if (src && (f = fopen(dat_path, "rb")) != NULL) {
+        if (fseek(f, (long)e.offset, SEEK_SET) == 0 && fread(src, 1, e.length, f) == e.length) out = decode_entry(&e, src, out_len);
+        fclose(f);
+    }
+    free(src);
+    return out;
+}
+
+static uint8_t *decode_entry(const dir_entry_t *e, const uint8_t *src, size_t *out_len) {
     if (e->format != 0x80) {
         uint8_t *out = malloc(e->length);
         memcpy(out, src, e->length);

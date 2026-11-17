@@ -17,7 +17,8 @@
  * amphitheatre purchase (0x34CB) is done here.
  * Build Fleet has no naval part: it is ported whole, with the auto-repeat of a held button on +/- (0x2900).
  * The legions.h UI hooks are installed by the caller (main.c, legions_ui_install), not by these entry points.
- * The mouse cursor calls (0x1D55 / 0x1D8A / 0x1CCE) and the disk prompt 0x1E21 do nothing in the port.
+ * The mouse cursor (0x1D55 / 0x1D8A / 0x1CCE / 0x1BE6, screen.c) is called where the EXE calls it (2026-11-17); the
+ * disk prompt 0x1E21 does nothing in the port.
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -69,8 +70,8 @@ static void num8af2(int x, int y, int w, long v) {
     num8a9e(x, y, v);
 }
 static ui_box_t box_of(int x0, int y0, int x1, int y1) { ui_box_t r = { x0, y0, x1, y1 }; return r; }
-static void save691b(int x0, int y0, int x1, int y1) { ui_copy_rect(g_wrk, g_scr, box_of(x0, y0, x1, y1)); }
-static void restore6973(int x0, int y0, int x1, int y1) { ui_copy_rect(g_scr, g_wrk, box_of(x0, y0, x1, y1)); }
+static void save691b(int x0, int y0, int x1, int y1) { save691b_rect(box_of(x0, y0, x1, y1)); }
+static void restore6973(int x0, int y0, int x1, int y1) { restore6973_rect(box_of(x0, y0, x1, y1)); }
 
 /* ---------------------------------------------------------------- sprites and CBMs (0x8E62) */
 typedef struct { int w, xhot, yhot, bpr, rows, trans, lut; uint32_t off; } spr_t;
@@ -178,8 +179,10 @@ void province_frame30e6(int x, int y) {
 static void menu_draw5614(uint16_t rec, int mode) {
     menu_t m;
     menu_load_ds(&m, rec);
+    cursor_push_1D55(0);                                              /* 0x5622 */
     if (mode == 1) { frame30e6(m.x, m.y); ui_menu_draw_mode(g_fb, &m, 0, -1); }
     else ui_menu_draw_mode(g_fb, &m, mode, -1);
+    cursor_pop_1D8A();                                                /* 0x56AB */
 }
 /* 0x54C8 menu_run(rec, pre) with a mouse: the item, 0xFF = Esc (or the end of the input) */
 static uint16_t menu_run54c8(uint16_t rec) {
@@ -192,7 +195,9 @@ static uint16_t menu_run54c8(uint16_t rec) {
 static void menu_mark585b(uint16_t rec, int item, int on) {
     menu_t m;
     menu_load_ds(&m, rec);
+    cursor_push_1D55(0);                                              /* 0x5873 */
     ui_menu_highlight(g_fb, &m, item, on);
+    cursor_pop_1D8A();                                                /* 0x58F6 */
 }
 /* 0x55EA menu_on(rec): [rec+0x10] = 0xFFFF, 0x56B6 (ornament, title) */
 static void menu_on55ea(uint16_t rec) {
@@ -319,16 +324,19 @@ static void present_composed(void) {
 static void tribute_menu7ce0(uint8_t z) {
     uint16_t a = (uint16_t)(P(z) + 0x5282);
     uint16_t si = B(a);
-    wait_release();                                                   /* 35DB, 1D55(0) */
+    wait_release();                                                   /* 0x7CFD: 35DB */
+    cursor_push_1D55(0);                                              /* 0x7D03 */
     menu_draw5614(0x6054, 1);
     if (W(0xBA)) menu_mark585b(0x6054, si, 1);
     si = menu_run54c8(0x6054);
     if (si < 5) B(a) = (uint8_t)si;
+    cursor_pop_1D8A();                                                /* 0x7D38 */
 }
 /* 0x7D42 tribute_policy(): DS:5FC0 through menu DS:60AE, then +0x12 of every province with status != 0 */
 static void tribute_policy7d42(void) {
     uint16_t di = B(0x5FC0);
-    wait_release();
+    wait_release();                                                   /* 0x7D4C */
+    cursor_push_1D55(0);                                              /* 0x7D52 */
     menu_draw5614(0x60AE, 1);
     setW(0x9B69, 0);
     if (W(0xBA)) menu_mark585b(0x60AE, di, 1);
@@ -338,6 +346,7 @@ static void tribute_policy7d42(void) {
         for (uint16_t si = 0x5285; si < 0x55E5; si += 0x20)
             if (B(si) != 0) B(si - 3) = B(0x5FC0);
     }
+    cursor_pop_1D8A();                                                /* 0x7DA4 */
 }
 /* 0x3342 provincial_games(z): costs DS:15D4 {15, 30, 40, 50}, menu DS:15B0; one show per command */
 static void provincial_games3342(uint8_t z) {
@@ -374,7 +383,8 @@ static void provincial_games3342(uint8_t z) {
 /* 0x3457 rome_games(): menu DS:15C2; returns -1 when a module ran (the caller redraws the Rome screen) */
 static int rome_games3457(void) {
     int16_t si = 0;
-    menu_draw5614(0x15C2, 1);                                         /* after 1D55(0) */
+    cursor_push_1D55(0);                                              /* 0x345E */
+    menu_draw5614(0x15C2, 1);
     uint16_t di = menu_run54c8(0x15C2);
     if (di == 0) {                                                    /* Racing Chariots */
         if (W(0x154E) == W(0x634C)) msgbox59d4(0x15DC);               /* "Only One Race Per Turn" */
@@ -400,7 +410,8 @@ static int rome_games3457(void) {
     }
 out:
     if (!si) menu_mark585b(0x15C2, di, 0);
-    return si;                                                        /* 1D8A */
+    cursor_pop_1D8A();                                                /* 0x350A */
+    return si;
 }
 
 /* ---- Build Fleet 0x2458 and its parts ---- */
@@ -416,7 +427,8 @@ static int enemy_fleet2687(uint8_t z) {
 /* 0x2A32 fleet_screen(f): the item texts of DS:11DC get "N ships" (written into the DS strings), menu 11DC in mode 1,
    the three ship pictures (init 9..11 = [C0E6], [C0E8], [C0EA]) and the fleet name centred at (109, 183) */
 static void fleet_screen2a32(uint16_t f) {
-    wait_release();                                                   /* 1D55(0), 35DB */
+    cursor_push_1D55(0);                                              /* 0x2A3D */
+    wait_release();                                                   /* 35DB */
     uint16_t di = (uint16_t)(0x110E + 12 * f);
     for (uint16_t si = 0x116A; si < 0x118E; si += 0x0C, di += 2) {
         char b[16];
@@ -435,6 +447,7 @@ static void fleet_screen2a32(uint16_t f) {
     sprite8e62(init1(), 11, 0x41, 0x96);
     setW(0x9B69, 0);
     text8be4(0x6D, 0xB7, dstr(W(0x1100 + 2 * f)));
+    cursor_pop_1D8A();                                                /* 0x2AEC */
 }
 /* 0x2852 buy_draw(type): box DS:11CA (OK / Cancel; its count is 2 with a mouse, 0 without, while it is drawn, then 4 for
    the +/- arrows), the arrows (init 12, 13), the ship type, "Cost:" and the price, "Available talents:" */
@@ -462,9 +475,9 @@ static uint16_t ticks01ae(void) {
     uint32_t t = (uint32_t)(((uint64_t)(platform_ticks_ms() - g_slot0) * 728u) / 10000u);
     return t > 0xFFFF ? 0xFFFF : (uint16_t)t;
 }
-/* 0x2900 buy_poll(rec) with a mouse ([BA] != 0; its 1D55(1) cursor-on is not drawn in the port). The loop 0x2917..0x296D,
+/* 0x2900 buy_poll(rec) with a mouse ([BA] != 0): 1D55(1) (0x2912, the cursor shown), the loop 0x2917..0x296D,
    while 0x552B / 0x5593 give 0x100 (nothing):
-     0x0644 poll (+ 0x1BE6 cursor); no button down -> [12D2] = FFFF;
+     0x0644 poll, 0x1BE6 cursor (0x2922); no button down -> [12D2] = FFFF;
      [12D2] == 0 (still down since the last hit) and 0x01AE < 10 -> poll again: the auto-repeat delay (10 ticks);
      button down -> [12D2] = 0, 0x552B(rec, [B6]/[B8]) (any button); else 0x5593(rec, 0x03AA key); 0x00F8.
    There is no 0x35DB: a held button on +/- steps again every 10 ticks. 0xFF = Esc.
@@ -476,11 +489,13 @@ static uint16_t buy_poll2900(uint16_t rec) {
     menu_t m;
     menu_load_ds(&m, rec);
     int r = -2;                                                       /* si = 0x100 */
+    cursor_push_1D55(1);                                              /* 0x2912 */
     while (r == -2) {
         if (screen_scripted()) setW(0x12D2, 0xFFFF);                  /* the release between two script clicks */
         uint32_t t = platform_ticks_ms();
         int b = wait_input();                                         /* 0x0644 */
-        if (b == 0 && screen_quit()) return 0xFF;
+        cursor_move_1BE6(SW(0xB6), SW(0xB8));                         /* 0x2922 */
+        if (b == 0 && screen_quit()) { cursor_pop_1D8A(); return 0xFF; }
         if (b == 0 || platform_ticks_ms() - t >= 4) setW(0x12D2, 0xFFFF);   /* 0x2925: the button was up */
         if (W(0x12D2) == 0 && ticks01ae() < 10) {                     /* 0x2932 */
             if (!screen_headless()) platform_sleep_ms(1);
@@ -490,7 +505,8 @@ static uint16_t buy_poll2900(uint16_t rec) {
         else r = ui_menu_hotkey(&m, B(0xC07F));                       /* 0x295A */
         ticks_reset00f8();                                            /* 0x2966 */
     }
-    return r == -1 ? 0xFF : (uint16_t)r;                              /* 1D8A */
+    cursor_pop_1D8A();                                                /* 0x296F */
+    return r == -1 ? 0xFF : (uint16_t)r;
 }
 /* 0x26D0 buy(min, type, f): ships of one type for fleet f; min = the count before this Build Fleet command */
 static void buy26d0(uint16_t min, uint16_t type, uint16_t f) {
@@ -559,7 +575,8 @@ static void build_fleet2458(uint8_t z) {
     if (nb == 3 && here == 0xFF) { msgbox59d4(0x12B6); return; }                /* "All fleets have been built" */
     if (B(0x5968 + B(0x5971)) <= nb && here == 0xFF) { msgbox59d4(0x1244); return; }   /* "...any more\nfleets..." */
     uint16_t fw = f;                                                  /* [bp-0x14] */
-    fleet_screen2a32(fw);                                             /* after 1D55(0) */
+    cursor_push_1D55(0);                                              /* 0x2561 */
+    fleet_screen2a32(fw);
     uint16_t b12 = (uint16_t)(12 * fw);                               /* [bp-0x12] */
     uint16_t a = W(b12 + 0x110E), b = W(b12 + 0x1110), c = W(b12 + 0x1112);
     for (int k = 0; k < 3; k++) setW((uint16_t)(0x12D4 + 2 * k), 0);
@@ -587,7 +604,7 @@ static void build_fleet2458(uint8_t z) {
             B(b12 + 0x1114) = coastal2a07(z);
         }
     } else if ((uint16_t)(c + b + a) < n) B(b12 + 0x1116) = 2;
-    /* 1D8A */
+    cursor_pop_1D8A();                                                /* 0x267C */
 }
 
 /* ---- See Province List 0x69CC ---- */
@@ -608,13 +625,14 @@ void province_list(void) {                                            /* 0x69CC 
     int scroll = 0;                                                   /* [bp-0x12] */
     for (uint16_t si = 0x5285; si < 0x55E5; si += 0x20) if (B(si) >= 1) n++;
     if (n == 0) return;
+    cursor_push_1D55(0);                                              /* 0x6A4C */
     uint8_t rows = n;                                                 /* [bp-9] */
     if (n > 14) { rows = 14; scroll = -1; }
     int16_t tot = (int16_t)(rows * h + (lp + 4) * 3);
     int16_t di = (int16_t)(0x5A - tot / 2);                           /* top */
     int16_t bottom = (int16_t)(tot + di);                             /* [bp-0x10] */
     int16_t top = di;                                                 /* [bp-0xE] */
-    save691b(0x18, di, 0x127, bottom);                                /* after 1D55(0) */
+    save691b(0x18, di, 0x127, bottom);
     ui_box(g_fb, 0x18, di, 0x127, bottom, W(0x6346));
     setW(0x9B69, 0xF);
     text8be4(0xA0, di + 6, dstr(0x56EF));                             /* "Province List" */
@@ -647,7 +665,8 @@ void province_list(void) {                                            /* 0x69CC 
         wait_click();
     }
     restore6973(0x18, top, 0x127, bottom + lp + 2);
-    screen_present();                                                 /* 1D8A */
+    cursor_pop_1D8A();                                                /* 0x6B99 */
+    screen_present();
 }
 
 /* ---- zone_info 0x720B ---- */
@@ -717,7 +736,8 @@ static void fleet_row2e96(int y, uint8_t f) {
 /* 0x2E96 for fleet.c (2DB2, 2F5A): drawn on fb */
 void province_fleet_row(uint8_t *fb, int y, uint8_t f) { uint8_t *s = g_fb; g_fb = fb; fleet_row2e96(y, f); g_fb = s; }
 void fleet_list(void) {                                               /* 0x2FD6 */
-    fleets_in2d60(B(0xC080));                                         /* after 1D55(0) */
+    cursor_push_1D55(0);                                              /* 0x2FE1 */
+    fleets_in2d60(B(0xC080));
     if (B(0xA6A1) != 0) {
         uint16_t h = (uint8_t)((uint8_t)(B(0xA6A1) + 3) * B(0x9B5C) + B(0x9B5D) + 0x0C);   /* byte arithmetic */
         int16_t di = (int16_t)((int16_t)(0xC8 - h) / 2);
@@ -740,7 +760,8 @@ void fleet_list(void) {                                               /* 0x2FD6 
         wait_click();
         restore6973(2, di, 0x13D, bottom);
     }
-    screen_present();                                                 /* 1D8A */
+    cursor_pop_1D8A();                                                /* 0x30DC */
+    screen_present();
 }
 
 /* ---- Complete Legion List 0x4280 (legions.c) ---- */
@@ -749,14 +770,8 @@ void legion_list(void) {
 }
 
 /* ---------------------------------------------------------------- the two screens */
-/* 0x6CB8 province_screen(z), z = 1..26 (Roman) */
-void province_screen(int zi) {
-    uint8_t z = (uint8_t)zi;
-    uint16_t redraw = 0xFFFF;                                         /* [bp-4] */
-    uint16_t leave = 0;                                               /* [bp-6] */
-    uint16_t asked = 0;                                               /* [bp-8]: zeroed once per visit (verifier corr. 3) */
-    uint16_t sel = 0;                                                 /* [bp-0xA] */
-    wait_release();                                                   /* 35DB, 1D55(0) */
+/* 0x6CB8's picture, before its loop (0x6CD4..0x6D2C): strips, fill, title, panel, then the composed copy */
+static void province_draw6cb8(uint8_t z) {
     strips_load708a(z);
     setW(0x9AFA, W(0x6344));
     fill7e74(0, 0x41, 0x13F, 0xC7);
@@ -765,6 +780,17 @@ void province_screen(int zi) {
     panel_frame3512();
     province_panel6f0c(z);
     present_composed();
+}
+/* 0x6CB8 province_screen(z), z = 1..26 (Roman) */
+void province_screen(int zi) {
+    uint8_t z = (uint8_t)zi;
+    uint16_t redraw = 0xFFFF;                                         /* [bp-4] */
+    uint16_t leave = 0;                                               /* [bp-6] */
+    uint16_t asked = 0;                                               /* [bp-8]: zeroed once per visit (verifier corr. 3) */
+    uint16_t sel = 0;                                                 /* [bp-0xA] */
+    wait_release();                                                   /* 0x6CC4: 35DB */
+    cursor_push_1D55(0);                                              /* 0x6CCD */
+    province_draw6cb8(z);
     while (!leave) {
         if (redraw) {                                                 /* 0x6D32 */
             B(W(0x579A) + 0x33) = coastal2a07(z) == 0xFF ? 0xFF : 0;  /* item 4 "Build Fleet" disabled byte: grey */
@@ -830,7 +856,8 @@ void province_screen(int zi) {
         default: break;
         }
     }
-    map_build(z);                                                     /* 494A(z), 1D8A */
+    map_build(z);                                                     /* 494A(z) */
+    cursor_pop_1D8A();                                                /* 0x6F02 */
 }
 
 /* 0x7411: draw the Rome screen (composed in the work buffer, then copied) */
@@ -850,7 +877,8 @@ void rome_screen(void) {
     uint16_t leave = 0;                                               /* di */
     uint16_t first = 0xFFFF;                                          /* [bp-2] */
     uint16_t sel = 0;                                                 /* [bp-4] */
-    wait_release();                                                   /* 1D55(0), 35DB */
+    cursor_push_1D55(0);                                              /* 0x737A */
+    wait_release();                                                   /* 35DB */
     rome_draw7411();
     while (!leave) {
         if (first) menu_draw5614(0x5A30, 1);
@@ -869,7 +897,17 @@ void rome_screen(void) {
         default: break;
         }
     }
-    map_build(0);                                                     /* 494A(0), 1D8A */
+    map_build(0);                                                     /* 494A(0) */
+    cursor_pop_1D8A();                                                /* 0x7409 */
+}
+/* --dump-frame province Z (game.c, headless): the screen 0x7366 / 0x6CB8 show at their first 54C8, i.e. the picture and
+   the menu record drawn in mode 1 (Rome 5A30; a province 5790 with its Build Fleet byte set as at 0x6D32) */
+void province_dump(int zi) {
+    uint8_t z = (uint8_t)zi;
+    if (z == 0) { rome_draw7411(); menu_draw5614(0x5A30, 1); return; }
+    province_draw6cb8(z);
+    B(W(0x579A) + 0x33) = coastal2a07(z) == 0xFF ? 0xFF : 0;          /* 0x6D32 */
+    menu_draw5614(0x5790, 1);
 }
 
 /* ---------------------------------------------------------------- the Legions UI (legions.h hooks) */
@@ -944,7 +982,10 @@ static void hook_ui(int ev, int a, int b, const void *data) {
     }
     case LEV_TREASURY: num8af2(0xD3, 0xA7, 0x37, (uint16_t)a); break;   /* 44E5 */
     case LEV_RECRUITS: num8af2(0xE1, 0x80, 0x18, (uint16_t)a); break;   /* 4510 */
-    default: break;                                                   /* cursor, music, disk: nothing in the port */
+    case LEV_CURSOR_PUSH: cursor_push_1D55(a); break;                 /* 1D55(a) */
+    case LEV_CURSOR_POP: cursor_pop_1D8A(); break;                    /* 1D8A */
+    case LEV_CURSOR_SHOW: cursor_show_1CCE(); break;                  /* 1CCE */
+    default: break;                                                   /* the disk swap: nothing in the port */
     }
 }
 void legions_ui_install(void) {

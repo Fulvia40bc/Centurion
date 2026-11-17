@@ -67,8 +67,9 @@
  * VERIFIED (10 Nov) against two battles captured in DOSBox-X (tools/dosbox/results/naval/README.md): the set-up, the
  * boarding, the sinking, the fleet battle's last round, the write-back, B59F and B0E0 give the game's DS game state
  * byte for byte (the dice exact in every stage; timer slots 2 and 8 exact in the boarding; the tick and slot 0 off by
- * DOSBox's frame timing in the set-up, D3F2 and D60C stages) and every pixel the port draws itself as the game's (the
- * mouse cursor aside; the D60C and result-box screens through runs chained from the boarding), through the TEST HOOKS
+ * DOSBox's frame timing in the set-up, D3F2 and D60C stages) and every pixel as the game's (since 2026-11-17 the mouse
+ * cursor too: B13D's 1D55(0) and B592's 1D8A, screen.c; the D60C and result-box screens through runs chained from the
+ * boarding), through the TEST HOOKS
  * at the end of this file (naval_test_frame, naval_test_resume; main.c --naval-frame / --naval-resume). The duel passes
  * cannot be replayed (the 1990 dice per pass depended on the CPU speed and the keys were not recorded).
  */
@@ -79,8 +80,6 @@
 #include "platform.h"
 #include "naval.h"
 #include "naval_int.h"
-
-void music_load_5D73(uint8_t m);          /* map.c (the DS part of 5D73) */
 
 int nv_burn_on;
 static int8_t g_col[816];                 /* COLLIDE.LZW: the buffer the pointers C3B0..C3B8 point into (offsets here) */
@@ -139,16 +138,6 @@ void nv_tick(void) {
     uint32_t due = g_rt_base + (uint32_t)((uint64_t)g_rt_n * 100000u / 7283u);
     if ((int32_t)(now - due) > 100) { g_rt_base = now; g_rt_n = 0; }   /* far behind (a box waited for a click): afresh */
     else if ((int32_t)(due - now) > 0) platform_sleep_ms(due - now);
-}
-
-/* ---------------------------------------------------------------- music (the DS part, as map.c / nego.c) */
-static void music_stop_5D20(void) { B(0x3EEE) = 0xFF; }
-static void music_unload_5E1A(uint8_t n) {
-    for (int i = 0; i < 4; i++) {
-        if (B(0xA6B2 + 4 * i) == 0 || B(0xA6B3 + 4 * i) != n) continue;
-        setW((uint16_t)(0xA6B0 + 4 * i), 0); B(0xA6B2 + 4 * i) = 0; B(0xA6B3 + 4 * i) = 0xFF; B(0x3EEE) = 0xFF;
-        break;
-    }
 }
 
 /* ---------------------------------------------------------------- geometry */
@@ -909,8 +898,8 @@ static uint16_t b12a_setup(uint8_t e, uint8_t r) {
     nv_target_screen_680F();
     g_rt_on = 0;
     nv_burn_on = 0;
-    /* 1D55(0): the cursor (not ported) */
-    if (!setup_BD8A(e, r)) return 0;                                 /* b14f jmp b592 */
+    cursor_push_1D55(0);                                             /* b13d: push si (0) */
+    if (!setup_BD8A(e, r)) return 0;                                 /* b14f jmp b592 (the caller pops) */
     setW(0xC0FC, (uint16_t)(W(0xC0FC) + 1));
     uint16_t e6 = (uint16_t)(6 * e), r6 = (uint16_t)(6 * r);         /* [bp-0Eh], [bp-14h] */
     setW(0x110E + 2 * (e6 + B(TYPE(0))), (uint16_t)(W(0x110E + 2 * (e6 + B(TYPE(0)))) - 1));   /* b174 */
@@ -935,7 +924,7 @@ uint16_t naval_battle_b12a(uint8_t e, uint8_t r) {
         return 0;
     }
     uint16_t di = 0, si = 0, flags = 0, mode = 0, key = 0, save4 = 0, res;   /* [bp-0Ah] flags, [bp-8] mode, [bp-2], [bp-4] */
-    if (!b12a_setup(e, r)) return 0;
+    if (!b12a_setup(e, r)) { cursor_pop_1D8A(); return 0; }         /* b14f jmp b592: 1D8A, ax = si = 0 */
     res = si;                                                        /* b152: [bp-0Ch] = si = 0 */
     nv_screen_BEAE(e, r);
     nv_clip(0xB9);
@@ -1081,7 +1070,7 @@ static uint16_t b12a_end(uint8_t e, uint8_t r, uint16_t mode, uint16_t flags, ui
     break;
     }
     music_C34F();
-    /* b592: 1D8A, the cursor (not ported) */
+    cursor_pop_1D8A();                                               /* b592 */
     if (!g_original_bugs) nv_palette_restore();
     fprintf(stderr, "naval: battle of fleet %u against record %u: result %u (flagships sunk %u, mode %u), ships Rome %u, enemy %u\n",
             r, e, si, flags, mode, rs, es);
@@ -1150,6 +1139,8 @@ int naval_test_frame(const char *mode, int a, int b, int c) {
         nv_save_67B6();
         nv_page_6837();
         nv_totals_DC8E((uint8_t)b, (uint8_t)c);
+        /* b592's 1D8A: the final DS has popped already; with [686] = FFFF the pop drew the arrow at [680] / [682] */
+        if (W(0x686)) { setW(0x686, 0); cursor_show_1CCE(); }
         return 0;
     }
     if (!strcmp(mode, "check")) {                                    /* the pass's geometry against the snapshot's */
