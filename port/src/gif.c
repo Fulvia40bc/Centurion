@@ -199,6 +199,8 @@ int gif_decode(const uint8_t *data, size_t len, gif_image *out)
         return -1;
     if (memcmp(data, "GIF87a", 6) != 0 && memcmp(data, "GIF89a", 6) != 0)
         return -1;
+    out->screen_w = rd_u16le(data + 6);
+    out->screen_h = rd_u16le(data + 8);
     pos = 10;
     packed = data[pos++];
     pos += 2;
@@ -244,6 +246,8 @@ int gif_decode(const uint8_t *data, size_t len, gif_image *out)
 
             if (len - pos < 9)
                 return -2;
+            out->left = rd_u16le(data + pos);
+            out->top = rd_u16le(data + pos + 2);
             pos += 4;
             iw = rd_u16le(data + pos);
             pos += 2;

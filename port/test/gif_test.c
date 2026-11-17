@@ -121,8 +121,9 @@ static int decode_one(const char *name, const uint8_t *data, size_t len,
         fprintf(stderr, "%s: gif_decode error %d\n", name, rc);
         return 1;
     }
-    printf("%s %u %u %u %08X\n", name, (unsigned)img.w, (unsigned)img.h,
-           (unsigned)img.ncolors, crc32_buf(img.pixels, (size_t)img.w * img.h));
+    printf("%s %u %u %u %08X %u %u %u %u\n", name, (unsigned)img.w, (unsigned)img.h,
+           (unsigned)img.ncolors, crc32_buf(img.pixels, (size_t)img.w * img.h),
+           (unsigned)img.left, (unsigned)img.top, (unsigned)img.screen_w, (unsigned)img.screen_h);
     (*count)++;
     snprintf(path, sizeof path, "%s/%s.bmp", outdir, name);
     if (write_bmp(path, &img) != 0)
