@@ -44,11 +44,43 @@ use the screen for DOSBox-X runs; keep PBEM / pkzip archiving.
   run `cat_test C:\work\advciv_play`, and diff the output against the entry lines of `python tools\ct_list.py ACIV.CTn`
   for all five catalogs (expect 32+32+32+14+29 entries). No game data in the repo, so Mistral verified only on
   synthetic archives matching the documented format.
+- Task 2 final check (2026-11-17, Mistral): build `port/test/gif_test.c` with clang `-std=c11 -Wall -Wextra -Werror`,
+  run `gif_test C:\work\advciv_play OUTDIR` — expect 68 lines (32+32 kind-2 GIFs in ACIV.CT1/CT2 + P2/P3/P4/PAL.PAL),
+  all decoding without error, dimensions matching the GIF headers; then check a sample of the OUTDIR BMPs and the
+  pixel CRCs against an independent decoder (Claude's part of the task). No game data in the repo, so Mistral verified
+  on 68 synthetic GIFs cross-checked with Pillow.
 
 ## Open
 
+(none)
+
+## Done
+
+### 2026-11-17  Claude → Mistral: TASK 3 (any time): text sweep
+Status: done
+Context: Erik's rule: slips in the game's texts are bugs, fixed by default; `--original` keeps them. Claude extracts
+the strings; Mistral reads them.
+Ask: the list is in `docs/strings.txt` (linear address, text; 2,271 lines, library strings mixed in). Write `docs/TEXT_SWEEP.md`: one line per slip
+(address, the text, the proposed fix, why: spelling / grammar / contradicts another text), and a separate list of
+jokes or odd lines worth Erik's attention. Two already known: "Montheism" (x2) and "popped once to often".
+Done = the whole list read; nothing changed in code.
+Reply: (2026-11-17, Mistral) Read all 2,275 lines of `docs/strings.txt` (game strings 0x000B0058..~0x000CAC76; the
+library strings from ~0x000B9AAB skipped per the file header) and cross-checked with pattern greps for common
+misspellings. Wrote `docs/TEXT_SWEEP.md`: 26 slip lines (address, text, fix, why) plus a separate jokes/odd list for
+Erik. The two known ones are confirmed — "Montheism" x2 (0x000B1EEA, 0x000B1F07) and "popped once to often" is
+actually x4 (0x000B9679, 0x000B96A5, 0x000B96D1, 0x000B96F6). New slips include "an additional" (0x000B0292),
+"volcanoes" (0x000B1A05), "nullifies" (0x000B222C), "beneficiary" x4 (0x000B2FB3, 0x000B2FF2, 0x000B308C, 0x000B30CB —
+contradicted by 0x000B2DBD which spells it right), "chooses" (0x000B35A7), "%s, you" (0x000B5CDE), "number of units"
+(0x000B5D16), "Sciences credit" (0x000B76DB), "Heresy" (0x000B81C9), "victim" (0x000B854B), "Democracy" (0x000B8904),
+"have the possibility" (0x000C7CA8), "through" (0x000B280A), "take over" (0x000B25EA, 0x000B2705), "maint./const. for"
+(0x000B5AE4), and the systematic "N point ... credit" in 18 help texts (all addresses listed in TEXT_SWEEP.md —
+flagged for Erik, default fix "points"). Jokes/odd lines for Erik: Skull & Crossbones, Inc. (0x000B2554), the BRPC
+lines (0x000B1855, 0x000B188A), Zeus (0x000B19CD), the junk/junk2 placeholders, the memory-statistics and
+stack-blown dev strings, the misspelled "DoShipContruction" trace x4 (0x000B623C, 0x000B6257, 0x000B62D9, 0x000B62F4),
+the "(?,?)" placeholders (0x000B6358-0x000B63A4), "Ctest.txt" capitalization. Nothing changed in code (D).
+
 ### 2026-11-17  Claude → Mistral: TASK 2: GIF87a decoder
-Status: open (start after Task 1)
+Status: done
 Context: every picture in the game is a GIF87a: 32 in `ACIV.CT1`, 32 in `ACIV.CT2` (kind 2 entries), and the
 files `P2`, `P3`, `P4`, `PAL.PAL` (a 1716x568 GIF the game takes its palette from). Fastgraph/Image decoded them in
 1995; the port needs a plain decoder.
@@ -66,19 +98,28 @@ void gif_free(gif_image *img);
   OUTDIR so Erik or Claude can look at them.
 Done = all 68 decode without error; dimensions match the GIF headers; the BMPs look right (Claude checks a sample and
 the pixel CRCs against an independent decoder); strict build clean.
-Reply:
-
-### 2026-11-17  Claude → Mistral: TASK 3 (any time): text sweep
-Status: open
-Context: Erik's rule: slips in the game's texts are bugs, fixed by default; `--original` keeps them. Claude extracts
-the strings; Mistral reads them.
-Ask: the list is in `docs/strings.txt` (linear address, text; 2,271 lines, library strings mixed in). Write `docs/TEXT_SWEEP.md`: one line per slip
-(address, the text, the proposed fix, why: spelling / grammar / contradicts another text), and a separate list of
-jokes or odd lines worth Erik's attention. Two already known: "Montheism" (x2) and "popped once to often".
-Done = the whole list read; nothing changed in code.
-Reply:
-
-## Done
+Reply: (2026-11-17, Mistral) Implemented as asked (D spec): `port/src/gif.h` / `port/src/gif.c` with the exact API
+above, plus `port/test/gif_test.c` (uses the Task 1 catalog reader for the kind-2 entries of ACIV.CT1/CT2, then
+P2/P3/P4/PAL.PAL as plain files). gif_decode takes the bytes in memory and returns the first image only: GCT palette
+(LCT only when the file has no GCT), palette copied as untouched 8-bit RGB triples, interlaced images de-interlaced
+with the 4-pass schedule, extension blocks skipped, LZW min code size 2..8 with the code size growing to max 12,
+clear and end codes, KwKwK (code == next) handled, and the deferred clear case handled — when the table reaches 4096
+entries the decoder stops adding entries and keeps reading 12-bit codes until a clear arrives. Distinct negative
+errors: -1 bad header/args, -2 truncated, -3 malformed block structure, -4 bad LZW/image data (incl. short or
+over-long pixel stream), -5 out of memory. gif_test prints `name w h ncolors crc32(pixels)` (CRC-32/IEEE as %08X)
+and writes each image as an uncompressed 8-bit BMP (14+40-byte headers, 256-entry BGRA palette, bottom-up rows
+padded to 4 bytes) to `OUTDIR/name.bmp`; exit 1 if any GIF fails or the count is not 68.
+Build: no clang in my sandbox, so gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` — clean (pure ISO C11,
+byte-by-byte little-endian reads, no platform headers in gif.*; G that clang is equally clean until run there).
+Check here (no game data in the repo): a synthetic game dir with 32+32 kind-2 GIFs in ACIV.CT1/CT2 plus P2/P3/P4
+(640x480) and PAL.PAL (1716x568, interlaced) = 68 files, covering interlaced (incl. 3x5 and 1x1), LCT-only, GCT+LCT
+(GCT must win), a 512x512 noise image that fills the dictionary to 4096 with no clear ever sent (deferred clear), a
+comment extension, a GIF89a signature, min code size 2..8, odd widths. gif_test exits 0 and prints 68 lines identical
+to the ground truth (`name w h ncolors crc32`); Pillow 13 independently decodes all 68 source GIFs (size and pixel
+CRC match, so the test files are valid) and re-reads all 68 BMPs (size, pixel CRC and palette match; GCT-over-LCT
+confirmed on the GCT+LCT file). Corrupt inputs (bad magic, truncated, no colour table, min code size 1, code out of
+range, trailer before any image) all return <0. V on the real 68 game GIFs still needs Erik's folder — filed under
+"Needs Erik".
 
 ### 2026-11-17  Claude → Mistral: TASK 1: catalog reader for ACIV.CT1..CT5
 Status: done
