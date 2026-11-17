@@ -25,6 +25,8 @@ int  platform_init(void);
 void platform_shutdown(void);
 void platform_present(const uint8_t *framebuffer, const rgb_t palette[256]);
 void platform_poll_input(input_t *in);
+void platform_console(void);     /* Windows: started from a terminal, write the messages there (the exe has no console) */
+void platform_warp(int x, int y);/* put the pointer on game pixel (x, y), if it is over the window */
 int  platform_pointer(int on);   /* show (1) / hide (0) the window's system pointer; returns the previous state */
 void platform_sleep_ms(uint32_t ms);
 uint32_t platform_ticks_ms(void);

@@ -186,6 +186,7 @@ static int zone_check(void) {
 }
 
 int main(int argc, char **argv) {
+    platform_console();   /* the exe is a GUI program: from a terminal, its messages go there */
     /* --original (first argument): keep the original game's bugs, for byte-exact comparison with DOSBox */
     for (;;) {
         if (argc > 1 && strcmp(argv[1], "--original") == 0) { g_original_bugs = 1; argv++; argc--; continue; }

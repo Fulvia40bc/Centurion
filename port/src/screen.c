@@ -418,10 +418,7 @@ int mouse_poll_input(void) {
 void mouse_warp(int x, int y) {
     setW(0xB6, (uint16_t)x); setW(0xB8, (uint16_t)y);
     if (g_scripted) { g_sx = x; g_sy = y; }
-    else if (g_window) {
-        SDL_Window *w = SDL_GetMouseFocus();       /* only while the pointer is over the game's window */
-        if (w) { int ww, wh; SDL_GetWindowSize(w, &ww, &wh); SDL_WarpMouseInWindow(w, x * ww / SCREEN_W, y * wh / SCREEN_H); }
-    }
+    else if (g_window) platform_warp(x, y);          /* only while the pointer is over the game's window */
     poll0644(0);
 }
 

@@ -3,10 +3,58 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <string.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
+/* The window: 320x200 shown at 4:3 (a 1990 VGA monitor stretched the 200 lines to the 4:3 tube), letterboxed in black at
+   any window size; Alt+Enter or F11 toggles full screen (the desktop's resolution). LOGICAL_H = the picture's height in
+   the 4:3 logical space the renderer scales. */
+#define LOGICAL_H 240
 static SDL_Window *g_win;
 static SDL_Renderer *g_ren;
 static SDL_Texture *g_tex;
+static int g_have_frame;                     /* the texture holds a frame (redrawn after a resize / full-screen switch) */
+
+/* The exe is a GUI program, so a double-click opens no console window. Started from a terminal without redirection, it
+   attaches to that terminal so the error messages still show (redirected output needs nothing). */
+void platform_console(void) {
+#ifdef _WIN32
+    HANDLE h = GetStdHandle(STD_ERROR_HANDLE);
+    if ((h == NULL || h == INVALID_HANDLE_VALUE) && AttachConsole(ATTACH_PARENT_PROCESS)) {
+        if (!freopen("CONOUT$", "w", stdout)) return;
+        if (!freopen("CONOUT$", "w", stderr)) return;
+    }
+#endif
+}
+
+static void present_texture(void) {
+    SDL_SetRenderDrawColor(g_ren, 0, 0, 0, 255);
+    SDL_RenderClear(g_ren);
+    if (g_have_frame) SDL_RenderCopy(g_ren, g_tex, NULL, NULL);
+    SDL_RenderPresent(g_ren);
+}
+
+static void toggle_fullscreen(void) {
+    int fs = (SDL_GetWindowFlags(g_win) & SDL_WINDOW_FULLSCREEN_DESKTOP) == SDL_WINDOW_FULLSCREEN_DESKTOP;
+    SDL_SetWindowFullscreen(g_win, fs ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP);
+    present_texture();
+}
+
+/* 320x200 game coordinates <-> window coordinates, through the renderer's letterboxed 4:3 logical space */
+static void window_to_game(int wx, int wy, int *x, int *y) {
+    float lx, ly;
+    SDL_RenderWindowToLogical(g_ren, wx, wy, &lx, &ly);
+    int gx = (int)lx, gy = (int)(ly * SCREEN_H / LOGICAL_H);
+    *x = gx < 0 ? 0 : gx >= SCREEN_W ? SCREEN_W - 1 : gx;
+    *y = gy < 0 ? 0 : gy >= SCREEN_H ? SCREEN_H - 1 : gy;
+}
+void platform_warp(int x, int y) {
+    if (!g_win || SDL_GetMouseFocus() != g_win) return;   /* only while the pointer is over the game's window */
+    int wx, wy;
+    SDL_RenderLogicalToWindow(g_ren, x + 0.5f, (y + 0.5f) * LOGICAL_H / SCREEN_H, &wx, &wy);
+    SDL_WarpMouseInWindow(g_win, wx, wy);
+}
 static SDL_AudioDeviceID g_audio;            /* the music's device (music.c), opened by platform_audio_open only */
 static void (*g_fill)(int16_t *buf, int n);
 
@@ -38,18 +86,27 @@ void platform_audio_lock(int on) {
 void platform_pump(void) { SDL_PumpEvents(); }
 
 int platform_init(void) {
+    SDL_SetHint(SDL_HINT_WINDOWS_DPI_AWARENESS, "permonitorv2");   /* sharp pixels on a scaled (high-DPI) screen */
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "nearest");
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER) != 0)
         return -1;
-    g_win = SDL_CreateWindow("Centurion: Defender of Rome (port)",
-                             SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                             SCREEN_W * 2, SCREEN_H * 2, SDL_WINDOW_SHOWN);
+    /* the largest whole multiple of 320x240 that takes at most 3/4 of the usable desktop, at least 2x */
+    int s = 2;
+    SDL_Rect ub;
+    if (SDL_GetDisplayUsableBounds(0, &ub) == 0)
+        while ((s + 1) * SCREEN_W <= ub.w * 3 / 4 && (s + 1) * LOGICAL_H <= ub.h * 3 / 4) s++;
+    g_win = SDL_CreateWindow("Centurion: Defender of Rome", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                             SCREEN_W * s, LOGICAL_H * s, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
     if (!g_win) return -1;
+    SDL_SetWindowMinimumSize(g_win, SCREEN_W, LOGICAL_H);
     g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
     if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
     if (!g_ren) return -1;
+    SDL_RenderSetLogicalSize(g_ren, SCREEN_W, LOGICAL_H);
     g_tex = SDL_CreateTexture(g_ren, SDL_PIXELFORMAT_RGB888,
                               SDL_TEXTUREACCESS_STREAMING, SCREEN_W, SCREEN_H);
     if (!g_tex) return -1;
+    present_texture();
     return 0;
 }
 
@@ -69,9 +126,8 @@ void platform_present(const uint8_t *fb, const rgb_t palette[256]) {
         pixels[i] = 0xFF000000u | ((uint32_t)c.r << 16) | ((uint32_t)c.g << 8) | c.b;
     }
     SDL_UpdateTexture(g_tex, NULL, pixels, SCREEN_W * 4);
-    SDL_RenderClear(g_ren);
-    SDL_RenderCopy(g_ren, g_tex, NULL, NULL);
-    SDL_RenderPresent(g_ren);
+    g_have_frame = 1;
+    present_texture();
 }
 
 /* The keypad keys (keysyms >= 256) as the BIOS gives them to INT 16h (AL): + - * / always (Shift or not), the digits and
@@ -102,6 +158,16 @@ void platform_poll_input(input_t *in) {
     SDL_Event e;
     while (SDL_PollEvent(&e)) {
         if (e.type == SDL_QUIT) in->quit_requested = 1;
+        if (e.type == SDL_WINDOWEVENT && (e.window.event == SDL_WINDOWEVENT_SIZE_CHANGED ||
+                                          e.window.event == SDL_WINDOWEVENT_EXPOSED)) {
+            present_texture();               /* the game may be waiting for input: show its last frame at the new size */
+            continue;
+        }
+        if (e.type == SDL_KEYDOWN && (e.key.keysym.sym == SDLK_F11 ||
+                                      (e.key.keysym.sym == SDLK_RETURN && (e.key.keysym.mod & KMOD_ALT)))) {
+            if (!e.key.repeat) toggle_fullscreen();   /* the port's own keys: the game never sees them */
+            continue;
+        }
         if (e.type == SDL_KEYDOWN && e.key.keysym.scancode == SDL_SCANCODE_S && (e.key.keysym.mod & KMOD_CTRL)) {
             /* by the physical key, as 03FF tests make code 1Fh (any keyboard layout) */
             music_ctrl_s_03FF();             /* the INT 9 hook 03FF: Ctrl+S mutes / unmutes the music; 03AA drops the */
@@ -126,12 +192,10 @@ void platform_poll_input(input_t *in) {
         else if (e.type == SDL_MOUSEBUTTONDOWN)
             in->mouse_buttons |= 1 << (e.button.button - 1);   /* a press shorter than a frame still counts */
     }
-    /* position and held buttons every frame (drags need them), scaled from the window to 320x200 */
-    int mx, my, ww = SCREEN_W * 2, wh = SCREEN_H * 2;
+    /* position and held buttons every frame (drags need them), from the window to 320x200 (the black bars clamp) */
+    int mx, my;
     uint32_t b = SDL_GetMouseState(&mx, &my);
-    if (g_win) SDL_GetWindowSize(g_win, &ww, &wh);
-    in->mouse_x = ww > 0 ? mx * SCREEN_W / ww : 0;
-    in->mouse_y = wh > 0 ? my * SCREEN_H / wh : 0;
+    if (g_ren) window_to_game(mx, my, &in->mouse_x, &in->mouse_y);
     if (b & SDL_BUTTON_LMASK) in->mouse_buttons |= 1;
     if (b & SDL_BUTTON_RMASK) in->mouse_buttons |= 4;
 }
