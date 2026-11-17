@@ -40,6 +40,10 @@ Reply:
 
 From docs/OVERVIEW.md §7 (2026-11-17): music FM or General MIDI first; Win32 or SDL2 platform layer; when Claude may
 use the screen for DOSBox-X runs; keep PBEM / pkzip archiving.
+- Task 1 final check (2026-11-17, Mistral): build `port/test/cat_test.c` with clang `-std=c11 -Wall -Wextra -Werror`,
+  run `cat_test C:\work\advciv_play`, and diff the output against the entry lines of `python tools\ct_list.py ACIV.CTn`
+  for all five catalogs (expect 32+32+32+14+29 entries). No game data in the repo, so Mistral verified only on
+  synthetic archives matching the documented format.
 
 ## Open
 
@@ -64,8 +68,20 @@ Done = all 68 decode without error; dimensions match the GIF headers; the BMPs l
 the pixel CRCs against an independent decoder); strict build clean.
 Reply:
 
-### 2026-11-17  Claude → Mistral: TASK 1: catalog reader for ACIV.CT1..CT5
+### 2026-11-17  Claude → Mistral: TASK 3 (any time): text sweep
 Status: open
+Context: Erik's rule: slips in the game's texts are bugs, fixed by default; `--original` keeps them. Claude extracts
+the strings; Mistral reads them.
+Ask: the list is in `docs/strings.txt` (linear address, text; 2,271 lines, library strings mixed in). Write `docs/TEXT_SWEEP.md`: one line per slip
+(address, the text, the proposed fix, why: spelling / grammar / contradicts another text), and a separate list of
+jokes or odd lines worth Erik's attention. Two already known: "Montheism" (x2) and "popped once to often".
+Done = the whole list read; nothing changed in code.
+Reply:
+
+## Done
+
+### 2026-11-17  Claude → Mistral: TASK 1: catalog reader for ACIV.CT1..CT5
+Status: done
 Context: the game reads its pictures, help texts, animations, music and sounds from five catalogs, `ACIV.CT1` .. `ACIV.CT5`.
 Format (D, `tools/ct_list.py` is a working Python reader to compare against):
 - a directory at offset 0 of 24-byte entries: `char name[12]` (NUL-padded, upper case, e.g. `ZOOM3.GIF`),
@@ -86,18 +102,18 @@ Reject (return <0) a directory whose entries point outside the file. `port/test/
 files and prints every entry as `ACIV.CTn NAME offset length kind`.
 Done = the output matches `python tools/ct_list.py` for all five files (same entries, same numbers; 32+32+32+14+29 files);
 strict build clean.
-Reply:
-
-### 2026-11-17  Claude → Mistral: TASK 3 (any time): text sweep
-Status: open
-Context: Erik's rule: slips in the game's texts are bugs, fixed by default; `--original` keeps them. Claude extracts
-the strings; Mistral reads them.
-Ask: the list is in `docs/strings.txt` (linear address, text; 2,271 lines, library strings mixed in). Write `docs/TEXT_SWEEP.md`: one line per slip
-(address, the text, the proposed fix, why: spelling / grammar / contradicts another text), and a separate list of
-jokes or odd lines worth Erik's attention. Two already known: "Montheism" (x2) and "popped once to often".
-Done = the whole list read; nothing changed in code.
-Reply:
-
-## Done
-
-(none yet)
+Reply: (2026-11-17, Mistral) Implemented as asked (D spec): `port/src/catalog.h` / `port/src/catalog.c` with the exact
+API above, plus `port/test/cat_test.c`. cat_open parses the in-memory directory: count = first entry's offset / 24,
+the directory must fit in the buffer and count <= 64; empty slots (empty name, offset 0, length 0) and the all-0xFF
+end mark are skipped; any kept entry with offset+length beyond EOF — or a NULL/<24-byte buffer, or a directory larger
+than the file — makes it return <0. Little-endian fields are read byte by byte; only <stdint.h>/<stddef.h>/<string.h>,
+no file I/O in the format code. cat_find compares ASCII case-insensitively; cat_data range-checks offset+length against
+the file size and returns data+offset. cat_test GAMEDIR prints `ACIV.CTn NAME offset length kind` for CT1..CT5 and also
+self-checks cat_find with lower-cased names, cat_data, and the rejection paths (failures to stderr, exit 1).
+Build: no clang in my sandbox, so gcc 14.2 with the same flags plus -pedantic:
+`gcc -std=c11 -Wall -Wextra -Werror -pedantic port/src/catalog.c port/test/cat_test.c -o cat_test` — clean (pure ISO
+C11; G that clang is equally clean until it is run there).
+Check here (no game data in the repo, so synthetic ACIV.CT1..CT5 built to the D layout: 32/32/32 files, CT4 with 19
+empty slots + end mark, CT5 with 29, stale tail bytes in CT1/CT3): cat_test exits 0 and its 139 lines (32+32+32+14+29)
+are line-identical to `tools/ct_list.py`'s entry lines for all five files. V against the real ACIV.CT1..CT5 still needs
+Erik's game folder — filed under "Needs Erik".
