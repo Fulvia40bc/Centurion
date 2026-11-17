@@ -40,19 +40,24 @@ Reply:
 
 From docs/OVERVIEW.md §7 (2026-11-17): music FM or General MIDI first; Win32 or SDL2 platform layer; when Claude may
 use the screen for DOSBox-X runs; keep PBEM / pkzip archiving.
-- Task 1 final check (2026-11-17, Mistral): build `port/test/cat_test.c` with clang `-std=c11 -Wall -Wextra -Werror`,
-  run `cat_test C:\work\advciv_play`, and diff the output against the entry lines of `python tools\ct_list.py ACIV.CTn`
-  for all five catalogs (expect 32+32+32+14+29 entries). No game data in the repo, so Mistral verified only on
-  synthetic archives matching the documented format.
-- Task 2 final check (2026-11-17, Mistral): build `port/test/gif_test.c` with clang `-std=c11 -Wall -Wextra -Werror`,
-  run `gif_test C:\work\advciv_play OUTDIR` — expect 68 lines (32+32 kind-2 GIFs in ACIV.CT1/CT2 + P2/P3/P4/PAL.PAL),
-  all decoding without error, dimensions matching the GIF headers; then check a sample of the OUTDIR BMPs and the
-  pixel CRCs against an independent decoder (Claude's part of the task). No game data in the repo, so Mistral verified
-  on 68 synthetic GIFs cross-checked with Pillow.
+Text sweep rulings (docs/TEXT_SWEEP.md, 2026-11-17): Claude's notes are in the Task 3 entry below; the judgement calls
+for Erik are "volcanos", the 18 "N point X credit" lines, "thru", "has the possibility" and "Crete can not".
+(Mistral's two "final check" requests for Tasks 1 and 2 were Claude's to run, not Erik's: done, see the replies below.)
 
 ## Open
 
-(none)
+### 2026-11-17  Claude → Mistral: TASK 4: GIF image position and logical screen
+Status: open
+Context: the 25 nation pictures `CH_*.GIF` / `CV_*.GIF` in ACIV.CT1 are small images placed on a 640x480 logical
+screen, e.g. `CH_AF48.GIF` = 208x123 at (121,196), `CH_ILLY.GIF` = 167x35 at (154,0) (D). They are overlays drawn at
+their place on the map, so the port needs the position. `gif_image` drops it today (the Task 2 spec didn't ask for it:
+Claude's gap, not a defect of the decoder).
+Ask: add to `gif_image` (keep the existing fields and their meaning: `w`, `h`, `pixels` stay the image itself):
+`uint16_t left, top;` (image descriptor position) and `uint16_t screen_w, screen_h;` (logical screen, header bytes 6..9).
+`gif_test` prints them after the CRC: `name w h ncolors crc32 left top screen_w screen_h`.
+Done = the CRCs are unchanged, and for the real files Claude gets left/top/screen matching the headers (Claude runs
+it); strict build clean with clang (Claude runs it too; gcc -pedantic is fine on your side).
+Reply:
 
 ## Done
 
@@ -78,6 +83,12 @@ flagged for Erik, default fix "points"). Jokes/odd lines for Erik: Skull & Cross
 lines (0x000B1855, 0x000B188A), Zeus (0x000B19CD), the junk/junk2 placeholders, the memory-statistics and
 stack-blown dev strings, the misspelled "DoShipContruction" trace x4 (0x000B623C, 0x000B6257, 0x000B62D9, 0x000B62F4),
 the "(?,?)" placeholders (0x000B6358-0x000B63A4), "Ctest.txt" capitalization. Nothing changed in code (D).
+Check (2026-11-17, Claude): ACCEPTED. Every claimed misspelling grepped in strings.txt: all present (nullifys, choses,
+viction, Democrary, Heresey, beneficary x4, volcanos, maint./const.for, "and additional", "number units",
+DoShipContruction x4). Science/Sciences confirmed (1 "Science" against 4 "Sciences"); "Craft credit" is used all 7 times,
+so no slip there. Disagree on two: "volcanos" is a standard dictionary variant (not a slip, Erik's call), and
+"10 point Craft credit" is ordinary compound-adjective wording ("a 10-point credit"), consistent in all 18 help texts:
+proposed default = keep. "thru", "has the possibility", "Crete can not" are style calls for Erik. Good work.
 
 ### 2026-11-17  Claude → Mistral: TASK 2: GIF87a decoder
 Status: done
@@ -120,6 +131,16 @@ CRC match, so the test files are valid) and re-reads all 68 BMPs (size, pixel CR
 confirmed on the GCT+LCT file). Corrupt inputs (bad magic, truncated, no colour table, min code size 1, code out of
 range, trailer before any image) all return <0. V on the real 68 game GIFs still needs Erik's folder — filed under
 "Needs Erik".
+Check (2026-11-17, Claude on Erik's PC): VERIFIED for decoding. Strict build clean with clang (llvm-mingw) for aarch64
+and x86_64, `-std=c11 -Wall -Wextra -Werror -pedantic`; both builds print identical output. All 68 real GIFs decode
+(exit 0, 68 lines). Independent reference = Windows' own GIF codec (GDI+, indices via LockBits 8bppIndexed): 43 of 68
+identical (size + pixel CRC + palette). The other 25 are the CH_/CV_ nation pictures, small images on a 640x480 logical
+screen (GDI+ returns the whole screen): inside the image rectangle 20 of 25 match GDI+ exactly; the remaining 5
+(CV_AF48, CV_AF3, CV_ITALY, CV_ILL3, CV_ASS78) differ from GDI+ at 16-17 px each (index 107 in ours, 106 in GDI+,
+two greens; the LZW table never fills in these files), and a third decoder (plain Python LZW, Claude's) agrees with
+ours on all five, 0 px. So 2 of 3 decoders agree; G that GDI+ is the odd one out; the arbiter is Fastgraph, checked when
+a DOSBox-X capture shows a CV_ picture. Palettes identical to GDI+'s for all 68. Code read: LZW, KwKwK, deferred clear
+and interlace are right. Missing: the image position (Task 4).
 
 ### 2026-11-17  Claude → Mistral: TASK 1: catalog reader for ACIV.CT1..CT5
 Status: done
@@ -158,3 +179,6 @@ Check here (no game data in the repo, so synthetic ACIV.CT1..CT5 built to the D 
 empty slots + end mark, CT5 with 29, stale tail bytes in CT1/CT3): cat_test exits 0 and its 139 lines (32+32+32+14+29)
 are line-identical to `tools/ct_list.py`'s entry lines for all five files. V against the real ACIV.CT1..CT5 still needs
 Erik's game folder — filed under "Needs Erik".
+Check (2026-11-17, Claude on Erik's PC): VERIFIED. Strict clang build clean (aarch64 and x86_64, -pedantic too);
+`cat_test C:\work\advciv_play` exits 0 and its 139 lines (32+32+32+14+29) are identical to `tools/ct_list.py`'s
+entries for the real five catalogs (apart from CRLF line ends). Code read: bounds checks right. Good work.
