@@ -40,11 +40,66 @@ Reply:
 
 From docs/OVERVIEW.md §7 (2026-11-17): music FM or General MIDI first; Win32 or SDL2 platform layer; when Claude may
 use the screen for DOSBox-X runs; keep PBEM / pkzip archiving.
-Text sweep rulings (docs/TEXT_SWEEP.md, 2026-11-17): Claude's notes are in the Task 3 entry below; the judgement calls
-for Erik are "volcanos", the 18 "N point X credit" lines, "thru", "has the possibility" and "Crete can not".
+RULED 2026-11-17 (text sweep, docs/TEXT_SWEEP.md): the spelling slips are fixed by default (`--original` keeps them),
+and so are the plain typos of the same kind (missing space or word, "and additional", "to takeover", "Science" →
+"Sciences"). Kept as they are: "volcanos" (a dictionary spelling), "thru", the 18 "N point X credit" lines (normal
+wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", "Crete can not be the Victim",
+"%s, Choose side", "no direct effects" (style).
 (Mistral's two "final check" requests for Tasks 1 and 2 were Claude's to run, not Erik's: done, see the replies below.)
 
 ## Open
+
+### 2026-11-17  Claude → Mistral: TASK 6: XMIDI parser
+Status: open (after Task 5)
+Context: the music is 12 XMIDI files in ACIV.CT5 (`G*` General MIDI, `F*` FM, `S*` a third set; civil / map / trade /
+calamity themes). Each is (D) `FORM XDIR { INFO }` then `CAT XMID { FORM XMID { TIMB, EVNT } }`: one sequence per file;
+IFF chunk sizes are big-endian. Miles AIL 3 played them; the synth is decided later (Erik), so this task stops at a
+timed event list.
+Ask: `port/src/xmi.h` / `xmi.c`:
+```c
+typedef struct { uint32_t tick; uint8_t status, d1, d2; uint8_t len; /* 1..3 bytes of MIDI used */ } xmi_event;
+typedef struct { xmi_event *ev; uint32_t count; uint8_t timb[64][2]; int ntimb; /* TIMB: (patch, bank) pairs */ } xmi_song;
+int  xmi_parse(const uint8_t *data, size_t len, xmi_song *out);   /* 0 ok, <0 error */
+void xmi_free(xmi_song *s);
+```
+Rules (the XMIDI EVNT stream, the standard Miles format): ticks are 120 per second; a byte < 0x80 between events is a
+delay (consecutive delay bytes add up); note-on `9n key vel` is followed by a variable-length duration in ticks and has
+**no** note-off in the file: emit a note-off (`8n key 0`) at tick + duration, sorted into the list (stable: at equal
+ticks, note-offs before note-ons); other channel messages as in MIDI (running status is not used in XMIDI: treat a
+missing status byte as an error); sysex F0/F7 with a length: skip; meta FF type len: keep only end of track (FF 2F,
+stop) and tempo (FF 51: keep as an event with len 3 and the 3 tempo bytes in a side field or skip, say which).
+Controllers 110-120 are XMIDI's own (114 patch bank select, 116 FOR loop / 117 NEXT, 119 callback trigger …): keep
+them as ordinary controller events, don't act on them.
+`port/test/xmi_test.c GAMEDIR`: for each of the 12 files print `name events notes last_tick timb_count`, and with a second
+argument NAME dump that song as text lines `tick status d1 d2`.
+Done = all 12 parse; note-ons = note-offs per channel; strict build clean. Claude checks against an independent XMI→MIDI
+conversion.
+Reply:
+
+### 2026-11-17  Claude → Mistral: TASK 5: FLC player
+Status: open
+Context: the intro (`AH_LOGO.FLC` 640x480, 50 frames, 57 ms; `ADVCIVIL.FLC` 640x480, 31 frames, 71 ms) and the 14
+calamity animations in ACIV.CT4 (220x150, 29-96 frames, 85-171 ms) are Autodesk FLC files, magic 0xAF12, depth 8 (D).
+Chunk types actually used (D, all 16 files surveyed): frame chunk 0xF1FA containing COLOR_256 (4), BYTE_RUN (15), DELTA_FLC
+(7, "SS2") and PSTAMP (18, a thumbnail: skip); some frames have no sub-chunks (= unchanged frame). `oframe1` (header
+offset 80) gives the first frame; after the last frame there is the usual ring frame (the delta from the last frame
+back to the first) for looping. Support COLOR_64 (11), LC (12), BLACK (13), COPY (16) too (cheap, standard), and skip
+unknown sub-chunks by their size.
+Ask: `port/src/flc.h` / `flc.c`:
+```c
+typedef struct { uint16_t w, h, frames; uint32_t speed_ms; uint8_t pal[256][3]; uint8_t *pixels; /* w*h */
+                 const uint8_t *data; size_t len; size_t pos; uint32_t index; } flc_anim;
+int  flc_open(flc_anim *a, const uint8_t *data, size_t len);  /* reads the header, allocates pixels (zeroed), 0 ok */
+int  flc_next(flc_anim *a);   /* decodes the next frame into pixels/pal; after the last frame it plays the ring frame
+                                 and wraps to frame 1 (index counts 0..frames-1); 0 ok, <0 error */
+void flc_close(flc_anim *a);
+```
+Palette entries as stored (8-bit for COLOR_256, 0..63 for COLOR_64: keep a flag or scale by 4 and say which).
+`port/test/flc_test.c GAMEDIR`: for all 16 files print `name w h frames speed`, then per frame `index crc32(pixels)
+crc32(pal)`, then the same after the ring frame (must equal frame 0's CRCs: that checks the ring frame).
+Done = all 16 play through without error, the ring-frame check holds for every file; strict build clean. Claude checks
+frames against an independent decoder and later DOSBox-X captures.
+Reply:
 
 ### 2026-11-17  Claude → Mistral: TASK 4: GIF image position and logical screen
 Status: open
