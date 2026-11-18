@@ -80,4 +80,15 @@ void fg_mousefin(void);                   /* 0x87E43 */
 void fg_intkey(unsigned char *key, unsigned char *aux);         /* 0x87E7C: 0,0 when no key waits */
 void fg_waitfor(int ticks);               /* 18.2 Hz ticks */
 
+/* port additions (fg.c): no original counterpart unless an address is given */
+void fg_set_headless(int on);             /* 1: fg_setdacs does not pace, fg_waitfor does not sleep (tests) */
+void fg_set_gamedir(const char *dir);     /* relative file names (fg_showgif, fg_gifpal, cat_open_file) are tried here first */
+void fg_set_quit(void (*handler)(void));  /* run when the window is closed (PLAT_QUIT); default plat_shutdown + exit(0) */
+void fg_set_input_hook(void (*hook)(void));  /* called each time the game polls input (tests: save the frame, quit) */
+void fg_frame_with_pointer(uint8_t *out, int x, int y);   /* tests: the screen + Fastgraph's pointer at (x, y) if shown */
+int  fg_imagebuf(uint8_t *buffer, uint32_t size);   /* 0x8240F: the buffer fg_showgif(.., flags & 4) reads; size 0 =
+                                                       Fastgraph's internal 4096 bytes (0xD6694); returns 0 */
+int  cat_read(int handle, uint8_t *buffer, unsigned count, unsigned *bytes);  /* _dos_read (0x92420) on a catalog
+                                          handle, from where cat_open/cat_size/cat_load/cat_show left it; 0 ok, 6 bad handle */
+
 #endif

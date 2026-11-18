@@ -31,6 +31,11 @@ foreach ($arch in 'aarch64', 'x86_64') {
   & $cc @warn (Join-Path $test 'font_test.c') (Join-Path $src 'fgfont.c') (Join-Path $src 'png_write.c') `
         -o (Join-Path $o 'font_test.exe')
   if ($LASTEXITCODE) { throw "font_test ${arch}: build failed" }
+  # the port itself (so far: start-up and the title menu)
+  $game = @('main.c', 'fg.c', 'ui_text.c', 'ui_dialog.c', 'ui_screen.c', 'title.c', 'state.c', 'le_image.c', 'fgfont.c',
+            'gif.c', 'catalog.c', 'palette.c', 'png_write.c', 'plat_sdl3.c') | ForEach-Object { Join-Path $src $_ }
+  & $cc @warn "-I$sdl\include" @game "$sdl\lib\libSDL3.dll.a" @gui -o (Join-Path $o 'advciv.exe')
+  if ($LASTEXITCODE) { throw "advciv ${arch}: build failed" }
   $rt = Join-Path (Split-Path $Toolchain) "$arch-w64-mingw32\bin"
   Copy-Item "$sdl\bin\SDL3.dll", "$fs\bin\libfluidsynth-3.dll", "$rt\libc++.dll", "$rt\libunwind.dll" $o -Force
   Write-Host "built $o"

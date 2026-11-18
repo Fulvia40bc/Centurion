@@ -10,6 +10,9 @@
 #include <string.h>
 #ifdef _WIN32
 #include <windows.h>
+#include <direct.h>
+#else
+#include <unistd.h>
 #endif
 
 static int g_headless;
@@ -295,6 +298,15 @@ int plat_pointer(int on)
     else
         SDL_HideCursor();
     return prev;
+}
+
+int plat_chdir(const char *dir)
+{
+#ifdef _WIN32
+    return _chdir(dir);
+#else
+    return chdir(dir);
+#endif
 }
 
 uint64_t plat_ticks_ms(void) { return SDL_GetTicks(); }

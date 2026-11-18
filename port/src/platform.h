@@ -38,6 +38,8 @@ int  plat_poll(plat_event *ev);                 /* 1 = one event taken, 0 = none
 void plat_mouse(int *x, int *y, int *buttons);  /* where the mouse is now, and the PLAT_BUTTON_* bits held */
 int  plat_pointer(int on);                      /* show / hide the system pointer; returns the previous state */
 
+int  plat_chdir(const char *dir);              /* the original runs in the game folder and opens files relative to it */
+
 uint64_t plat_ticks_ms(void);
 void plat_sleep_ms(uint32_t ms);
 

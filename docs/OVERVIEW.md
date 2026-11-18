@@ -255,6 +255,31 @@ except 200 bytes the C start-up has already set (stack limits, the debugger flag
     GIF decode, and the palette identical.
 - The windowed run is Erik's to try (Claude doesn't open windows unasked).
 
+**M3 + first slice of M4: the title menu (2026-11-18).**
+- `docs/LIBRARY_CALLS.md`: the 63 library routines the game calls, each identified by one agent and checked by a
+  second that tried to refute it: 50 confirmed, 13 corrected in detail, 0 refuted.
+- The port loads the data object from `AC_MAIN.EXE` at run time (`le_image.c`, identical to `le_unbind.py`'s
+  output). Translated code reads and writes the game's globals at their original addresses (`state.h`), as Centurion
+  does.
+- `fg.c` reimplements that Fastgraph subset for mode 25 (640x480x256), from the reference.
+- Translated, each function with its address:
+  - the text routines (`ui_text.c`, 0x39F90-0x3AE3C);
+  - the buttons and dialogs (`ui_dialog.c`, 0x3A7B0-0x3C9D0, 0x785D4);
+  - screen, mouse and palette fade (`ui_screen.c`);
+  - the start-up steps the menu needs and the menu itself (`title.c`, 0x10010.. and 0x4F184).
+  The play-by-email branches are left out (Erik's ruling).
+- Each file had a translator and an independent reviewer. The reviewers fixed three details in `fg.c` (the
+  mouse-visibility byte, `cat_show`'s type byte and flags mask) and found no errors in the game code.
+- **Check (V):** `advciv.exe GAMEDIR --headless-frame OUT.png --pointer 320 240` renders the main menu identical to
+  the DOSBox-X capture: **0 of 307,200 pixels differ**, Fastgraph's own pointer included, on ARM64 and x64. Palette
+  identical in all 86 colours used.
+  - The first run differed only in "RESTORE A SAVED GAME": the menu enables it only if a `savgame?.dat` exists in
+    the current folder. The port now changes into the game folder, as the original runs there.
+- **BUG(1995), fixed by default:** the word-wrap routine 0x3A42C drops the first letter of a word that has to be
+  broken at the box edge (e.g. "Mediterranean-" in a narrow box prints "iterranean-"). `--original` keeps it.
+- Not yet translated: restore (main 0x11557 → the restore dialog 0x5FF28), quit's clean-up beyond the exit, the
+  font release 0xE0F8.
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 
