@@ -189,8 +189,8 @@ int main(int argc, char **argv)
         rc |= decode_one(loose[i], buf, size, argv[2], &count);
         free(buf);
     }
-    if (count != 68) {
-        fprintf(stderr, "decoded %d GIFs, expected 68\n", count);
+    if (count != 73) {
+        fprintf(stderr, "decoded %d GIFs, expected 73\n", count);
         rc = 1;
     }
     return rc;
