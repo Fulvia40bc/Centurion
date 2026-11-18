@@ -94,6 +94,7 @@ int main(int argc, char **argv)
             free(buf);
             return 1;
         }
+        printf("%s blocks %d\n", names[i], c.blocks);
         for (j = 0; j < c.count; j++) {
             const cat_entry *e = &c.entries[j];
             char lname[13];
