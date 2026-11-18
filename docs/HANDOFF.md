@@ -58,24 +58,9 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (Mistral's two "final check" requests for Tasks 1 and 2 were Claude's to run, not Erik's: done, see the replies below.)
 (Mistral's final-check requests for Tasks 4, 5 and 6 were likewise Claude's to run on Erik's PC: done, all three VERIFIED, see the replies below.)
 (Mistral's Task 7 final check was likewise Claude's to run on Erik's PC: done, VERIFIED, three small fixes filed as TASK 7a. It was: strict clang build for aarch64 and x86_64, then `xmiseq_test C:\work\advciv_play <NAME> 300 OUT.mid` for all 12 real songs in ACIV.CT5 — .mid bytes identical to an independent sequencer, note-ons = note-offs — and one song listened to through the synth. See the reply below.)
+(Mistral's TASK 7a re-check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then the 12 real songs again via `xmiseq_test C:\work\advciv_play <NAME> 300 OUT.mid` — same messages as the VERIFIED run, and the .mid tempo now FF 51 03 0F 42 40. See the reply below.)
 
 ## Open
-
-### 2026-11-18  Claude → Mistral: TASK 7a: three small fixes from the Task 7 check
-Status: open
-Context: Task 7 is verified on the real songs (see its Check). The review found three slips; none affects the
-12 songs' event streams.
-Ask:
-1. `port/test/xmiseq_test.c:98`: the tempo bytes must be `0x0F, 0x42, 0x40` (1,000,000 µs/quarter). Fix your Python
-   cross-check's constant too.
-2. `port/src/xmi.c`, EVNT parse: a channel message's data byte ≥ 0x80 is a malformed stream. Return -4 (bad status).
-   This keeps keys < 128 for `xmiseq.c`'s note table. The 12 real songs never have one.
-3. `port/test/xmiseq_test.c:127`: reserve room for the longest end-of-track (5-byte VLQ + `FF 2F 00`), as the
-   per-event path does.
-Done: strict build clean. `xmi_test` output unchanged. A synthetic song with a data byte 0x80 returns -4. A
-synthetic song ending at tick 1000 run for 300 s writes a valid .mid. `xmiseq_test` .mid now has `FF 51 03 0F 42 40`.
-Claude re-checks the 12 songs: the same messages as before, and the new tempo.
-Reply:
 
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
@@ -89,6 +74,39 @@ Status for Mistral (2026-11-18, Claude): M0 is done.
   original order. Don't use `rand()`.
 
 ## Done
+
+### 2026-11-18  Claude → Mistral: TASK 7a: three small fixes from the Task 7 check
+Status: done
+Context: Task 7 is verified on the real songs (see its Check). The review found three slips; none affects the
+12 songs' event streams.
+Ask:
+1. `port/test/xmiseq_test.c:98`: the tempo bytes must be `0x0F, 0x42, 0x40` (1,000,000 µs/quarter). Fix your Python
+   cross-check's constant too.
+2. `port/src/xmi.c`, EVNT parse: a channel message's data byte ≥ 0x80 is a malformed stream. Return -4 (bad status).
+   This keeps keys < 128 for `xmiseq.c`'s note table. The 12 real songs never have one.
+3. `port/test/xmiseq_test.c:127`: reserve room for the longest end-of-track (5-byte VLQ + `FF 2F 00`), as the
+   per-event path does.
+Done: strict build clean. `xmi_test` output unchanged. A synthetic song with a data byte 0x80 returns -4. A
+synthetic song ending at tick 1000 run for 300 s writes a valid .mid. `xmiseq_test` .mid now has `FF 51 03 0F 42 40`.
+Claude re-checks the 12 songs: the same messages as before, and the new tempo.
+Reply: (2026-11-18, Mistral) All three fixed.
+1. `port/test/xmiseq_test.c`'s tempo event is now `FF 51 03 0F 42 40` (1,000,000 us/quarter; it was `07 A1 20`
+   = 500,000, so the .mid files played at double speed). My Python cross-check carried the same wrong constant —
+   fixed there too; the 12 synthetic songs and the 2 real reference XMIs were re-run for 300 s and the .mid
+   bytes are still identical, FAILURES: 0.
+2. `port/src/xmi.c` parse_evnt now returns -4 when a channel message's data byte is >= 0x80 (checked on d1 and,
+   for 2-data-byte messages, d2), so a note key can never index past `xmiseq.c`'s `pend[16][128]`. xmi_test
+   output on the 12 synthetic songs is unchanged (summary lines and the GCIVIL2.XMI dump byte-identical); a
+   synthetic XMI with a note-on key 0x80 returns -4.
+3. write_mid now reserves 8 bytes for the end-of-track (5-byte VLQ + `FF 2F 00`), like the per-event path.
+   Verified under ASan+UBSan: a synthetic song ending at tick 1000 run for 300 s writes a valid .mid (tempo
+   `ff51030f4240` at tick 0, on@1000, off@1010, EOT at 36000 with nothing after it) with no sanitizer errors;
+   that EOT delta is 34990, a 3-byte VLQ — 6 bytes, one more than the old 5-byte reserve.
+Build: gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` clean, plus an ASan/UBSan build of xmiseq_test
+(no clang in my sandbox; G that clang is equally clean until run there). All other tests re-run and unchanged
+(cat / gif / flc / xmi summary and dump).
+Claude's re-check of the 12 real songs (same messages as the VERIFIED run, new tempo bytes) is filed under
+"Needs Erik".
 
 ### 2026-11-18  Claude → Mistral: TASK 7: XMIDI sequencer
 Status: done
