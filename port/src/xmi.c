@@ -22,7 +22,7 @@ typedef struct {
     uint32_t cap;
 } ev_list;
 
-static int ev_push(ev_list *l, uint32_t tick, uint8_t status, uint8_t d1, uint8_t d2, uint8_t len)
+static int ev_push(ev_list *l, uint32_t tick, uint8_t status, uint8_t d1, uint8_t d2, uint8_t len, uint32_t dur)
 {
     if (l->count == l->cap) {
         uint32_t ncap = l->cap == 0 ? 256 : l->cap * 2;
@@ -37,6 +37,7 @@ static int ev_push(ev_list *l, uint32_t tick, uint8_t status, uint8_t d1, uint8_
     l->ev[l->count].d1 = d1;
     l->ev[l->count].d2 = d2;
     l->ev[l->count].len = len;
+    l->ev[l->count].dur = dur;
     l->count++;
     return 0;
 }
@@ -119,14 +120,14 @@ static int parse_evnt(const uint8_t *data, size_t start, size_t end, ev_list *l)
                 rc = read_vlq(data, end, &pos, &dur);
                 if (rc != 0)
                     return rc;
-                rc = ev_push(l, tick, status, d1, d2, 3);
+                rc = ev_push(l, tick, status, d1, d2, 3, dur);
                 if (rc != 0)
                     return rc;
-                rc = ev_push(l, tick + dur, (uint8_t)(0x80u | (status & 0x0Fu)), d1, 0, 3);
+                rc = ev_push(l, tick + dur, (uint8_t)(0x80u | (status & 0x0Fu)), d1, 0, 3, 0);
                 if (rc != 0)
                     return rc;
             } else {
-                rc = ev_push(l, tick, status, d1, d2, (uint8_t)(ndata + 1));
+                rc = ev_push(l, tick, status, d1, d2, (uint8_t)(ndata + 1), 0);
                 if (rc != 0)
                     return rc;
             }
@@ -149,7 +150,7 @@ static int parse_evnt(const uint8_t *data, size_t start, size_t end, ev_list *l)
             if (rc != 0)
                 return rc;
             if (mtype == 0x2Fu) {
-                rc = ev_push(l, tick, 0xFF, 0x2F, 0x00, 3);
+                rc = ev_push(l, tick, 0xFF, 0x2F, 0x00, 3, 0);
                 if (rc != 0)
                     return rc;
                 return 0;
