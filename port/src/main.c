@@ -1,8 +1,12 @@
 /* advciv GAMEDIR [--original] [--headless-frame OUT.png]
-   The port's program. So far: the start-up the title menu needs (title_boot), the title menu (0x4F184) and, for a new
-   game, the setup screens (title_newgame: 0x4DD50, 0x4EAE0).
+   The port's program. So far: the start-up the title menu needs (title_boot), the title menu (0x4F184); for a new
+   game the setup screens (title_newgame: 0x4DD50, 0x4EAE0), the loading step and the nation choice, to main 0x11854;
+   for RESTORE A SAVED GAME the restore (title_restore, save.c), to main 0x115B0. There it stops: the game loop is not
+   ported yet.
    --headless-frame opens no window: it runs until the game first waits for input, saves the screen as an indexed PNG
-   (the 6-bit DAC widened as the VGA shows it) and exits, for frame comparisons with DOSBox-X captures. */
+   (the 6-bit DAC widened as the VGA shows it) and exits, for frame comparisons with DOSBox-X captures. With --dump-ds
+   it saves the frame at the dump instead. --click X Y (repeatable) scripts the clicks; --seed HEX sets the clock seed
+   a new game starts from; --dump-ds OUT.bin writes the data object at the stop. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -14,6 +18,7 @@
 #include "state.h"
 #include "ui.h"
 #include "game.h"
+#include "save.h"
 
 static const char *s_frame_path;
 static int s_pointer_x = -1, s_pointer_y = -1;
@@ -41,11 +46,12 @@ static void script_hook(void)
         }
         return;
     }
-    if (s_frame_path != NULL && ++s_idle >= SETTLE_POLLS)   /* with only --dump-ds the program runs on */
+    if (s_frame_path != NULL && s_dump_path == NULL && ++s_idle >= SETTLE_POLLS)   /* with --dump-ds the program runs
+                                                                                     on and saves the frame at the dump */
         save_frame_and_exit();
 }
 
-static void save_frame_and_exit(void)
+static int save_frame(void)
 {
     uint8_t rgb[256][3];
     int rc;
@@ -59,7 +65,12 @@ static void save_frame_and_exit(void)
         rc = png_write_indexed(s_frame_path, fg_screen(), SCREEN_W, SCREEN_H, (const uint8_t (*)[3])rgb);
     if (rc != 0)
         fprintf(stderr, "advciv: cannot write %s\n", s_frame_path);
-    exit(rc != 0);
+    return rc;
+}
+
+static void save_frame_and_exit(void)
+{
+    exit(save_frame() != 0);
 }
 
 int main(int argc, char **argv)
@@ -122,6 +133,20 @@ int main(int argc, char **argv)
         fg_set_input_hook(s_nclicks > 0 ? script_hook : save_frame_and_exit);
     for (;;) {   /* main 0x111A2..0x113FE: the menu, and for a new game the setup screens; CANCEL returns to 0x11168 */
         rc = title_menu();
+        if (rc == -0x46) {                            /* RESTORE A SAVED GAME: main 0x11557 */
+            if (title_restore()) {                    /* 0x115A9; the game goes on at 0x115B0 */
+                if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
+                    fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
+                if (s_dump_path != NULL && s_frame_path != NULL)
+                    (void)save_frame();
+                fprintf(stderr, "advciv: stopped at main 0x115B0 after a restore, seed %08X; the game itself is not "
+                        "ported yet\n", (unsigned)D32(0xCAC5Cu));
+                plat_shutdown();
+                return 0;
+            }
+            title_menu_again();                       /* cancelled: back to 0x11168 */
+            continue;
+        }
         if (rc != -0x45)
             break;
         if (title_newgame() != 0) {
@@ -130,6 +155,8 @@ int main(int argc, char **argv)
                 f2EFA0();                             /* 0x1184F: the nation choice; returns to 0x11854 */
             if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
                 fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
+            if (s_dump_path != NULL && s_frame_path != NULL)   /* the screen at the dump, as run_setup.sh captures it */
+                (void)save_frame();
             fprintf(stderr, "advciv: stopped at main 0x%X (%d), seed %08X; the game itself is not ported yet\n",
                     s_dump_early ? 0x1184Fu : 0x11854u, rc, (unsigned)D32(0xCAC5Cu));
             plat_shutdown();

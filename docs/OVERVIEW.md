@@ -362,6 +362,61 @@ button (0x136B0) and the computer nations (0x302C4) stop with `not_ported()` unt
   - Memory at main 0x11854 (`--seed 0B102E0E`): 0 unexplained bytes. This includes the CONTINUE button 0x3BB48 moved
     in dialog 0xBB800.
 
+**M4, module N3: the computer nations (2026-11-18 night).** `nations.c`: 0x302C4 (which nations the computer
+takes, by player count 3..8: fixed orders, pairs and triples drawn with `game_rand`, five jump tables) and 0x30174
+(one nation to the computer: token, name box, 750 ms wait). The nation choice now runs to its end for every setup.
+- **BUG(1995), fixed by default (`--original` keeps it), V in DOSBox-X:** the computer can get more nations than
+  the setup asked for.
+  - A: after taking a nation the code counts down what is left to assign, except in nine places where it counts
+    *up*: Africa (all six player counts), Iberia (4 and 5 players), Asia (5 players). With 0 or 1 human players
+    every setup still comes out right, which is likely why it went unnoticed; with more humans, some choices give
+    the computer one or two extra nations.
+  - B: with 7 players, two single takes after Africa/Egypt/Iberia are not guarded at all.
+  - The full table (every setup, every human choice) is in `nations.c`'s header, from the translator's and the
+    reviewer's independent models.
+  - Confirmed in the original, as predicted:
+    - 3 players, 2 humans (IBERIA, ILLYRIA) + 1 computer: the computer gets AFRICA *and* CRETE;
+    - 4 players, 3 humans (ILLYRIA, THRACE, CRETE) + 1 computer: AFRICA and IBERIA;
+    - 7 players, 4 humans (ILLYRIA, ASIA, ASSYRIA, BABYLON) + 3 computers: AFRICA, IBERIA, CRETE and EGYPT.
+  - The fix changes no `game_rand` call, so the seed is the same in both modes. The fixed port differs from the
+    original by exactly that one nation byte.
+- **Check (V):** ten setups run in DOSBox-X to main 0x11854 (`tools/dosbox/run_setup.sh`, per-human choices with
+  `/`):
+  - 2H+1C (twice), 1H+2C (twice), 2H+2C (twice), 2H+3C, 2H+4C, 3H+4C, 2H+6C: these reach all five jump tables;
+  - plus the three bug setups (port with `--original`).
+  - The port with the same seed and clicks (`tools/verify/portcmp.sh`): every frame at the stop **0 px**, every
+    data object **0 unexplained bytes**, every final seed identical.
+
+**M4, module S1: save and restore (2026-11-18 night).** Translated and reviewed in two halves:
+- `save.c`: RESTORE GAME 0x5FF28, SAVE GAME 0x5E7D0, the slot dialog 0x601D8, the one-line text input 0x60694, the
+  version check 0x6016C, 0x3CD10, and main's restore path 0x11557..0x115A9 (`title_restore`, wired into main).
+- `saveload.c`: the save reader 0x5F05C (73 freads in file order, the 61→69-byte area conversion of old versions),
+  the CRC check 0x7BBF0 / 0x7BB84 (on the table 0x7BB14 builds), the AI's random table 0x7BCD4, the trade-offer
+  table 0x726DC.
+- The original runs `system("copy ...")` for save and for restoring an autosave; the port copies the file in C.
+- **BUG(1995) fixes (`--original` keeps each):**
+  - The restore loads the file into the game *before* the CRC and version checks, so a rejected ("corrupted",
+    "earlier format") save still overwrites the game in progress. Fixed: check first, load only an accepted file.
+  - The "Restoring" screen measures the description in the wrong font, so the fallback for long descriptions never
+    runs and one of 50 characters runs off the screen.
+  - The text input clears the click flag and then tests it, so CANCEL cannot be clicked while a description is
+    typed (only Esc works).
+  - Esc in the text input leaves the back buffer as the drawing surface.
+  - Two only for save versions the game then rejects anyway (a 22-byte tag read for versions before 0x28; a stale
+    AI random table for versions 0x2D/0x2E).
+- Checked by the translator (V): both autosaves of the run copy pass the CRC (0); the reader consumes 44,058 of
+  their 44,062 bytes (the last 4 are the CRC) and sets the seeds 0xDE9B76A2 (R4) and 0x3AA893EE (end of round 3).
+- **Check (V):** title menu → RESTORE A SAVED GAME in DOSBox-X and the port (`tools/dosbox/run_restore.sh`):
+  - the slot dialog (12 slots, the two autosaves' descriptions): **0 px**;
+  - slot 'a', the "Restoring" screen (chariot, the quoted description): **0 px**;
+  - slots 'a' (R4 autosave) and 'b' (end of round 3): the data object at main 0x115B0 (after the return of 0x5FF28
+    and the flag clear at 0x115A9): **0 unexplained bytes** each, seeds 0xDE9B76A2 and 0x3AA893EE as in the
+    original. Restoring 'b' copies savgameb.dat over savgamea.dat in both, the same bytes.
+  - Noted for later modules (D, the run copy's files): the original, let run on past 0x115B0 after restoring 'b',
+    rewrote savgameb.dat with flag byte 0xE1624 = 02 instead of 06 (and a new CRC). That is game code after the
+    restore (not ported yet); the run copy's saves were put back from `advciv_play` afterwards.
+- `--click` scripts reach the restore too: `advciv GAMEDIR --click 320 186 --click 320 354 --dump-ds OUT.bin`.
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 

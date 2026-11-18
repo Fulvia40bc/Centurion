@@ -28,7 +28,7 @@
    buffer fg.h's fg_imagebuf was given. So every call of 0x8240F here goes through imagebuf() below, which does both.
    At 0x2F91B and 0x30116 the buffer is ui_heap_F522C, 0xFF00 again, so fg.c keeps no pointer to a freed card block.
 
-   Not ported yet: 0x136B0 (the AST chart, 0x3012F) and 0x302C4 (the computer nations, 0x2F9DE): not_ported(addr).
+   0x302C4 (the computer nations, called at 0x2F9DE) is in nations.c.
 
    1995 bugs: none found in these four routines (no g_original branches). */
 
@@ -325,8 +325,8 @@ void f2EFA0(void)
     if (S8(0xE1621u) > 0) {                                     /* 0x2F9C3 dword [0xE161E] sar 24; test; jle */
         f3CC14();                                               /* 0x2F9CF */
         f3C940(0xC08D0u);                                       /* 0x2F9D9 */
-        not_ported(0x302C4u);                                   /* 0x2F9DE call 0x302C4: the computer nations */
-        f3C7A0(0xC08D0u);                                       /* 0x2F9E8 (reached once 0x302C4 is ported) */
+        f302C4();                                               /* 0x2F9DE the computer nations (nations.c) */
+        f3C7A0(0xC08D0u);                                       /* 0x2F9E3 mov eax,0xC08D0; 0x2F9E8 */
     }
 }
 
@@ -494,7 +494,7 @@ int f300E0(int id)
             f8240F(ui_heap_F522C, 0xFF00);                      /* 0x30122 fg_imagebuf([0xF522C], 0xFF00) */
             fg_imagebuf(ui_heap_F522C, 0xFF00);                 /* port: fg.c's buffer too */
             f136B0(1);                                          /* 0x3012F the AST chart, mode 1 (ast.c); eax unused */
-            f3CC14();                                           /* 0x30134 (reached once 0x136B0 is ported) */
+            f3CC14();                                           /* 0x30134 */
             f3CD6C(6);                                          /* 0x3013E choose.gif */
         }
     } else if (ax == 0x39) {                                    /* 0x30106 jbe 0x30145 */

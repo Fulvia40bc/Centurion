@@ -71,13 +71,13 @@ in protected mode after int 21h AH=2Ch. Data dumps go through tools/verify/dscom
     list.
   - Score helpers: unit tests on the R4 autosave's nation records. Values are taken from DOSBox-X at the
     returns of 0x147C4 and 0x1486C (eax). Mode 3 of 0x136B0 waits for the AST phase (M6).
-- **N3.** Setups 2H+1C and 1H+2C (3 players), 2H+2C, 2H+3C, 2H+4C, 3H+4C, 2H+6C. These hit all five jump tables.
+- **N3.** Setups 2H+1C and 1H+2C (3 players), 2H+2C, 2H+3C, 2H+4C, 3H+4C, 2H+6C. These hit all five jump tables. DONE 2026-11-18 (V, OVERVIEW §5).
   - Run with the same clock seed: --seed from 0xF422C in the DOSBox-X dump.
   - Data: BP 0x11854. Check the +0x9A bytes (2 = computer), the player records, and that the seed is identical.
   - Frame at the BP: the computer tokens on the zoom map.
   - First, in DOSBox-X, settle the suspected rem++ after Africa (2 humans + 1 computer in a 3-player game:
     one computer nation or two?).
-- **S1.**
+- **S1.** Title-menu restore DONE 2026-11-18 (V, OVERVIEW §5); in-game SAVE byte compare comes with STACK.
   - Title -> RESTORE A SAVED GAME: frame of the slot dialog (12 slots, descriptions of the run copy's saves).
   - Click slot 'a': frame of "Restoring" (chariot.gif + description).
   - Data: BP 0x115A0 (return of 0x5FF28 in main) after restoring the R4 autosave. The whole data object. The heap
