@@ -149,7 +149,7 @@ verify against the original in DOSBox-X. Each module lands with its checks; 1990
 | M6 | Phases in turn order, human side: tax, population expansion, census, ships, movement, conflict, cities, surplus, trade cards, trade, calamities, civ advances, AST | per phase: the game autosaves after every phase ("AutoSaved after SHIP MAINTENANCE - R4"), so load the autosave before the phase in both, same random state, compare the next autosave byte-for-byte |
 | M7 | AI (the largest part, spread through the phases) | the self-running demo `/SRD` and the hidden continuous test `/C`: whole AI-only games, compared autosave by autosave against DOSBox-X from the same seed |
 | M8 | Animations and sound: calamity FLCs, WAVs, XMI sequencer + synth (§7, question 2) | FLC frames vs captures; music by ear (Erik) |
-| M9 | Hot-seat and PBEM (`*.hst` files; the pkzip archive replaced or dropped, question 5) | a PBEM round trip between two port instances, and port ↔ DOSBox-X files |
+| M9 | Hot seat (PBEM dropped, question 5) | a hot-seat game with two human players, run side by side with DOSBox-X from the same save |
 | M10 | Window polish as Centurion: resizable 4:3, Alt+Enter / F11, no console | Erik |
 
 **The random-number generator (M0, settled 2026-11-17).** The game's own `rand` at 0x78AE4 (D):
@@ -259,4 +259,9 @@ Centurion `docs/HANDOFF.md` protocol, with a `docs/HANDOFF.md` here).
    SDL2 built from source for ARM64)? I propose Win32.
 4. **Running the original**: verification needs DOSBox-X runs of the game in a window. May I use the screen for
    those, and when?
-5. **PBEM**: keep play-by-email? Its pkzip archiving (`PREP????.ZIP`) needs pkzip; drop it, or write zips natively?
+5. **PBEM**: RULED 2026-11-18: dropped. Erik plays hot seat (several human players at one PC), and hot seat stays.
+   - The new-game screen keeps "Number of Human Players" and "Number of Computer Players".
+   - The "Play-by-email" choice and the PBEM menus are left out, and so is pkzip.
+   - The Military advance's text says "PBEM only: removes one opposing unit before normal conflict resolution"
+     (data 0xB8063). That sentence describes a mode the port won't have. Proposed: leave it out by default and
+     keep it with `--original`. Erik to confirm.
