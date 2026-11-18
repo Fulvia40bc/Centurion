@@ -245,6 +245,34 @@ static int ui_stricmp(const char *a, const char *b)
     }
 }
 
+static void boot_music_set(void);
+
+static void boot_sound(void)
+{
+    if (D8(0xBC880u) == 0)                            /* 0x10B4D sound wanted (1 in the shipped data; /NS clears it) */
+        return;                                       /* -> 0x10E7F */
+    setD8(0xF625Bu, 1);                               /* 0x10B65 after AIL_startup: the sound system is up */
+    {   /* 0x10B7F AIL_install_DIG_INI(&[0xF6274]): G, the port treats a readable DIG.INI with a DRIVER line as installed */
+        char line[256], key[32], val[128];
+        int ok = 0;
+        FILE *f = fopen("DIG.INI", "r");
+        if (f != NULL) {
+            while (fgets(line, sizeof line, f) != NULL)
+                if (sscanf(line, "%31s %127s", key, val) == 2 && strcmp(key, "DRIVER") == 0)
+                    ok = 1;
+            fclose(f);
+        }
+        if (ok) {
+            setD32(0xF6274u, 1);                      /* the driver handle (an AIL pointer: differs by design) */
+            setD8(0xF625Cu, 1);                       /* 0x10B99 digital sound on */
+            setD32(0xF6278u, 1);                      /* 0x10BA8, 0x10BC5, 0x10BE1: three sample handles */
+            setD32(0xF627Cu, 1);
+            setD32(0xF6280u, 1);
+        }
+    }
+    boot_music_set();                                 /* 0x10BEE..0x10E7F */
+}
+
 static void boot_music_set(void)
 {
     static const uint32_t dst[4] = { 0xCAB1Cu, 0xCAB2Cu, 0xCAB3Cu, 0xCAB4Cu };
@@ -292,6 +320,12 @@ int title_boot(const char *gamedir)
     r = state_init(gamedir);                          /* the data object, as DOS/4GW loaded it */
     if (r != 0)
         return r;
+    f60A80();                                         /* run by _cstart_ before main: Watcom's initializer table
+                                                         (XI entry at 0xE15EA, priority 0x40); the table's other
+                                                         eight routines are library start-ups the port replaces */
+    /* 0x10035: f78B44 asks DPMI for free-memory information (int 31h AX=0500h) into 0x1125A8..0x1125D7: machine
+       specific, left out (differs from a DOSBox-X dump by design). */
+    f7BB14();                                         /* 0x10577: the CRC-32 table (the CD check around it is skipped) */
 
     /* The port has no intro yet, so it starts as the original does with /NT ("Titles will be skipped.", 0x102AC):
        the palette is set directly at 0x11177 and the menu does not fade in ([0xF8E40] stays 0). */
@@ -376,7 +410,7 @@ int title_boot(const char *gamedir)
     f39E50(2);                                        /* 0x10B2A: cognac19.fgf */
     f39F90(1);                                        /* 0x10B39 */
     f118F8();                                         /* 0x10B3E: the sprites from maped.gif */
-    boot_music_set();                                 /* 0x10BEE..0x10E7F (data side only) */
+    boot_sound();                                     /* 0x10B4D..0x10E7F (data side only; the port plays sound itself) */
 
     /* 0x10EAD..0x10F02: the map buffer, 1716x568 -> [0xF52C4]; the menu does not use it, but defining it here keeps
        the handles as in the original (Page2 = handle 2, G: fg_vbdefine takes the first free slot, 0x823A8) */
@@ -540,4 +574,37 @@ void f118F8(void)
     for (i = 0; i < 12; i++)
         f3AE90(cuts[i].spr, cuts[i].x, cuts[i].y, cuts[i].w, cuts[i].h);
     fg_vbclose();                                /* 0x11A7D */
+}
+
+/* 0x60A80: an initializer (Watcom XI table, run before main): the running sums of the seven dwords at 0xC7618 into
+   0x10F2F4..0x10F308 (G: thresholds read at 0x63893..0x63939). */
+void f60A80(void)
+{
+    uint32_t a = D32(0xC7618u), d;
+
+    setD32(0x10F2F4u, a);                             /* 0x60A99 */
+    a += D32(0xC761Cu);
+    setD32(0x10F2F8u, a);                             /* 0x60AA0 */
+    d = a + D32(0xC7620u);
+    setD32(0x10F2FCu, d);                             /* 0x60AB3 */
+    d += D32(0xC7624u);
+    setD32(0x10F300u, d);                             /* 0x60AC0 */
+    d += D32(0xC7628u);
+    setD32(0x10F304u, d);                             /* 0x60ACD */
+    d += D32(0xC762Cu);
+    setD32(0x10F308u, d);                             /* 0x60AD5 */
+}
+
+/* 0x7BB14: the CRC-32 table (reflected polynomial 0xEDB88320) into the 256 dwords at 0x11260C, for the file checks
+   0x7BB84 / 0x7BBF0. */
+void f7BB14(void)
+{
+    int32_t i, k;
+
+    for (i = 0; i <= 0xFF; i++) {                     /* 0x7BB65 */
+        uint32_t c = (uint32_t)i;                     /* 0x7BB71 */
+        for (k = 8; k > 0; k--)                       /* 0x7BB74, 0x7BB35 */
+            c = (c & 1) ? (c >> 1) ^ 0xEDB88320u : c >> 1;   /* 0x7BB3E..0x7BB4D, 0x7BB2C */
+        setD32(0x11260Cu + 4u * (uint32_t)i, c);      /* 0x7BB58 */
+    }
 }

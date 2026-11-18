@@ -298,6 +298,35 @@ except 200 bytes the C start-up has already set (stack limits, the debugger flag
   - The frame is saved 4 polls after the last click.
 - Note: in DOSBox-X, `drive.ps1 click X Y` lands the emulated mouse at about (X+1, Y+1).
 
+**M4, the new-game loading step (2026-11-18).** Main 0x114CF..0x1184A, translated and reviewed in a third workflow:
+- `load.c`: terrflag.dat, mapdataz.dat, borders1/2.dat, the area and territory tables.
+- `gfxload.c`: the 273 game sprites, the adjacency lists and the land matrix, N.RL, greying the territories not in play.
+- `newgame.c`: card stacks dealt and shuffled with `game_rand`, nation records, the music data, and `game_load`.
+- The start-up parts the comparison showed missing, in `title.c`:
+  - aciv.cfg (0x107A4);
+  - the sound start-up's data side (0x10B4D..0x10E7F: flags 0xF625B/0xF625C/0xF625D and the music-set names);
+  - the CRC-32 table (0x7BB14 at 0x10577);
+  - the Watcom initializer 0x60A80, which runs before main from the XI table at 0xE15EA (the table's other eight
+    entries are library start-ups).
+- Heap pointers the original keeps in 32-bit fields hold port handles (`load_heap_*`, `ui_sprite_*`).
+
+**Check (V, 2026-11-18):** the original was stopped in DOSBox-X at main 0x1184F, the call into the game loop, after
+START A NEW GAME and START GAME.
+- How: break on int 21h AH=2Ch, then set `BP 0180:21384F` while in protected mode. A breakpoint set in real mode or
+  before DOS/4GW starts resolves `0180:` as a real-mode segment and never fires.
+- Its data object was dumped and the port run with the same initial seed (`--seed 5F0F0B18`, from the clock bytes
+  at 0xF422C) to the same point (`--dump-ds`).
+- `tools/verify/dscompare.py` turns DOS/4GW's relocated pointers back into link addresses: the 1,068 fixup sites,
+  plus 173 run-time pointers.
+- Result: the final random seed is identical (0xA941EB2A, after all the shuffles). **0 unexplained bytes of
+  470,016**. The 44,533 differing bytes all fall in the 30 by-design ranges of `tools/verify/by_design.txt`, each
+  with its reason:
+  - library state (AIL, Fastgraph, Watcom runtime), which game code does not write;
+  - port heap handles, paths, the clock, the mouse;
+  - the fade buffers (the port starts as with /NT);
+  - the stack.
+- `tools/verify/dsclassify.py` sorts differences by whether game or library code references them.
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 

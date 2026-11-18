@@ -1,0 +1,31 @@
+# Data-object ranges that differ between a DOSBox-X dump and the port by design (dscompare.py's third argument).
+# ADDR LEN reason. Established 2026-11-18 on the new-game dump at main 0x1184F (OVERVIEW §5, M4 loading check).
+CAC68 0x10698 library data: AIL 3.03, Fastgraph 4.04 and the Watcom runtime (the port's libraries keep their own state); game code writes only 0xCAC60/0xCAC64 here
+E1628 5 mouse position and buttons
+F40BE 1 titles flag: the port starts as with /NT (no intro yet)
+F422C 4 _dos_gettime result (the clock)
+F48A4 0x98C sprite records: the +0 pixel pointers are port handles
+F52B8 0xC virtual-buffer heap pointers
+F52D8 4 FILE * of aciv.cfg
+F549C 0x20 the intro sound's file name (volcano.wav; intro not ported yet)
+F5500 0x1F4 message buffer (holds a path)
+F56F4 0x64 current directory string
+F5758 0x12C file-name prefixes (paths)
+F58A0 0x68 setjmp buffers
+F5D58 0x300 palette fade working buffer (the menu's fade-in runs only without /NT)
+F605C 4 video BIOS / VESA information pointer
+F626C 0x1C AIL driver, sequence and sample handles
+F8B04 0xC font data pointers
+F8B40 0x300 fade target palette (fade not run with /NT)
+F8E7C 0x780 adjacency list pointers (port handles)
+FF648 0x500 map span and border record pointers (port handles)
+FFB54 0xC adjacency blocks (port handles)
+10740C 4 N.RL block (port handle)
+1125A8 0x30 DPMI free-memory information (int 31h AX=0500h)
+11AF24 8 Watcom heap internals
+11B0E4 8 Watcom heap internals
+121C00 0x1000 the DOS/4GW stack at the top of the data object
+DB300 0x631D library data: Fastgraph/Image (the 16 KB GIF code table at 0xDCA51), Fastgraph/Fonts working globals (0xE0A66..0xE0D79), the Watcom initializer table's done flags (0xE15E8..0xE1612); game code references nothing below 0xE161D here
+F6058 1 the DOS video mode at start-up (0x7E044; the port skips it)
+11AF00 0x200 AIL 3.03 and Watcom runtime BSS (AIL's last-error text 0x11AF7C, which the game only prints; heap bookkeeping)
+11B100 0x320 AIL 3.03, Fastgraph and Watcom runtime BSS (the XMIDI driver state with its "TIMB" tag, the program path argv[0]); referenced only by library code
