@@ -67,7 +67,7 @@ int main(int argc, char **argv)
 
         snprintf(path, sizeof path, "%s/%s", argv[1], names[i]);
         data[i] = load_file(path, &size);
-        if (data[i] == NULL || fgf_define(data[i], size, &f[i]) != 0) {
+        if (data[i] == NULL || fgfont_load(data[i], size, &f[i]) != 0) {
             fprintf(stderr, "font_test: cannot define %s\n", path);
             return 1;
         }
@@ -77,18 +77,18 @@ int main(int argc, char **argv)
             line[c] = (char)(32 + c);   /* 32..126; 127 is the escape */
         y += f[i].height - f[i].baseline + 2;
         x = 4; color = 15;
-        fgf_print(fb, W, H, &f[i], &x, y, line, 48, 2, &color);
+        fgfont_print(fb, W, H, &f[i], &x, y, line, 48, 2, &color);
         guide(y);
         y += f[i].height + 2;
         x = 4; color = 15;
-        fgf_print(fb, W, H, &f[i], &x, y, line + 48, 47, 2, &color);
+        fgfont_print(fb, W, H, &f[i], &x, y, line + 48, 47, 2, &color);
         guide(y);
         y += f[i].height + 2;
         x = 4; color = 14;
-        fgf_print(fb, W, H, &f[i], &x, y, sample, (int)strlen(sample), 0, &color);
+        fgfont_print(fb, W, H, &f[i], &x, y, sample, (int)strlen(sample), 0, &color);
         guide(y);
         printf("  sample line width %d (computed %d), tallest glyph %d rows\n", x - 4,
-               fgf_width(&f[i], sample, (int)strlen(sample), 0), fgf_string_height(&f[i], sample, (int)strlen(sample)));
+               fgfont_width(&f[i], sample, (int)strlen(sample), 0), fgfont_height(&f[i], sample, (int)strlen(sample)));
         y += f[i].baseline + 6;
     }
     if (png_write_indexed(argv[2], fb, W, H, (const uint8_t (*)[3])pal) != 0) {

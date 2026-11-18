@@ -1,6 +1,6 @@
 #include "fgfont.h"
 
-int fgf_define(const uint8_t *data, size_t len, fg_font *f)
+int fgfont_load(const uint8_t *data, size_t len, fg_font *f)
 {
     int i, a, abpr, zero = 0;
     const uint8_t *c;
@@ -47,7 +47,7 @@ static void put(uint8_t *fb, int fb_w, int fb_h, int x, int y, uint8_t color)
         fb[y * fb_w + x] = color;
 }
 
-void fgf_print(uint8_t *fb, int fb_w, int fb_h, const fg_font *f, int *x, int y, const char *s, int n, int spacing,
+void fgfont_print(uint8_t *fb, int fb_w, int fb_h, const fg_font *f, int *x, int y, const char *s, int n, int spacing,
                uint8_t *color)
 {
     int i, ul = 0, ul_x = 0, bottom = y + f->baseline;   /* the glyphs' bottom row (0x8E29A: y += baseline) */
@@ -86,7 +86,7 @@ void fgf_print(uint8_t *fb, int fb_w, int fb_h, const fg_font *f, int *x, int y,
     }
 }
 
-int fgf_width(const fg_font *f, const char *s, int n, int spacing)
+int fgfont_width(const fg_font *f, const char *s, int n, int spacing)
 {
     int i, w = 0;
 
@@ -102,7 +102,7 @@ int fgf_width(const fg_font *f, const char *s, int n, int spacing)
     return w;
 }
 
-int fgf_string_height(const fg_font *f, const char *s, int n)
+int fgfont_height(const fg_font *f, const char *s, int n)
 {
     int i, h = 0;
 
