@@ -12,3 +12,64 @@
 00087E29 _dos_gettime   D  # int 21h AH=2Ch, stores ch,cl,dh,dl (hours, minutes, seconds, hundredths) at [eax]
 0008A080 clock?         G  # read before and after each AI move; the difference is summed at 0x10F2CC
 0005FF28 restore_dialog? G # "Restore Game" from the title menu; on success main clears the new-game bit 0x04 of 0xE1624
+000877AD stricmp        D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+000877E6 free           D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00087844 setjmp         D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+000878D6 fprintf        D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+000878F7 fg_gifpal      D  # Fastgraph; docs/LIBRARY_CALLS.md
+000879DC fg_setdacs     D  # Fastgraph; docs/LIBRARY_CALLS.md
+00087A1A fg_vbcopy      D  # Fastgraph; docs/LIBRARY_CALLS.md
+00087AC2 fg_setcolor    D  # Fastgraph; docs/LIBRARY_CALLS.md
+00087C31 fg_vbopen      D  # Fastgraph; docs/LIBRARY_CALLS.md
+00087D73 fg_vbclose     D  # Fastgraph; docs/LIBRARY_CALLS.md
+00087DF7 fg_move        D  # Fastgraph; docs/LIBRARY_CALLS.md
+00087E43 fg_mousefin    D  # Fastgraph; docs/LIBRARY_CALLS.md
+00087E7C fg_intkey      D  # Fastgraph; docs/LIBRARY_CALLS.md
+00087EA7 fg_flichead    D  # Fastgraph; docs/LIBRARY_CALLS.md
+00087EF9 fg_flicopen    D  # Fastgraph; docs/LIBRARY_CALLS.md
+00087F94 fg_flicplay    D  # Fastgraph; docs/LIBRARY_CALLS.md
+00088F98 fg_showgif     D  # Fastgraph/Image; docs/LIBRARY_CALLS.md
+0008A085 fg_vbpaste     D  # Fastgraph; docs/LIBRARY_CALLS.md
+0008A7DD fgf_width      G  # Fastgraph/Fonts; docs/LIBRARY_CALLS.md
+0008A833 fg_draw        D  # Fastgraph; docs/LIBRARY_CALLS.md
+0008C22C fg_mousepos    D  # Fastgraph; docs/LIBRARY_CALLS.md
+0008C331 qsort          D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+0008C76E fg_box         D  # Fastgraph; docs/LIBRARY_CALLS.md
+0008C803 fg_dashrel     D  # Fastgraph; docs/LIBRARY_CALLS.md
+0008C897 itoa           D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+0008C8B2 fg_rect        D  # Fastgraph; docs/LIBRARY_CALLS.md
+0008CE50 fg_makegif     D  # Fastgraph/Image; docs/LIBRARY_CALLS.md
+0008DEE1 fg_settrans    G  # Fastgraph; docs/LIBRARY_CALLS.md
+0008DF22 fg_vbtccopy    D  # Fastgraph; docs/LIBRARY_CALLS.md
+0008E444 fg_getimage    D  # Fastgraph; docs/LIBRARY_CALLS.md
+0008EB0E fg_unpack      D  # Fastgraph; docs/LIBRARY_CALLS.md
+0008EC48 fg_clpimage    D  # Fastgraph; docs/LIBRARY_CALLS.md
+0008FA30 fg_flpimage    D  # Fastgraph; docs/LIBRARY_CALLS.md
+00090940 fg_vbcut       D  # Fastgraph; docs/LIBRARY_CALLS.md
+00090F84 fg_getdacs     D  # Fastgraph; docs/LIBRARY_CALLS.md
+00090FC7 fg_point       D  # Fastgraph; docs/LIBRARY_CALLS.md
+0009125D fg_setclip     D  # Fastgraph; docs/LIBRARY_CALLS.md
+000912BE fg_boxdepth    D  # Fastgraph; docs/LIBRARY_CALLS.md
+000912D5 fwrite         D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+000914BC fg_getpixel    D  # Fastgraph; docs/LIBRARY_CALLS.md
+0009174F fg_setvpage    D  # Fastgraph; docs/LIBRARY_CALLS.md
+00091AB3 fg_dash        D  # Fastgraph; docs/LIBRARY_CALLS.md
+00091B6E _dos_findfirst D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00091B8B _dos_findnext  D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00091BF0 strnicmp       D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00091C47 rewind         D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00091C5E rename         D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00091C88 mkdir          D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00091CA7 remove         D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00091CAC realloc        D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00091D94 fseek          D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00091E9E fg_mousevis    D  # Fastgraph; docs/LIBRARY_CALLS.md
+00092406 int386x        D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00092420 _dos_read      D  # Watcom C runtime; docs/LIBRARY_CALLS.md
+00092451 fg_flicsize    D  # Fastgraph/Image; docs/LIBRARY_CALLS.md
+00092486 fg_showflic    D  # Fastgraph/Image; docs/LIBRARY_CALLS.md
+0009670A AIL_background D  # other (Miles AIL 3.03); docs/LIBRARY_CALLS.md
+000A22C3 cat_open       D  # catalog; docs/LIBRARY_CALLS.md
+000A22FF cat_show       D  # catalog; docs/LIBRARY_CALLS.md
+000A24A7 cat_size       D  # catalog; docs/LIBRARY_CALLS.md
+000A25B3 cat_load       D  # catalog; docs/LIBRARY_CALLS.md
