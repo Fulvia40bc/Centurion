@@ -95,9 +95,21 @@ writes `disasm/AC_MAIN.asm` (labelled listing, not committed), `disasm/functions
 
 - **Video**: 640x480x256 SVGA through Fastgraph 4.04 (chipset autodetect, `/V1` forces VESA). The port draws
   into a 640x480 8-bit buffer + 256-colour palette and reimplements only the Fastgraph calls the game uses.
-- **Sound**: Miles AIL 3.03. Music = 12 XMIDI tracks in `ACIV.CT5`, three sets chosen by the driver type:
-  `g*` (General MIDI), `f*` (FM), `s*` (G: Sound Canvas / wave-table), each with civil / map / trade / calamity
-  themes. Digital = 17 WAVs in `ACIV.CT5` (calamities, market place, Zeus, `KABOOM3.WAV`).
+- **Sound**: Miles AIL 3.03. Music = 12 XMIDI tracks in `ACIV.CT5` by Eric Heberling (credits), three
+  arrangements of the civil / map / trade / calamity themes.
+  - (D, 0x10BEE) At start-up the game reads `MDI.INI` and picks the set by the driver file name (case-insensitive
+    compare 0x877AD):
+    - `ADLIB.MDI` or `SBLASTER.MDI` (mono FM, 9 voices) → `f*`
+    - `SBPRO1.MDI` or `SBPRO2.MDI` (Sound Blaster Pro, stereo FM) → `s*`
+    - any other driver, or no `MDI.INI` → `g*` (General MIDI)
+  - So `s*` is the stereo-FM arrangement, not a Sound Canvas one (an earlier guess here, now corrected). Erik's
+    setup (SBPRO2.MDI) played the `s*` set.
+  - All twelve files differ in size: three distinct arrangements.
+  - Other FM drivers (`OPL3.MDI`, `ESFM.MDI`, `ADLIBG.MDI`) get the GM set. Their notes go through the FM timbre bank
+    `EHGM2FM2`; the "EH" is probably Heberling's initials (G).
+  - The game's own Preferences screen (strings at 0xB4547) has Sound effects + Volume, Music + Volume and Animations,
+    saved in `aciv.cfg`. There is no in-game choice of music set; that came from SETSOUND.EXE's driver choice.
+  - Digital = 17 WAVs in `ACIV.CT5` (calamities, market place, Zeus, `KABOOM3.WAV`).
 - **Input**: mouse + keyboard. **Files**: catalogs, saves, PBEM files (`*.hst`, `pbem_out\`, `PREP????.ZIP`
   via pkzip).
 - **Command line** (D): `/?` `/NS` `/NT` `/NZ` `/SRD[3-8]` `/VT` `/Vx`, and the undocumented **`/C[n]`** (§6).
@@ -218,9 +230,13 @@ Centurion `docs/HANDOFF.md` protocol, with a `docs/HANDOFF.md` here).
 
 1. **GitHub**: one repo for the port, which Mistral can share (e.g. `Fulvia40bc/AdvCiv`, private)? Nothing is
    pushed yet. If Mistral joins, the lanes above apply.
-2. **Music**: your setup was Sound Blaster Pro 2 **FM** (the `f*` tracks through an OPL emulation, as Centurion's
-   AdLib), or should the port play the **General MIDI** tracks through Windows' built-in synth (simpler, native)?
-   Both can come; which first?
+2. **Music**: RULED 2026-11-18. All three sets, chosen in the port by a setting (the original chose by sound
+   driver, see §2).
+   - Choices: FM (`f*`, OPL2), stereo FM (`s*`, OPL3 as SB Pro 2), General MIDI (`g*`, Windows' built-in synth).
+   - Default: stereo FM, the set Erik's setup played.
+   - The choice is saved in the port's own settings file, not in `aciv.cfg`, so `aciv.cfg` stays as the original
+     writes it.
+   - Order: still to confirm.
 3. **Platform layer**: plain **Win32** (no SDL; builds natively for ARM64 today), or SDL2 as Centurion (needs
    SDL2 built from source for ARM64)? I propose Win32.
 4. **Running the original**: verification needs DOSBox-X runs of the game in a window. May I use the screen for

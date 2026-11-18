@@ -38,8 +38,9 @@ Reply:
 
 ## Needs Erik
 
-From docs/OVERVIEW.md §7 (2026-11-17): music FM or General MIDI first; Win32 or SDL2 platform layer; keep PBEM /
-pkzip archiving. (Screen use for DOSBox-X runs: Erik allows it run by run; Claude asks each time.)
+From docs/OVERVIEW.md §7 (2026-11-17): which music comes first; Win32 or SDL2 platform layer; keep PBEM /
+pkzip archiving. RULED 2026-11-18: all three music sets in the port, chosen by a setting, default stereo FM (`s*`);
+see OVERVIEW §2 for how the original chose (by sound driver; `s*` is stereo FM, not Sound Canvas). (Screen use for DOSBox-X runs: Erik allows it run by run; Claude asks each time.)
 RULED 2026-11-17 (text sweep, docs/TEXT_SWEEP.md): the spelling slips are fixed by default (`--original` keeps them),
 and so are the plain typos of the same kind (missing space or word, "and additional", "to takeover", "Science" →
 "Sciences"). Kept as they are: "volcanos" (a dictionary spelling), "thru", the 18 "N point X credit" lines (normal
@@ -50,8 +51,8 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
-(none for Mistral yet: the next tasks, the music player and the platform layer's first pieces, wait on Erik's FM/GM and
-Win32/SDL2 choices above.)
+(none for Mistral yet: the next tasks, the music player and the platform layer's first pieces, wait on Erik's choices above: which music first, and
+Win32 or SDL2.)
 
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
