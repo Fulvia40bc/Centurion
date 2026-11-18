@@ -19,6 +19,7 @@
 #include "ui.h"
 #include "game.h"
 #include "save.h"
+#include "map.h"
 
 static const char *s_frame_path;
 static int s_pointer_x = -1, s_pointer_y = -1;
@@ -33,6 +34,52 @@ enum { MAX_CLICKS = 32, SETTLE_POLLS = 4 };
 static int s_clicks[MAX_CLICKS][2], s_nclicks, s_click, s_pressed, s_idle;
 
 static void save_frame_and_exit(void);
+
+/* --map-state DUMP.bin (module MAP1's frame check, test hook): after a restore and game_continue, copy from a DOSBox-X
+   data-object dump (MEMDUMPBIN 0188:2A9000 72C00, taken where the original waits on the restored game's screen) only
+   the plain game state the map window draws from (map.c's list: scroll, highlights, in play, territory, area, city
+   and nation records, current player, phase, detail level, land/sea mode; no heap handles), then redraw the map
+   window as the game does (f3D52C(0, 0): clamp, map picture, borders, markers, cities, tokens, ships, mini-map).
+   The frame is then compared with the DOSBox-X capture in the map window and the mini-map only. */
+static const char *s_map_state;
+static const struct { uint32_t addr, len; } MAP_STATE[] = {
+    { 0xF4884u, 8 },        /* scroll column, row */
+    { 0xF6110u, 4 },        /* int16 min, max column */
+    { 0xFFB60u, 0xA0 },     /* border highlight colours */
+    { 0xFFC00u, 0xA0 },     /* token box colours */
+    { 0xFFCA0u, 0xA0 },     /* ship box colours */
+    { 0xEE16Cu, 0xA0 },     /* in play */
+    { 0xE1638u, 0x15E0 },   /* territory records 35 x 160 */
+    { 0xE2C18u, 0xE0 },     /* owner / city bytes 3 x 157 (+ padding to 0xE2CF7) */
+    { 0xE31B8u, 0x2B65 },   /* area records 69 x 161 */
+    { 0xF14CCu, 0xAE6 },    /* nation records 199 x 14 */
+    { 0xF40F8u, 4 },        /* current player */
+    { 0xF4102u, 1 },        /* phase */
+    { 0xC1A34u, 1 },        /* detail level */
+    { 0x108804u, 1 },       /* land/sea mode */
+};
+
+static int map_state_draw(const char *path)
+{
+    static uint8_t dump[0x72C00];
+    FILE *f = fopen(path, "rb");
+    size_t i, n;
+
+    if (f == NULL) {
+        fprintf(stderr, "advciv: cannot read %s\n", path);
+        return -1;
+    }
+    n = fread(dump, 1, sizeof dump, f);
+    fclose(f);
+    if (n != sizeof dump) {
+        fprintf(stderr, "advciv: %s is not a data-object dump (%u bytes)\n", path, (unsigned)n);
+        return -1;
+    }
+    for (i = 0; i < sizeof MAP_STATE / sizeof MAP_STATE[0]; i++)
+        memcpy(DP(MAP_STATE[i].addr), dump + (MAP_STATE[i].addr - 0xB0000u), MAP_STATE[i].len);
+    f3D52C(0, 0);
+    return 0;
+}
 
 static void script_hook(void)
 {
@@ -94,6 +141,8 @@ int main(int argc, char **argv)
         }
         else if (strcmp(argv[i], "--dump-ds") == 0 && i + 1 < argc)
             s_dump_path = argv[++i];
+        else if (strcmp(argv[i], "--map-state") == 0 && i + 1 < argc)
+            s_map_state = argv[++i];
         else if (strcmp(argv[i], "--dump-at-1184F") == 0 || strcmp(argv[i], "--dump-early") == 0)
             s_dump_early = 1;                         /* new game: stop before the nation choice (the loading check);
                                                          restore: stop at 0x115B0 (the S1 check) */
@@ -138,6 +187,8 @@ int main(int argc, char **argv)
             if (title_restore()) {                    /* 0x115A9; the game goes on at 0x115B0 */
                 if (!s_dump_early)                    /* --dump-early: stop at 0x115B0 (the S1 check) */
                     (void)game_continue(0, 0);        /* 0x115B0..0x1177C; returns -1: main goes on at 0x1188C */
+                if (s_map_state != NULL && map_state_draw(s_map_state) != 0)
+                    return 1;
                 if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
                     fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
                 if (s_dump_path != NULL && s_frame_path != NULL)

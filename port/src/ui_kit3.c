@@ -22,8 +22,8 @@
    (game.h: two callers pass stack buffers, 0x516EE and 0x54128, which their translators must place at link
    addresses). f78BA4 reads the mouse fields 0xE1628/0xE162C/0xE1630 (int32) and the choice list 0xF7C9C/0xF7CA0.
 
-   Not ported yet: 0x3D2A4 (the map hit test, module MAP1), reached from f78BA4 only with map == 1 and a click at
-   y <= 0x145 that hit no enabled button: map_hit_3D2A4() below calls not_ported(0x3D2A4).
+   The map hit test 0x3D2A4 (reached from f78BA4 only with map == 1 and a click at y <= 0x145 that hit no enabled
+   button) is mapdata.c's f3D2A4 (module MAP1).
 
    1995 bugs: none found in these routines (no g_original branches). */
 
@@ -33,6 +33,7 @@
 
 #include "fg.h"
 #include "game.h"
+#include "mapdata.h"
 #include "state.h"
 #include "ui.h"
 
@@ -259,13 +260,10 @@ void f3A3A0(int x, int y, const char *s)
 
 /* ---- The generic click wait ----------------------------------------------------------------------------------- */
 
-/* Stand-in for 0x3D2A4 (the map hit test, f3D2A4(x eax, y edx) -> territory in eax; module MAP1). The call site
-   0x78CC2 keeps its shape so MAP1 only has to replace this call. */
+/* 0x3D2A4, the map hit test (mapdata.c, module MAP1), at the call site 0x78CC2 */
 static int map_hit_3D2A4(int x, int y)
 {
-    (void)x;
-    (void)y;
-    not_ported(0x3D2A4u);
+    return f3D2A4(x, y);
 }
 
 /* 0x78BA4: wait for a click; on the first enabled button of dlg under the pointer flash it (f3C5D4) and return
