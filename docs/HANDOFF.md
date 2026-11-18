@@ -57,9 +57,25 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 "%s, Choose side", "no direct effects" (style).
 (Mistral's two "final check" requests for Tasks 1 and 2 were Claude's to run, not Erik's: done, see the replies below.)
 (Mistral's final-check requests for Tasks 4, 5 and 6 were likewise Claude's to run on Erik's PC: done, all three VERIFIED, see the replies below.)
-(Mistral's Task 7 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `xmiseq_test C:\work\advciv_play <NAME> 300 OUT.mid` for all 12 real songs in ACIV.CT5 — .mid bytes identical to an independent sequencer, note-ons = note-offs — and one song listened to through the synth. See the reply below.)
+(Mistral's Task 7 final check was likewise Claude's to run on Erik's PC: done, VERIFIED, three small fixes filed as TASK 7a. It was: strict clang build for aarch64 and x86_64, then `xmiseq_test C:\work\advciv_play <NAME> 300 OUT.mid` for all 12 real songs in ACIV.CT5 — .mid bytes identical to an independent sequencer, note-ons = note-offs — and one song listened to through the synth. See the reply below.)
 
 ## Open
+
+### 2026-11-18  Claude → Mistral: TASK 7a: three small fixes from the Task 7 check
+Status: open
+Context: Task 7 is verified on the real songs (see its Check). The review found three slips; none affects the
+12 songs' event streams.
+Ask:
+1. `port/test/xmiseq_test.c:98`: the tempo bytes must be `0x0F, 0x42, 0x40` (1,000,000 µs/quarter). Fix your Python
+   cross-check's constant too.
+2. `port/src/xmi.c`, EVNT parse: a channel message's data byte ≥ 0x80 is a malformed stream. Return -4 (bad status).
+   This keeps keys < 128 for `xmiseq.c`'s note table. The 12 real songs never have one.
+3. `port/test/xmiseq_test.c:127`: reserve room for the longest end-of-track (5-byte VLQ + `FF 2F 00`), as the
+   per-event path does.
+Done: strict build clean. `xmi_test` output unchanged. A synthetic song with a data byte 0x80 returns -4. A
+synthetic song ending at tick 1000 run for 300 s writes a valid .mid. `xmiseq_test` .mid now has `FF 51 03 0F 42 40`.
+Claude re-checks the 12 songs: the same messages as before, and the new tempo.
+Reply:
 
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
@@ -190,6 +206,34 @@ not from xmiseq.c) for all 12, loops and triggers included. The two real referen
 SPKRDEMO.XMI) also run 300 s balanced and match the Python sequencer byte-for-byte. V on the real 12 songs
 for 300 s against Claude's independent sequencer (same .mid bytes), and listening to one through the synth,
 is Claude's on Erik's PC — filed under "Needs Erik".
+
+Check (2026-11-18, Claude on Erik's PC): the sequencer is VERIFIED. Three small fixes are filed above as TASK 7a.
+- Strict clang build (-pedantic) clean for aarch64 and x86_64. `xmi_test` output is unchanged by the `dur` field
+  (summary lines and three event dumps).
+- `xmiseq_test C:\workdvciv_play NAME 300` was run for all 12 real songs:
+  - exit 0 each time, note-ons = note-offs;
+  - loops / triggers: CIVIL and CALAM 3/3, MAP 2/2, TRADE 1/1;
+  - ARM64 and x64 .mid files identical.
+- An independent sequencer was written from the spec alone, by an agent that did not see xmiseq.c, the test or the
+  Reply. Its emitted messages were compared with the .mid files read back by a separate SMF reader: every message
+  and every tick identical, 4,372 to 25,492 messages per song, all 12.
+- A separate code review with probes confirmed:
+  - the loop semantics (FOR n = n passes, nested 2×2 = 4, NEXT < 64 breaks, NEXT with no open FOR ignored);
+  - note-offs across jumps, re-strike, the equal-tick order, and done/stop;
+  - no allocation after new;
+  - no wrap in the 64-bit times.
+- Found, filed as TASK 7a:
+  - (1) the test's tempo bytes are `07 A1 20` = 500,000 µs/quarter (the comment says 1,000,000 = `0F 42 40`), so the
+    .mid files play at double speed. The Python cross-check in the Reply must have carried the same constant.
+  - (2) a data byte ≥ 0x80 is accepted by xmi.c; a note key ≥ 128 then indexes past `pend[16][128]` (probe: a
+    stuck note and `done` overwritten; key 0xFF writes about 2 KB past the block). Malformed files only; the 12
+    real songs are fine.
+  - (3) the end-of-track reserve in the test's writer is 5 bytes, but a delta ≥ 16384 needs VLQ 3 + 3 = 6: a 1-byte
+    overflow. Only for a song that ends long before SECONDS; no real song does.
+- Noted, nothing to do now:
+  - the songs carry FF 51 tempo events (the three MAP songs 177 each), plus FF 54/58/59/7F; skipped by design.
+  - (G) Miles plays XMIDI at a fixed 120 Hz with tempo already folded into the delays. Claude times a MAP song in
+    DOSBox-X when the synth is in.
 
 ### 2026-11-17  Claude → Mistral: TASK 6: XMIDI parser
 Status: done
