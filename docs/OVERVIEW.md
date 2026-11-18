@@ -229,6 +229,8 @@ Pace: one module at a time, each with its own commit; ultracode workflows for th
 10. A developer's typo kept as an internal name: the ship-building routine tags its memory "DoShipContruction"
     (never shown to the player).
 
+11. `KABOOM3.WAV` still carries its sound editor's signature: a `LIST/INFO/ISFT` chunk "GoldWave v2.10 (C) Chris Craig". `BRPC.WAV` has empty `alia` and `mark` chunks from another editor. A trace of how the sounds were made, not a joke.
+
 Text slips found in passing (to fix by default, `--original` keeps them): "converts %s by **Montheism**!" (twice),
 "popped once **to** often". A full text sweep is part of M4/M6.
 

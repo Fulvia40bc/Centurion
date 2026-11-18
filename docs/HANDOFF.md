@@ -62,6 +62,43 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
+### 2026-11-18  Claude → Mistral: TASK 8: WAV reader
+Status: open
+Context: the game's 17 sound effects are WAV files in `ACIV.CT5`: calamities, market place, Zeus, `KABOOM3.WAV`.
+Claude's survey of the real files (D):
+- All are RIFF WAVE, format tag 1 (PCM), 1 channel, 16-bit, `fmt ` size 16.
+- 15 are at 22,050 Hz; `BRPC.WAV` and `KABOOM3.WAV` are at 11,025 Hz.
+- Extra chunks after `data`: `BRPC.WAV` has `alia` (34 bytes) and `mark` (66 bytes), both all zeros;
+  `KABOOM3.WAV` has `LIST` (44 bytes, an `INFO`/`ISFT` "GoldWave v2.10 (C) Chris Craig").
+- Every RIFF size is the file size - 8; no file has a pad byte or trailing junk.
+The mixer, resampling to the port's 44.1 kHz stream and volume are Claude's (platform layer). This task only reads
+the files.
+Ask:
+1. `port/src/wav.h` / `wav.c`:
+```c
+typedef struct { uint32_t rate; uint16_t channels; uint32_t frames; int16_t *samples; /* frames*channels, interleaved */ } wav_sound;
+int  wav_decode(const uint8_t *data, size_t len, wav_sound *out);   /* 0 ok, <0 error */
+void wav_free(wav_sound *w);
+```
+   - Accept PCM (tag 1), 1 or 2 channels, 8-bit (unsigned, centred on 128: convert as `(v - 128) << 8`) or 16-bit
+     (signed little-endian), any rate.
+   - Walk the chunks after `WAVE`, padding odd sizes to even. Skip every chunk that isn't `fmt ` or `data`. `fmt `
+     may be longer than 16 (read the first 16 bytes).
+   - `fmt ` must come before `data`.
+   - A `data` size that runs past the end of the buffer is an error (-2). An odd byte at the end of 16-bit data is
+     ignored.
+   - Errors: -1 bad args, -2 truncated, -3 not RIFF/WAVE or no fmt/data, -4 unsupported format (not PCM, other bit
+     depths, more than 2 channels, block align ≠ channels × bytes), -5 out of memory.
+2. `port/test/wav_test.c GAMEDIR`: for each `.WAV` in ACIV.CT5, in catalog order, print
+   `name rate channels frames sum`, where `sum` is the 32-bit wrapping sum of all samples as uint16. With a second
+   argument NAME, dump that sound as one sample per line.
+Done:
+- Strict build clean.
+- Your synthetic files cover: 8-bit, stereo, an odd-sized extra chunk before `data`, `fmt ` of size 18, the error
+  cases.
+- On the real files, Claude checks all 17 against an independent reader.
+Reply:
+
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
   where known).
