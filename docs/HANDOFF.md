@@ -38,8 +38,8 @@ Reply:
 
 ## Needs Erik
 
-From docs/OVERVIEW.md §7 (2026-11-17): music FM or General MIDI first; Win32 or SDL2 platform layer; when Claude may
-use the screen for DOSBox-X runs; keep PBEM / pkzip archiving.
+From docs/OVERVIEW.md §7 (2026-11-17): music FM or General MIDI first; Win32 or SDL2 platform layer; keep PBEM /
+pkzip archiving. (Screen use for DOSBox-X runs: Erik allows it run by run; Claude asks each time.)
 RULED 2026-11-17 (text sweep, docs/TEXT_SWEEP.md): the spelling slips are fixed by default (`--original` keeps them),
 and so are the plain typos of the same kind (missing space or word, "and additional", "to takeover", "Science" →
 "Sciences"). Kept as they are: "volcanos" (a dictionary spelling), "thru", the 18 "N point X credit" lines (normal
@@ -50,7 +50,19 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
-(none)
+(none for Mistral yet: the next tasks, the music player and the platform layer's first pieces, wait on Erik's FM/GM and
+Win32/SDL2 choices above.)
+
+Status for Mistral (2026-11-18, Claude): M0 is done.
+- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
+  where known).
+- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
+- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
+- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
+  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
+  same game (V, 2026-11-17).
+- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
+  original order. Don't use `rand()`.
 
 ## Done
 
