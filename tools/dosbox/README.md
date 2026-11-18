@@ -11,3 +11,7 @@
   `MEMDUMPBIN 0188:2A9000 72C00 name.bin` dumps it; `find_objects.py DUMP disasm/le` locates and compares both
   objects in a flat dump (`MEMDUMPBIN 0188:0 800000 name.bin`).
 - Screenshots go to `shots/` (not committed).
+- **Exact frames:** `drive.ps1 menu "Take raw screenshot"` runs DOSBox-X's own menu command (WM_COMMAND, no focus,
+  no keys). The capture lands in `C:\DOSBox-X\advciv\capture` (the profile's `captures`) as a 640x480 indexed PNG
+  of the emulated frame, before any window scaling. Compare with `tools/verify/`.
+  `drive.ps1 menu "TEXT"` runs any menu item by its text; it lists the items if the text isn't found.

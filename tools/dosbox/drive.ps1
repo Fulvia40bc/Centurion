@@ -5,6 +5,7 @@
 #   drive.ps1 dbg "COMMAND"        -> type a command into the debugger console (no focus needed)
 #   drive.ps1 dbgkey F5            -> press a key in the debugger console
 #   drive.ps1 dbgscreen            -> print the debugger console text
+#   drive.ps1 menu "TEXT"          -> run a DOSBox-X menu command by its text, e.g. "Take raw screenshot" (no focus)
 # Clicks/keys are sent only after verifying the game window is the foreground window.
 param([string]$Action, [string]$A1, [string]$A2)
 $ErrorActionPreference = 'Stop'
@@ -49,6 +50,28 @@ public class D {
       l.Add(new REC{Type=1,Down=1,Rep=1,Vk=vk,Ch=c}); l.Add(new REC{Type=1,Down=0,Rep=1,Vk=vk,Ch=c}); }
     if (fkey != 0) { l.Add(new REC{Type=1,Down=1,Rep=1,Vk=fkey}); l.Add(new REC{Type=1,Down=0,Rep=1,Vk=fkey}); }
     IntPtr h = Con(pid, "CONIN$"); uint w; WriteConsoleInput(h, l.ToArray(), (uint)l.Count, out w); CloseHandle(h); FreeConsole(); }
+  [DllImport("user32")] static extern IntPtr GetMenu(IntPtr h);
+  [DllImport("user32")] static extern int GetMenuItemCount(IntPtr m);
+  [DllImport("user32")] static extern IntPtr GetSubMenu(IntPtr m, int i);
+  [DllImport("user32")] static extern uint GetMenuItemID(IntPtr m, int i);
+  [DllImport("user32", CharSet=CharSet.Unicode)] static extern int GetMenuString(IntPtr m, uint i, StringBuilder s, int n, uint f);
+  [DllImport("user32")] static extern bool PostMessage(IntPtr h, uint msg, IntPtr w, IntPtr l);
+  static uint FindItem(IntPtr m, string text, List<string> seen) {
+    int n = GetMenuItemCount(m);
+    for (int i = 0; i < n; i++) {
+      var sb = new StringBuilder(256); GetMenuString(m, (uint)i, sb, 256, 0x400);
+      string t = sb.ToString().Replace("&", ""); int tab = t.IndexOf('\t'); if (tab >= 0) t = t.Substring(0, tab);
+      IntPtr sub = GetSubMenu(m, i);
+      if (sub != IntPtr.Zero) { uint r = FindItem(sub, text, seen); if (r != 0) return r; }
+      else { seen.Add(t); if (t.Equals(text, StringComparison.OrdinalIgnoreCase)) return GetMenuItemID(m, i); }
+    }
+    return 0; }
+  // Run a menu command of the window's (Win32) menu bar by its text: WM_COMMAND, no focus, no keystrokes.
+  public static string Menu(IntPtr win, string text) {
+    IntPtr m = GetMenu(win); if (m == IntPtr.Zero) return "no menu bar";
+    var seen = new List<string>(); uint id = FindItem(m, text, seen);
+    if (id == 0 || id == 0xFFFFFFFF) return "menu item not found: " + text + " (items: " + string.Join(" | ", seen) + ")";
+    PostMessage(win, 0x0111, (IntPtr)id, IntPtr.Zero); return "menu: " + text + " (id " + id + ")"; }
   public static string DbgScreen(uint pid) {
     IntPtr h = Con(pid, "CONOUT$"); byte[] info = new byte[22]; GetConsoleScreenBufferInfo(h, info);
     int w = BitConverter.ToInt16(info,0), top = BitConverter.ToInt16(info,12), bot = BitConverter.ToInt16(info,16);
@@ -64,7 +87,7 @@ $game = [D]::Find($pid_, "Advanced Civilization", $false); if ($game -eq [IntPtr
 function ClientRect { $r = New-Object D+RECT; [D]::GetClientRect($game, [ref]$r) | Out-Null; $p = New-Object D+POINT; [D]::ClientToScreen($game, [ref]$p) | Out-Null; @{X=$p.X; Y=$p.Y; W=$r.R; H=$r.B} }
 function Front { if ([D]::GetForegroundWindow() -ne $game) { [D]::keybd_event(0x12,0,0,[UIntPtr]::Zero); [D]::keybd_event(0x12,0,2,[UIntPtr]::Zero); [D]::ShowWindow($game, 9) | Out-Null; [D]::SetForegroundWindow($game) | Out-Null; Start-Sleep -Milliseconds 300 }
   if ([D]::GetForegroundWindow() -ne $game) { throw 'game window not in front - nothing sent' } }
-$vk = @{ Return=0x0D; Enter=0x0D; Escape=0x1B; Esc=0x1B; Space=0x20; Up=0x26; Down=0x28; Left=0x25; Right=0x27; Tab=0x09; Alt=0x12; Ctrl=0x11; Shift=0x10; Pause=0x13; Backspace=0x08; Home=0x24; End=0x23; PgUp=0x21; PgDn=0x22 }
+$vk = @{ Return=0x0D; Enter=0x0D; Escape=0x1B; Esc=0x1B; Space=0x20; Up=0x26; Down=0x28; Left=0x25; Right=0x27; Tab=0x09; Alt=0x12; Ctrl=0x11; Shift=0x10; Pause=0x13; Backspace=0x08; Home=0x24; End=0x23; PgUp=0x21; PgDn=0x22; F1=0x70; F2=0x71; F3=0x72; F4=0x73; F5=0x74; F6=0x75; F7=0x76; F8=0x77; F9=0x78; F10=0x79; F11=0x7A; F12=0x7B }
 1..12 | ForEach-Object { $vk["F$_"] = 0x6F + $_ }
 switch ($Action) {
   'shot' {
@@ -100,5 +123,6 @@ switch ($Action) {
   'dbg' { [D]::DbgType($pid_, ("`b" * 250) + "$A1`r", 0); Start-Sleep -Milliseconds 1200; "dbg: $A1" }
   'dbgkey' { [D]::DbgType($pid_, '', [uint16]$vk[$A1]); Start-Sleep -Milliseconds 800; "dbgkey $A1" }
   'dbgscreen' { [D]::DbgScreen($pid_) }
+  'menu' { [D]::Menu($game, $A1) }
   default { throw "unknown action $Action" }
 }

@@ -168,6 +168,22 @@ into the VGA DAC's 6 bits.
 - Port: `port/src/palette.c`, GIF → DAC (>>2) → screen RGB (`v<<2 | v>>4`, as DOSBox-X). `plat_demo` now shows
   P2-P4 through it: 245 of P2's 256 colours change slightly, as on the real VGA.
 
+**M2 against the original (V, DOSBox-X raw captures, 2026-11-18; scripts in `tools/verify/`):**
+- **Pictures:** the intro's three stills are P2, P3, P4, each 307,200 of 307,200 pixels by palette index.
+  - The port's headless P2 frame (`plat_demo`) equals the capture in every pixel's index and RGB.
+- **Palette:** the main menu's palette equals PAL.PAL >> 2 (widened `v<<2|v>>4`) in all 256 entries.
+- **Main menu:**
+  - The background is `PARTHA.GIF` (ACIV.CT2). It differs only inside the game's overlays: the 21 title letters
+    (y 48-67), the three buttons (x 212-427), the pointer, and the version text.
+  - "START A NEW GAME" (x 267, baseline 152), "RESTORE A SAVED GAME" (255, 192), "QUIT TO DOS" (286, 412): COGNAC10,
+    spacing 0, colour 67.
+  - "Version 1.11B1" (5, 468): COGNAC10, colour 15.
+  - Every one is an exact match: all glyph pixels, no stray pixel of the text colour in its box.
+- **Credits:** "Music" (290, 191) and "Bill Levay" (271, 311): COGNAC19, spacing 0, colour 13, exact.
+  - The credits underline is drawn by the credits code, not the font's 0x7F `_`: 6 rows under the baseline, from
+    2 pixels before the text to 1 past its end (row 197, x 288-349 under "Music").
+- BLOCK05 has not appeared on these screens yet.
+
 Ported: `port/src/fgfont.c`. `port/test/font_test.c` renders every glyph upright, with descenders below the
 baseline. A pixel check against a DOSBox-X capture follows with the first screen that has text.
 
