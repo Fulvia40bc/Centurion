@@ -94,8 +94,9 @@ int main(int argc, char **argv)
         }
         else if (strcmp(argv[i], "--dump-ds") == 0 && i + 1 < argc)
             s_dump_path = argv[++i];
-        else if (strcmp(argv[i], "--dump-at-1184F") == 0)
-            s_dump_early = 1;                         /* stop before the nation choice (the loading check) */
+        else if (strcmp(argv[i], "--dump-at-1184F") == 0 || strcmp(argv[i], "--dump-early") == 0)
+            s_dump_early = 1;                         /* new game: stop before the nation choice (the loading check);
+                                                         restore: stop at 0x115B0 (the S1 check) */
         else if (strcmp(argv[i], "--click") == 0 && i + 2 < argc && s_nclicks < MAX_CLICKS) {
             s_clicks[s_nclicks][0] = atoi(argv[++i]);
             s_clicks[s_nclicks][1] = atoi(argv[++i]);
@@ -135,12 +136,14 @@ int main(int argc, char **argv)
         rc = title_menu();
         if (rc == -0x46) {                            /* RESTORE A SAVED GAME: main 0x11557 */
             if (title_restore()) {                    /* 0x115A9; the game goes on at 0x115B0 */
+                if (!s_dump_early)                    /* --dump-early: stop at 0x115B0 (the S1 check) */
+                    (void)game_continue(0, 0);        /* 0x115B0..0x1177C; returns -1: main goes on at 0x1188C */
                 if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
                     fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
                 if (s_dump_path != NULL && s_frame_path != NULL)
                     (void)save_frame();
-                fprintf(stderr, "advciv: stopped at main 0x115B0 after a restore, seed %08X; the game itself is not "
-                        "ported yet\n", (unsigned)D32(0xCAC5Cu));
+                fprintf(stderr, "advciv: stopped at main 0x%X after a restore, seed %08X; the game itself is not "
+                        "ported yet\n", s_dump_early ? 0x115B0u : 0x1188Cu, (unsigned)D32(0xCAC5Cu));
                 plat_shutdown();
                 return 0;
             }

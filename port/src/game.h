@@ -250,6 +250,7 @@ void f7B854(const char *name, int seq);  /* D: play music: if [0xF625D] and name
 
 /* ---- Port entry points ----------------------------------------------------------------------------------------- */
 
+int game_continue(uint32_t seed_override, int use_seed);  /* main 0x115B0..0x1184A, shared by a new game (game_load's tail) and a restore (after title_restore): returns -1 for a restored game at 0x1177C (main then goes on at 0x1188C), else as game_load */
 int game_load(uint32_t seed_override, int use_seed);  /* main 0x114CF..0x1184A for a new game: the "Loading game data and maps" screen, f12394, f3D170, f11A8C, setjmp(0xF58A0), the minimap sprite, [0xF40EC], the map variant 0xF6110..0xF6114, the map buffer [0xF52C4] (map&pal.gif, f12B00, f3EED8, f44974), 0x128F0, 0x7784C, the button enables (0x3BFBC), 0x7892C, the seed (_dos_gettime into 0xF422C..0xF422F and the clock seed at 0x11789..0x117DA, or seed_override when use_seed; also int16 [0xF40FC] = 1 and [0x110F74] = 0 there), f6BA20, f12B5C, f12BB8, f45D30, memset(0xEE9F0, 0, 0x384), memset(0xF0684, 0, 0x14), [0xF408C] = 0, [0xF4230] = 0, the music (f7B854 if [0xF097C] & 2). Stops before main's call of 0x2EFA0 (0x1184F). 0 ok (G: port design) */
 /* port: the heap blocks the original keeps pointers to in 32-bit data fields (load.c). A field holds a handle,
    0x80000000 | slot << 20 | byte offset, so "block + offset" arithmetic on the field works as on the pointer. */

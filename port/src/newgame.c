@@ -577,9 +577,6 @@ static void dos_gettime(uint32_t t)
    (the clock bytes 0xF422C..0xF422F are still written). Returns 0. */
 int game_load(uint32_t seed_override, int use_seed)
 {
-    uint32_t seed;
-    uint8_t bl, ch;
-
     f12DA4();                                         /* 0x113FE */
     /* 0x11403 test byte [0xE1624],0x80: PBEM (0x11410..0x114CA) dropped; the menu clears 0x80 (0x4F7CC) */
 
@@ -593,6 +590,18 @@ int game_load(uint32_t seed_override, int use_seed)
     f39F90(1);                                        /* 0x11546 */
     fg_vbclose();                                     /* 0x1154B */
     f3CC14();                                         /* 0x11550: on the screen */
+
+    return game_continue(seed_override, use_seed);    /* 0x11555 jmp 0x115B0 */
+}
+
+/* main 0x115B0..0x1184A, where the new-game path (0x11555) and the title menu's restore (0x115A9, title_restore) meet:
+   the tables, maps and sprites, the minimap, the map variant, the map buffer, the button enables; for a new game
+   (bit 0x04 of [0xE1624]) the seed, the card stacks, the area and nation records and the music. A restored game
+   returns -1 at 0x1177C: main goes on at 0x1188C (0x14AA4, not ported). */
+int game_continue(uint32_t seed_override, int use_seed)
+{
+    uint32_t seed;
+    uint8_t bl, ch;
 
     f12394();                                         /* 0x115B0: terrflag.dat */
     f3D170();                                         /* 0x115B5: mapdataz.dat, borders1/2.dat */
@@ -641,7 +650,7 @@ int game_load(uint32_t seed_override, int use_seed)
     f3BFBC(0xF596Cu, 4, 1);                           /* 0x11772 */
     f7892C();                                         /* 0x11777 */
 
-    if ((D8(UI_SETUP_FLAGS) & 0x04) == 0)             /* 0x1177C je 0x1188C: a restored game, not ported here */
+    if ((D8(UI_SETUP_FLAGS) & 0x04) == 0)             /* 0x1177C je 0x1188C: a restored game */
         return -1;
 
     dos_gettime(0xF422Cu);                            /* 0x1178E _dos_gettime(0xF422C) */
