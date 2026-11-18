@@ -28,6 +28,9 @@ foreach ($arch in 'aarch64', 'x86_64') {
   & $cc @warn "-I$fs\include" (Join-Path $test 'gm_render.c') (Join-Path $src 'gm_synth.c') @fmt `
         "$fs\lib\libfluidsynth-3.dll.a" -o (Join-Path $o 'gm_render.exe')
   if ($LASTEXITCODE) { throw "gm_render ${arch}: build failed" }
+  & $cc @warn (Join-Path $test 'font_test.c') (Join-Path $src 'fgfont.c') (Join-Path $src 'png_write.c') `
+        -o (Join-Path $o 'font_test.exe')
+  if ($LASTEXITCODE) { throw "font_test ${arch}: build failed" }
   $rt = Join-Path (Split-Path $Toolchain) "$arch-w64-mingw32\bin"
   Copy-Item "$sdl\bin\SDL3.dll", "$fs\bin\libfluidsynth-3.dll", "$rt\libc++.dll", "$rt\libunwind.dll" $o -Force
   Write-Host "built $o"

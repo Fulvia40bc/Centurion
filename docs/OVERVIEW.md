@@ -116,21 +116,47 @@ writes `disasm/AC_MAIN.asm` (labelled listing, not committed), `disasm/functions
 
 ## 4. Data formats
 
-`ACIV.CTn` (D): a directory of 24-byte entries `{char name[12]; u32 offset; u32 length; u32 kind}`, count =
-first offset / 24 (33 = 32 files + an end mark); kind 2 = GIF, 6 = FLC, 0 = other. `tools/ct_list.py` lists and
-extracts.
+`ACIV.CTn` (D, corrected 2026-11-18): a **chain of directory blocks**.
+- Each block is 32 entries of 24 bytes, `{char name[12]; u32 offset; u32 length; u32 kind}`, then a link entry whose
+  name is twelve 0xFF bytes and whose offset is the next block (0 = the last).
+- The first block is at offset 0. Unused entries have an empty name.
+- Kinds: 2 = GIF, 6 = FLC, 7 = FGF font, 0 = other.
+- Until 2026-11-18 only the first block was read (Task 1's spec said "count = first offset / 24"). That hid 76 files (139 named in the first blocks):
+  CT1's second block and CT3's blocks 2-4.
+- With the chain, all five catalogs account for every byte up to the end of the file: 215 files.
+- `tools/ct_list.py` lists and extracts.
 
 | Archive | Contents |
 |---|---|
-| CT1 | 32 GIFs: map zoom levels (`ZOOM3..ZOOM78`, by player count), BRPC, Zeus, nation picture cards (`CH_*`, `CV_*`) |
+| CT1 | 37 GIFs: map zoom levels (`ZOOM3..ZOOM78`, by player count), BRPC, Zeus, nation picture cards (`CH_*`, `CV_*`), `AH_LOGO.GIF` and `ADVCIVIL.GIF` (never named by the game, §6); the three fonts `BLOCK05.FGF`, `COGNAC10.FGF`, `COGNAC19.FGF` |
 | CT2 | 32 GIFs: screens (trade, AST, census, buy civ, victory, map & palette, tokens, minimap, card art) |
-| CT3 | 32 help texts `*.HLP` (one per phase/calamity) |
-| CT4 | 14 FLC calamity animations (+ `VOLCANO.FLC`), 19 empty slots |
+| CT3 | 34 help texts `*.HLP` (one per phase/calamity) and 66 `*.BPM` opening maps for the computer players (§6, item 12) |
+| CT4 | 14 FLC calamity animations (+ `VOLCANO.FLC`); the other 18 entries of its block are unused |
 | CT5 | 12 XMI + 17 WAV |
 
 GIF/FLC/WAV/XMIDI are standard formats; the HLP files are plain text with layout spaces. Still to decode:
-the map files, `TERRFLAG.DAT`, `N.RL` contents, the save layout, `ACIV.CFG`, and where the fonts come from
-(the game loads font files by name, but none of the catalogs holds one: G compiled into the data object).
+the map files, `TERRFLAG.DAT`, `N.RL` contents, the `.BPM` values, the save layout, `ACIV.CFG`.
+
+**Fonts (D, 2026-11-18).** The game defines three fonts from CT1 at start-up (0x39E50, names at 0xC1948):
+- 0 = `block05.fgf`: 5 pixels high, small capitals.
+- 1 = `cognac10.fgf`: 11 high, baseline 2.
+- 2 = `cognac19.fgf`: 22 high, baseline 4.
+
+The FGF format, from Fastgraph/Fonts 2.04's define routine (0x8DFEE):
+- `u8 bytes_per_row, u8 height`, then `u8 width[96]`, `u8 rows[96]`, then 96 cells of bytes_per_row × height
+  bytes, for characters 32..127.
+- A glyph is `rows[c]` rows of `(width[c]+7)/8` bytes, top row first, most significant bit leftmost.
+- The loader turns each glyph bottom row first, as Fastgraph draws bitmaps from their lower-left corner.
+- The baseline is the number of blank rows under 'A'.
+
+Print (0x8E253):
+- Starts at the graphics cursor, which marks the baseline; glyph bottoms are `baseline` rows lower.
+- Each character advances by its width + the spacing (0x8E244; the game uses 0 and 2).
+- 0x7F + colour changes the colour mid-string. 0x7F + `_` starts and ends an underline 2 rows below the baseline.
+- Horizontal and vertical justification exist but stay at "none" (no writes to 0xE0A80/81).
+
+Ported: `port/src/fgfont.c`. `port/test/font_test.c` renders every glyph upright, with descenders below the
+baseline. A pixel check against a DOSBox-X capture follows with the first screen that has text.
 
 ## 5. Porting plan
 
@@ -214,11 +240,12 @@ Pace: one module at a time, each with its own commit; ultracode workflows for th
 4. The **Barbarian Ravaging and Plundering Committee** (BRPC): *"The BRPC is deadlocked. They decide to settle
    in %s."*, and *"…has been wiped out by the Barbarians. Satisfied with a job well done they settle in %s."*
 5. *"Zeus takes pity upon %s and discards …"* with its own Zeus picture, animation and sound.
-6. **Leftovers past the end of the catalogs**: `ACIV.CT1` holds 254 KB after its last listed file, with five
-   unlisted 640x480 GIFs, among them a still **Avalon Hill logo** (sphere on a star field) and the **box-art
-   title screen**, which the shipped game shows as FLC animations instead; `ACIV.CT3` holds an unlisted help
-   text on the PBEM movement playback. G: stale data from an earlier build of the archives; whether the game can
-   show any of it: no (not in the directories).
+6. **Two stills the game never shows.** `ACIV.CT1`'s second directory block lists a still **Avalon Hill logo**
+   (sphere on a star field) and the **box-art title screen** as 640x480 GIFs (`AH_LOGO.GIF`, `ADVCIVIL.GIF`). The
+   game plays `ah_logo.flc` and `advcivil.flc` instead and never names the GIFs.
+   - Corrected 2026-11-18: an earlier note called these "past the end of the catalog". They are in the directory,
+     in a second block the first reader missed.
+   - The same block holds three nation cards the game does use, and the fonts.
 7. Developer leftovers in the strings: memory statistics ("Memory Headroom: %s", "Max Memory used including
    .map analysis"), "junk" / "junk2" placeholders, "Move Stack has popped once to often."
 8. README humour (not in the game): the "lucky ones whose machine confounds the detection code", and the PBEM
@@ -230,6 +257,14 @@ Pace: one module at a time, each with its own commit; ultracode workflows for th
     (never shown to the player).
 
 11. `KABOOM3.WAV` still carries its sound editor's signature: a `LIST/INFO/ISFT` chunk "GoldWave v2.10 (C) Chris Craig". `BRPC.WAV` has empty `alia` and `mark` chunks from another editor. A trace of how the sounds were made, not a joke.
+
+12. **The computer players' opening maps carry their makers' notes.** The 66 `.BPM` files in `ACIV.CT3` (523
+    bytes each, one per nation and player-count variant, e.g. `AFRC30`, `ILLY42`) start with a text label:
+    - "Base map by Jim - 7/29/95" and "Base map by Jim - 8/2": Jim Synoski, the programmer and AI designer, dating
+      his work two months before release.
+    - Matchups: "Italy vs Africa vs Crete", "Thrace vs Africa vs Iberia/Italy", "illy vs italy vs thrc".
+    - "non-iberia", "Alt base map".
+    The values that follow (G) are per-territory priorities for where to expand, 0xFF = not used.
 
 Text slips found in passing (to fix by default, `--original` keeps them): "converts %s by **Montheism**!" (twice),
 "popped once **to** often". A full text sweep is part of M4/M6.
