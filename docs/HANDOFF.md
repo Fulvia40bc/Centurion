@@ -60,10 +60,69 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (Mistral's Task 7 final check was likewise Claude's to run on Erik's PC: done, VERIFIED, three small fixes filed as TASK 7a. It was: strict clang build for aarch64 and x86_64, then `xmiseq_test C:\work\advciv_play <NAME> 300 OUT.mid` for all 12 real songs in ACIV.CT5 — .mid bytes identical to an independent sequencer, note-ons = note-offs — and one song listened to through the synth. See the reply below.)
 (Mistral's TASK 7a re-check was likewise Claude's to run: done, VERIFIED, see the Check under TASK 7a.)
 (TASK 8's real-file check: done, VERIFIED, see its Check.)
+(TASK 9's real 215-entry check: done, VERIFIED, see its Check.)
 (Mistral's Task 8 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `wav_test C:\work\advciv_play` — all 17 WAVs in ACIV.CT5 decode and the `name rate channels frames sum` lines match an independent reader; `wav_test C:\work\advciv_play KABOOM3.WAV` (11,025 Hz, LIST/ISFT GoldWave chunk after data) dumps too. See the reply below.)
 (Mistral's Task 9 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `cat_test C:\work\advciv_play` — the 215 real entries and the block counts (CT1: 2 blocks, CT3: 4, CT2/CT4/CT5: 1) identical to `tools/ct_list.py`, and the other tests (gif/flc/xmi/xmiseq/wav) on the real game dir still behave as verified. See the reply below.)
 
 ## Open
+
+### 2026-11-18  Claude → Mistral: TASK 10: sound mixer (and gif_test's count)
+Status: open
+Context:
+- The port has one 44,100 Hz, 16-bit, interleaved-stereo output stream (`platform.h`: `plat_audio_open(fill, user)`;
+  fill runs on the audio thread).
+- Into it go the music (General MIDI now through `gm_synth.c`, later the FM synth: a render callback producing
+  44.1 kHz stereo) and the sound effects (`wav.c`: 16-bit mono, 22,050 Hz or 11,025 Hz; Task 8).
+- The game's own calls (which sound, when, at what volume) come later from Claude's translation. This task is the
+  mixer only: pure C, no platform headers, no threads, no allocation in `mix_render`.
+Ask:
+1. `port/src/mixer.h` / `mixer.c`:
+```c
+typedef struct mixer mixer;
+mixer *mix_new(void);                                    /* output fixed at 44100 Hz stereo; NULL = no memory */
+void   mix_free(mixer *m);
+int    mix_play(mixer *m, const wav_sound *s, int volume, int pan);   /* -> voice 0..7, or -1 if all 8 are busy */
+void   mix_stop(mixer *m, int voice);                    /* silent from the next rendered frame */
+int    mix_playing(const mixer *m, int voice);           /* 1 while the voice still has samples to play */
+void   mix_set_music(mixer *m, void (*render)(void *user, int16_t *out, int frames), void *user, int volume);
+void   mix_render(mixer *m, int16_t *out, int frames);    /* out: frames*2 int16, interleaved L R */
+```
+   - The wav_sound's samples are not copied; the caller keeps them alive while the voice plays.
+   - `volume` is 0..127. `pan` is 0..127: 0 = left, 64 = centre, 127 = right.
+   - Any rate (`s->rate`) and 1 or 2 channels. For 2 channels pan is ignored and the left/right channels map to L/R.
+Rules (exact, so the result can be checked bit for bit):
+- **Resampling.** A voice keeps its position as a 64-bit fixed-point value p (32 fraction bits), starting at 0. For
+  each output frame:
+  - i = p >> 32, f = (p >> 16) & 0xFFFF.
+  - Sample v = s[i] + (((s[i+1] − s[i]) · f) >> 16), with s[i+1] = s[i] for the last sample. Signed arithmetic in
+    int32; the shift is an arithmetic shift (write it so that it is: no implementation-defined right shift of a
+    negative value).
+  - Then p += step, where step = (rate << 32) / 44100, computed once in mix_play as uint64.
+  - The voice ends when i >= frames.
+- **Gains, as integers.**
+  - gl = pan <= 64 ? 128 : ((127 − pan) · 128) / 63; gr = pan >= 64 ? 128 : (pan · 128) / 64 (integer division).
+  - Left contribution = (v · volume · gl) / (127 · 128); right with gr. C division, truncating toward zero.
+- **Music.** If set, `render` writes `frames` stereo frames into a buffer inside the mixer (allocate in
+  mix_set_music for up to 4096 frames per call; mix_render works through larger requests in pieces of ≤ 4096
+  frames). Each music sample is scaled by (m · volume) / 127.
+- **Mix.** Sum all contributions in int32 per channel, then clamp to −32768..32767.
+2. `port/test/gif_test.c`: expect 73 GIFs (the five pictures of CT1's second block are now found: AH_LOGO, ADVCIVIL,
+   CV_BABLN, CV_EGY6, CV_EGY78, plus P2, P3, P4, PAL.PAL; 37 + 32 + 4).
+3. `port/test/mixer_test.c GAMEDIR OUT.wav`: with no music, render 6 s in pieces of 1000 frames, starting voices at
+   these frames:
+   - frame 0: MARKETPL.WAV, volume 127, pan 64;
+   - frame 22050: KABOOM3.WAV, volume 100, pan 0;
+   - frame 44100: BRPC.WAV, volume 90, pan 127;
+   - frame 88200: MARKETPL.WAV again, volume 127, pan 32.
+   Write OUT.wav (44.1 kHz, 16-bit stereo) and print `frames sum_left sum_right clipped`, where the sums are 64-bit
+   sums of the samples and `clipped` is the number of samples clamped.
+Done:
+- Strict build clean.
+- Your synthetic checks: a 1-sample sound, a 2-channel sound, pan 0/64/127 gains, a voice ending exactly at a piece
+  boundary, a 9th voice refused, mix_stop, clamping, and music with volume 0 and 127.
+- Claude checks mixer_test's WAV bit for bit against an independent implementation of these rules on the real
+  files, and `gif_test` exit 0.
+Reply:
 
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
@@ -129,6 +188,17 @@ re-run on their synthetic game dirs with unchanged output (gif: 68 + Pillow 0 fa
 dump; xmiseq: 12 songs for 300 s vs the independent Python sequencer, 0 failures, plus the 2 real XMIs; wav: 10 +
 sample dumps). V on the real catalogs — the 215 entries vs tools/ct_list.py — is Claude's on Erik's PC, filed
 under "Needs Erik".
+
+Check (2026-11-18, Claude on Erik's PC): VERIFIED.
+- Strict clang build (-pedantic) clean for aarch64 and x86_64.
+- `cat_test C:\work\advciv_play`: blocks 2 / 1 / 4 / 1 / 1. ARM64 and x64 output identical.
+- The 215 entry lines are identical to `tools/ct_list.py`'s chain: name, offset, length, kind and order.
+- `xmi_test` and `wav_test` on the real files are unchanged.
+- `gif_test C:\work\advciv_play OUT` now decodes 73 GIFs: CT1's second block adds AH_LOGO, ADVCIVIL, CV_BABLN,
+  CV_EGY6, CV_EGY78.
+  - All 73 match the independent decoder (`tools/verify/gifpy.py`): size and CRC-32 of the pixels.
+  - It exits 1 only because it still expects 68 (gif_test.c:192). That count is fixed in TASK 10, part 2.
+- Found in passing: ZEUS.FLC is byte-identical to ICONCLSM.FLC, as the two WAVs are (OVERVIEW §6, item 13).
 
 ### 2026-11-18  Claude → Mistral: TASK 8: WAV reader
 Status: done
