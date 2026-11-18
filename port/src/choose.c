@@ -493,7 +493,7 @@ int f300E0(int id)
         if (ax == 3) {                                          /* 0x30160 cmp ax,3; je 0x30116 */
             f8240F(ui_heap_F522C, 0xFF00);                      /* 0x30122 fg_imagebuf([0xF522C], 0xFF00) */
             fg_imagebuf(ui_heap_F522C, 0xFF00);                 /* port: fg.c's buffer too */
-            not_ported(0x136B0u);                               /* 0x3012F f136B0(1): the AST chart, view mode */
+            f136B0(1);                                          /* 0x3012F the AST chart, mode 1 (ast.c); eax unused */
             f3CC14();                                           /* 0x30134 (reached once 0x136B0 is ported) */
             f3CD6C(6);                                          /* 0x3013E choose.gif */
         }

@@ -347,6 +347,21 @@ button (0x136B0) and the computer nations (0x302C4) stop with `not_ported()` unt
 - The next screen, captured for module START: "AFRICA place your token in a starting territory" on the zoomed map
   with the full game panel.
 
+**M4, module N2 (2026-11-18 evening):**
+- `ast.c`: the AST chart 0x136B0 in its three modes, and the scoring helpers 0x147C4, 0x1486C, 0x17760, 0x6DD98,
+  0x7BA64.
+- `ui_kit3.c`: the generic click wait 0x78BA4 and 12 button/dialog helpers.
+- `dispatch.c`: the button dispatcher 0x3FB94, all 261 jump-table ids. 210 are translated (29 default, 156
+  constant codes, 24 that store [0xF6758], QUIT, and id 3, the AST chart). The other 51 stop with `not_ported(case
+  address)`: the work list of the later modules, with each case's target in the file.
+- 0x3CC68 and 0x3CCBC (show the background buffer; screen to back buffer) added by hand to `ui_screen.c`.
+- **Check (V):** setup defaults; clicks START A NEW GAME, START GAME, AST, CONTINUE, SELECT, AST, CONTINUE, SELECT,
+  SELECT.
+  - Frames F5 (the AST chart from the nation choice), F6 (back at the choice) and F7 (AST after one SELECT): 0 px
+    each, pointer included (ARM64; F7 also on x64).
+  - Memory at main 0x11854 (`--seed 0B102E0E`): 0 unexplained bytes. This includes the CONTINUE button 0x3BB48 moved
+    in dialog 0xBB800.
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 

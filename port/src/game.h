@@ -343,4 +343,139 @@ void f3C940(uint32_t dlg);             /* D: disable a dialog, saving its state:
 void f3C7A0(uint32_t dlg);             /* D: undo f3C940: fg_vbopen([0xF52C8]); for i < int16 [dlg]: byte [dlg + 20i + 0x12] (record i's enabled byte) = 0xF8E44[i], f3B4E0(dlg + 2 + 20i); fg_vbclose. No mouse hiding */
 _Noreturn void not_ported(uint32_t addr);  /* port (choose.c): prints "advciv: 0xADDR is not ported yet" (addr in hex, e.g. 0x136B0) and ends the program through plat_shutdown and exit(3); the call sites of 0x136B0 and 0x302C4 call it until those are translated */
 
+/* ---- AST chart, button kit, click wait, dispatcher, score helpers (module N2 of MAP_PLAN.md) --------------------
+
+   The AST chart 0x136B0 (D unless marked). f136B0(mode), mode in eax. Callers: 0x3012F mode 1 (the nation choice's
+   AST button, choose.c), 0x3FBDA mode 2 (dispatcher id 3), 0x55202 mode 3 (G: the AST phase; the only caller that
+   reads eax). It draws into the background buffer: f3CD6C(4) (astblan2.gif), fg_vbopen([0xF52CC]) until the
+   fg_vbclose at 0x13B99 / 0x13CA7, font 1 (f39F90(1); n starts as ecx = 1, kept across that call, 0x136F5).
+   For n = 1..9, rec = 0xF14CC + 199n: mode 1 takes every n, the other modes only n with byte +0x9A != 0 (0x13AE4).
+     Name shown: in mode 1 only if n is in the choice list (0xF7CA0[i] == n for some i < [0xF7C9C], 0x13703); in the
+     other modes always. fg_setcolor(0x13) first (0x13739; nothing is drawn in it), then the name [0xC768C + 4n]
+     centred (f3A0B0, width 0x35) with y = 0x86 + 25(n-1): colour 5 at (0x48, y + 1), colour 15 at (0x47, y); for
+     n == 3 (ILLYRIA) one more colour-5 copy at (0x48, y) before those (0x1375D).
+     Mode 1 stops there for n. The other modes evaluate n's AST step (0x13804..0x13A49), pos = int8 rec+0x5C:
+       AST table 0xBCFDA: int16 pairs {era, need}, 17 per nation (68 bytes), nation n at 0xBCFDA + 68(n-1), entry k
+       at +4k (lea/shl: (n-1)*17*4). cur = entry[pos].era (0x1381B), next = entry[pos+1].era (0x13841, 0xBCFDE),
+       need = entry[pos+1].need (0x13979, 0xBCFE0). obj2: 4 or 5 squares of era 0 first, era 1..3 squares carry
+       need 2, 3, 4 (never read: need is used only for era 4), then 2 or 3 squares of era 4 with need 1200..1900 and
+       entry 16 = {5, 0}. E.g. AFRICA: 5 x 0, 3 x 1, 3 x 2, 3 x 3, {4, 1300}, {4, 1600}, {5, 0}.
+       Scores (int16 locals): city (c = int8 rec+0x51, tested in this order): c == 0: 0; c == 1: 1; c >= 2 and
+         next == 1: 2; c >= 3 and next == 2: 3; c >= 4 and next == 3: 4; c >= 5: 5; else 0 (0x1384C..0x138D9).
+         groups: g = f1486C(n); 4 if g == 5 and next >= 3, else 3 if g >= 3, else 0 (0x138E0..0x1390B).
+         advances: 4 if at least 9 of the 24 bytes rec+0x24.. are non-zero, else 0 (0x13912..0x13943).
+       int16 rec+0x5E = f17760(n) (0x13957; modes 2 and 3).
+       step: -1 if c < 1 and cur != 0 (0x1399A); else +1 if next == 5 and city >= 5 (also won = 1, 0x139C0); next
+         == 4 and int16 rec+0x5E >= need (16-bit signed compare, 0x139DB) and city >= 5; next == 3 and city +
+         advances + groups >= 12; next == 2 and city + groups >= 6; next == 1 and city >= 2; next == 0; else 0.
+       Mode 3 applies it: byte rec+0x5C + 1 (0x13A60) or - 1 (0x13A70). Modes 2 and 3 then draw the token sprite
+       0xF4ACC + 8n at (0x83 + 26*pos, 0x80 + 25(n-1)) with pos read after that (f3AF8C, 0x13AB5).
+       G: entry 16 is the last square; a nation standing on it would read entry 17, the next nation's entry 0 (or
+       past the table for n = 9). Reaching it sets won, which mode 3 returns (G: the game then ends).
+   Modes 1 and 2 (0x13B20..0x13BC2): f3BB48(0xBB800, 0x2A, 0x109) and f3BC64(0xBB800, 0x2A, 0x192) move CONTINUE to
+     (265, 402) (obj2: (265, 450)); sprite 0xF521C at (0x106, 0x18F); f3B4E0 for each record of 0xBB800 (count
+     dword [0xBB7FE] sar 16); fg_vbclose; f3CC68; then r = f78BA4(0xBB800, 0) until r == -1 (every other value loops).
+     Returns 0 (0x13D31). The moved CONTINUE stays in 0xBB800 (the data compare at 0x11854 sees it).
+   Mode 3 (0x13BC7..0x13D16): t = int16 [0xF40FC] (dword [0xF40FA] sar 16), at most 44; for n = 1..9 with byte
+     +0x9A != 0: int16 [0xEE9F0 + 90n + 2t] = f147C4(n) (0x13C24); then int16 [0xF40FC] + 1 (0x13C45); sprites
+     0xF521C at (0x106, 0x180) and 0xF5224 at (0xC2, 0x19D); f3B4E0 for each record of 0xBC8F0; fg_vbclose; [0xF8E78]
+     = 0xBC8F0 (0x13CAC); f3CC68; fg_mousepos(0xE1628, 0xE162C, 0xE1630); loop: if f7BA64() == 0, r = f78BA4(0xBC8F0,
+     0), else f78A20(int16 [0xF40BA] == 0 ? 250 : 2000) and r = -1; until r == -1. Returns won == 1 (sete, 0x13D24).
+   Data the chart uses:
+     0xBB800  dialog, 1 record (obj2): 0x2A CONTINUE (265, 450, 110 x 19), style 1, font 1
+     0xBC8F0  dialog, 6 records (obj2), y 416, 49 x 19: 5 SYSTEM (197), 8 MAP (246), 4 CENSUS (295), 6 TOOLS (344),
+              7 GOODS (393); 0x2A FINISHED (265, 387, 110 x 19). f78BA4 hands their ids to f3FB94, so mode 3 opens
+              those screens from the chart (G: the AST phase's menu)
+     0xEE9F0  int16[10][45] score history, row n, column min(turn, 44) (memset 0x384 by game_load; also written at
+              0x44DF2 and read at 0x44E49, 0x453B1, 0x6B961; G: the scoring chart, MENU2)
+     0xF40FC  int16 (G: the turn; game_load sets 1 at 0x117CB, 0x53183 writes it too)
+     0xC768C  uint32[10] -> nation names (N1 above); 0xC197C[4] -> "astblan2.gif" (obj2)
+     Sprites (records of 0x11A8C): 0xF4ACC + 8n (tokens.gif, 24 x 23), 0xF521C and 0xF5224 (c_invld.gif pieces).
+
+   Nation record fields the scoring reads (0xF14CC + 199n; bytes read signed, as dword [..-3] sar 24, D):
+     +0x01..+0x12  int8 c_i  trade cards of card id i held (f6DD98: sum of c_i * c_i * ((i + 1) >> 1) over i 1..18;
+                   card ids 2s+1 and 2s+2 belong to stack s (0x6BA20), so (i + 1) >> 1 = s + 1, G: the face value)
+     +0x24..+0x3B  int8[24]  advances: f17760 counts byte == 1, f1486C byte > 0, f136B0's count byte != 0
+     +0x3D  int8   the nation's own number (0x45D30 writes n); f147C4 passes it to f6DD98
+     +0x3E  int8   added to the score as it is (G: the treasury)
+     +0x51  int8   cities (G): 50 points each in f147C4, the city score of f136B0
+     +0x5C  int8   AST square 0..16: 100 points each in f147C4; f136B0 mode 3 moves it by the step
+     +0x5E  int16  advance points = f17760(n), written by f136B0 (0x13957) and 0x17635 (0xF152A + 199n)
+     +0x9A  int8   0 = not in play (N1: 3 human; G: 2 computer)
+   0xBD480  int16[24] advance costs (obj2): 45 45 80 110 140 180 140 80 110 140 230 60 60 120 110 170 200 180 240 50 80
+            150 220 250 (read as dword [0xBD47E + 2i] sar 16; also by 0x16A29..0x17101)
+   0xF62A0..0xF62A4  uint8 flags of f1486C's five advance groups. f1486C clears them, then each group counts once (the
+            first owned advance ends its loop) and sets its flag: advances 0..6 -> 0xF62A0; 6..10 -> 0xF62A1; if
+            advance 19 (+0x37) is owned: count, 0xF62A1 again, and 10..14 is skipped (0x1492F); else 10..14 -> 0xF62A2;
+            14..18 -> 0xF62A3; 19..23 -> 0xF62A4. Advances 6, 10 and 14 sit in two groups and advance 19 can count
+            twice (D). No reader of 0xF62A0..0xF62A4 exists in the code (direct or indexed), so the 0xF62A1 written for
+            the third group changes nothing.
+
+   Self-running demo (f7BA64): int16 [0xF40BA] = the self-running demo's player count (/SRD, 0x1034D after "%d player
+   Self Running Demo in effect."; also main 0x11110); int16 [0xF40B8]: the only store is f7BA64's clear (0x7BAC9),
+   G: always 0. f7BA64 reads them as dword [0xF40B6] / [0xF40B8] sar 16.
+
+   The button dispatcher 0x3FB94 (D). f3FB94(id), id in eax, and the record's int16 +0x0E sign-extended at every
+   call site (0x78C9A: [rec+0xC] sar 16). Callers: f78BA4 (0x78C9A), the map click 0x3D434 (0x3D4F5), the text
+   input 0x60694 (0x60A3D), 0x166C1, 0x29B5F, and 0x14294 (0x147B2, a tail position); all use eax.
+     code = -100 (int32 [ebp-0x3C], 0x3FBAC); index = (id - 3) as uint16 (cmp ax, 0x104, 0x3FBB9): above 0x104 ->
+     0x426C1, which returns code; else jmp cs:[4*index + 0x3F780] (0x3FBC8).
+     Jump table 0x3F780..0x3FB93: 261 dwords for ids 3..0x107, in the code object (obj1.bin offset 0x2F780) right
+     before the function, each entry a fixup (fixup 0x3FBCC -> 0x3F780 for the jmp). Default 0x426C1 (-100) for ids
+     0x11, 0x1A, 0x54, 0x55, 0x59..0x68, 0xAC..0xAF, 0xEB, 0x102, 0x104..0x106 (and every id outside 3..0x107).
+     Entries with an action (other modules; [] = what they call):
+       3 (0x3FBD0): f3CCBC, f136B0(2), f3CC14, -100      4 (0x3FBF1): f3CCBC, 0x13E50, f3CC14, -100
+       5 (0x3FC0D): 0x42754, -100    6 (0x3FC27): 0x19C10, -100    7 (0x3FC39): 0x76A9C, -100    8 (0x3FC4B): 0x44A34, -100
+       9..0x10 (0x3FF87 + 0x50k): the player buttons, nation int16 [0xF06B0 + 2k] (read as dword [0xF06AE + 2k] sar
+         16; 0x459E4, 0x3D9FC; 0x3E374 with
+         int16 [0x107690] != 0); 0x1B..0x22 (0x402A7..0x4035C): scroll (0x3D52C); 0x23 (0x40375) mini-map click;
+         0x24 (0x403C8) detail level byte [0xC1A34]; 0x25 (0x406E0) ZOOM; 0x26 (0x407DC), 0x27 (0x40B38) land/sea;
+         0x28 (0x40C4A) the move; 0x2B..0x32 (0x40F80, 0x41223, 0x4152E, 0x417A5, 0x40E45, 0x410AE, 0x41380, 0x416C6)
+         ships; 0xC4..0xC8 (0x40858, 0x408E9, 0x4097C, 0x40A10, 0x40AA4) amount radio (f3B9A4 != 0 -> 0x426C1);
+         0x4F (0x3FDAB) save, -1; 0x50 (0x3FEA0) restore (0x5FF28 -15 -> -1, else longjmp 0xF58A0); 0x51 (0x3FDCF)
+         new game (longjmp 0xF58D4); 0x52 (0x3FD26) 0x436FC, -1; 0x53 (0x3FD6D) 0x4290C, -1; 0x56 (0x3FD07) 0x44D5C,
+         -1; 0x57 (0x3FD91) quit ([0xF5500] = "", f44CAC); 0xE2 (0x3FD49) 0x43E88, -1; 0x101 (0x4041D) replay;
+         0x103 (0x3FC5D) Trading Wrapup (0x763FC, "junk" GIF), -100; 0x107 (0x3FCE0) 0x545AC (PBEM), -1.
+       0x8E..0xA5 (0x41CB7, then 0x41CD4 + 0x20(k-1)): int32 [0xF6758] = id - 0x8E (0..23), return -0x3E.
+     Entries that only return a constant (mov [ebp-0x3C], imm, D; 0x426BA falls into 0x426C1):
+       0x29 -0x79   0x2A -1   0x33 -8   0x34, 0x36 -5   0x35, 0x37 -6   0x38 -7   0x39..0x3E -9..-0xE   0x3F -0x65
+       0x40 -0x66   0x41 -0x63   0x42..0x4D 0..11   0x4E -0xF   0x58 -0x10   0x69..0x6F -0x7B..-0x81
+       0x70..0x74 -0x11..-0x15   0x75 -0x1D   0x76 -0x1C   0x77 -0x24   0x78 -0x1E   0x79 -0x20   0x7A -0x22
+       0x7B -0x1F   0x7C -0x21   0x7D -0x23   0x7E -0x25   0x7F -0x7A   0x80..0x84 -0x26..-0x2A   0x85 -0x2B
+       0x86 -0x2C   0x87..0x8D -0x2F..-0x35   0xA6 -0x3F   0xA7 -0x40   0xA8 -0x41   0xA9 -0x42   0xAA -0x43
+       0xAB -0x44   0xB0 -0x58   0xB1 -0x59   0xB2..0xB9 -0x50..-0x57   0xBA..0xC1 -0x48..-0x4F   0xC2 -0x5A
+       0xC3 -0x5B   0xC9 -0x5E   0xCA -0x61   0xCB -0x62   0xCC..0xD9 -0x67..-0x74   0xDA -0x75
+       0xDB..0xDD -0x76..-0x78   0xDE..0xE1 -0x83..-0x86   0xE3..0xE8 -0x87..-0x8C   0xE9 -0xAC   0xEA -0x95
+       0xEC..0x100 -0x97..-0xAB
+     Port (MAP_PLAN N2): ids 3, 0x2A and the constant entries; the other action entries call not_ported(the entry's
+     address) until their modules come.
+
+   Heap pointers in data fields: these routines keep none of their own. They read the sprite records' +0 handles
+   (0xF4ACC + 8n, 0xF521C, 0xF5224, through f3AF8C) and [0xF522C] (through f3CD6C). f3C284 stores a text address in a
+   button record's +0x08: data strings, or 0x109E7C (0x3FB94's sprintf buffer), but two callers pass caller stack
+   buffers (0x516EE lea ebx, [ebp-0x280]; 0x54128 lea ebx, [ebp-0xA4]), which the port has to place at link
+   addresses (G: port design, as 0x2EFA0's sprite record). 0x3FB94's cases 0x50 and 0x51 free the heap fields
+   0xF0984[1..11] and [0xEED74], [0xEED78], [0xEED7C], [0xEED80] (load_heap_free, when ported). */
+
+int  f136B0(int mode);                 /* D: the AST chart (layout above): mode 1 from the nation choice (choosable names only, CONTINUE), 2 from the dispatcher (names, steps evaluated but not applied, tokens; CONTINUE), 3 the AST phase (steps applied, score history 0xEE9F0, turn + 1, dialog 0xBC8F0 until FINISHED / unattended). Returns 0 in modes 1 and 2; in mode 3, 1 if a nation reached the last square, else 0. 3 callers; 0x55202 reads eax */
+int  f147C4(int n);                    /* D: nation n's score: int16 +0x5E + f6DD98(int8 +0x3D) + int8 +0x3E + 100 * int8 +0x5C + 50 * int8 +0x51 (int32 sum). 5 callers, all read eax */
+int  f1486C(int n);                    /* D: how many of the five advance groups nation n has an advance in (0..5; advance 19 may count twice), with the flags 0xF62A0..0xF62A4 (layout above). One caller (0x138E3) */
+int  f17760(int n);                    /* D: nation n's advance points: sum of int16 0xBD480[i] over i 0..23 with int8 +0x24+i == 1. 3 callers read eax (0x13957 and 0x17635 store ax into +0x5E) */
+int  f6DD98(int n);                    /* D: value of nation n's trade cards: sum over i 1..18 of c*c*((i+1) >> 1), c = int8 [0xF14CC + 199n + i]. 6 call sites, all read eax; 0x69B59 and 0x6A28E pass n = 0 (record 0) */
+int  f7BA64(void);                     /* D: unattended check: 0 if int16 [0xF40B8] and [0xF40BA] are both 0; else fg_intkey(0xE1634, 0xE1635): Esc with [0xF40BA] != 0 quits ([0xF5500] = "", f44CAC), Esc otherwise clears [0xF40B8] and returns 0, any other key: f78508 (flush: fg_intkey until key 0, D 0x7851B); then fg_mousepos(0xE1628, 0xE162C, 0xE1630): a button down returns 0, none 1. 20 callers read eax */
+int  f78BA4(uint32_t dlg, int map);    /* D: the generic click wait: f775F0, then fg_mousepos until [0xE1630] != 0; the first record of dlg with enabled byte == 1 and x <= [0xE1628] < x + w, y <= [0xE162C] < y + h: f3C5D4(dlg, id), return f3FB94(id); otherwise, if map == 1 and [0xE162C] <= 0x145: t = f3D2A4(x, y) (MAP1, not ported: not_ported(0x3D2A4)), return the first i < [0xF7C9C] with int32 0xF7CA0[i] == t; else -100. dlg is an immediate at 69 of the 70 call sites (0x710BB: a local holding one); all read eax */
+void f3BB48(uint32_t dlg, int id, int x);   /* D: x (int16 rec+0x00) of the button id = x (16-bit id compare, first match), no redraw; "Button not found" (0xB3C8B, f3A7B0) if none. 50 call sites, none reads eax */
+void f3BD80(uint32_t dlg, int id, int w);   /* D: w (int16 rec+0x04) of the button id; "Button not found" (0xB3CCF) if none. 12 call sites, eax unused */
+void f3BE10(uint32_t dlg, int id, int h);   /* D: h (int16 rec+0x06) of the button id; "Button not found" (0xB3CE0) if none. 2 call sites: 0x141F7, and 0x14283 in a tail position of 0x13E50, whose only caller (dispatcher id 4) ignores eax */
+void f3C0D8(uint32_t dlg, int id, int style);  /* D: style byte rec+0x11 = (int8)style (byte store, 0x3C15F) of the button id; "Button not found" (0xB3D35) if none. 34 call sites, eax unused (0x74EB9 writes ah next) */
+void f3C284(uint32_t dlg, int id, uint32_t label);  /* D: label (uint32 rec+0x08) of the button id = label, a link address (data strings and 0x109E7C; two callers pass stack buffers, see above); "Button not found" (0xB3D68) if none; no redraw. 51 call sites, eax unused */
+void f3B7CC(uint32_t dlg, int id);     /* D: draw the button id pressed (f3B2D8, which sets rec+0x12 = 1) in the back buffer: fg_vbopen([0xF52C8]) .. fg_vbclose; "Button not found" (0xB3C25) if none. 14 call sites, eax unused (0x4080C and 0x40B6A write al / ah next) */
+void f3B870(uint32_t dlg, int id);     /* D: draw the button id up (f3B0D4, rec+0x12 = 0) in the back buffer; "Button not found" (0xB3C36) if none. 37 call sites, eax unused */
+int  f3B9A4(uint32_t dlg, int id);     /* D: the pressed byte rec+0x12 of the button id, sign-extended (dword [dlg + 20i + 0x11] sar 24, 0x3BA24); "Button not found" (0xB3C58) and 0 if none. 8 call sites, all read eax */
+void f3C828(uint32_t dlg);             /* D: disable a dialog in the back buffer, saving its state: fg_vbopen([0xF52C8]); for i < int16 [dlg]: int8 0xF8E44[i] = byte [dlg + 20i + 0x12] (record i's +0x10, the ENABLED byte), that byte = 0, f3B4E0(dlg + 2 + 20i); fg_vbclose. The back-buffer twin of f3C940 (no mouse hiding). 6 call sites, eax unused */
+void f3C8C4(uint32_t dlg);             /* D: undo f3C828 / f3C940 on the active surface: f78884; for i < int16 [dlg]: byte [dlg + 20i + 0x12] (enabled) = 0xF8E44[i], f3B4E0(dlg + 2 + 20i); f788AC. No fg_vbopen (unlike f3C7A0). 13 call sites, eax unused; 0x2C76A and 0x2D0FB are tail positions of 0x2C298 / 0x2C894, whose callers end in tail positions too (G) */
+void f3A148(int x, int y, int w, int value);  /* D: value centred: itoa(value, 20-byte stack buffer, 10) (0x8C897; standard C: "%d"), f3A0B0(x, y, w, buffer). 7 call sites, eax unused */
+void f3A3A0(int x, int y, const char *s);     /* D: s right-aligned, right edge at x, top at y: if strlen(s) > 128 (unsigned, 0x3A3CE) f3A044(x, y, "String too long" 0xB3BAA); else fg_move(x - fgf_width(s, strlen(s)), y + int16 [0xF8B00]), f3AD08(s). Callers pass data strings and stack buffers (0x450AD, 0x501FC, 0x512D3, 0x60989, 0x757B2), hence a C pointer. 40 call sites, eax unused */
+int  f3FB94(int id);                   /* D: the button dispatcher: id -> code through the jump table 0x3F780 (layout above), -100 = nothing. 6 call sites, all use eax (0x147B2 as a tail position) */
+
 #endif

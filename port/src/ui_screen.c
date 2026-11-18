@@ -84,6 +84,26 @@ void f78508(void)
 }
 
 /* 0x3CC14: show the back buffer [0xF52C8] on the whole screen */
+/* 0x3CC68: show the background buffer [0xF52CC] on the whole screen, mouse hidden (f3CC14's twin) */
+void f3CC68(void)
+{
+    fg_vbopen((int)D32(0xF52CCu));                    /* 0x3CC7F */
+    f78884();                                         /* 0x3CC87 mouse off */
+    fg_vbpaste(0, 0x27F, 0, 0x1DF, 0, 0x1DF);         /* 0x3CCA1 */
+    f788AC();                                         /* 0x3CCA9 mouse on */
+    fg_vbclose();                                     /* 0x3CCAE */
+}
+
+/* 0x3CCBC: copy the whole screen into the back buffer [0xF52C8], mouse hidden */
+void f3CCBC(void)
+{
+    f78884();                                         /* 0x3CCCC */
+    fg_vbopen((int)D32(0xF52C8u));                    /* 0x3CCD8 */
+    fg_vbcut(0, 0x27F, 0, 0x1DF, 0, 0x1DF);           /* 0x3CCF5 */
+    fg_vbclose();                                     /* 0x3CCFD */
+    f788AC();                                         /* 0x3CD02 */
+}
+
 void f3CC14(void)
 {
     fg_vbopen(S32(0xF52C8u));                         /* 0x3CC2B */
