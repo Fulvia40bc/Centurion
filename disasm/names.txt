@@ -1,0 +1,10 @@
+# Hand-kept function names for AC_MAIN.EXE (linear addresses). Read by tools/rdisasm.py; overrides its automatic
+# names. Format: ADDR NAME GRADE  # evidence.  Grades: D = the binary shows it, G = guess, V = verified at run time.
+0008BF54 _cstart_       D  # LE entry point; jumps over the "WATCOM C/C++32 Run-Time system" banner (1988-1994)
+0007D4AC __CHK          D  # xchg [esp+4],eax / call __STK / mov eax,[esp+4] / ret 4: Watcom's stack check, called
+                           # as "push framesize; call __CHK" at the top of 633 functions (built with stack checks on)
+0007D4BF __STK          D  # eax = new esp: compared with the stack low-water mark at 0xD5D0C and the SS at 0xCAC74
+0007D4DD __STKOVERFLOW  D  # jumped to by __STK; prints "Stack Overflow!" (Watcom runtime)
+00061940 DoShipContruction G  # passes "DoShipContruction" (sic) in ebx to 0x822B5 as the caller's name
+000822B5 tagged_alloc?  G  # 38 callers pass eax = size?, edx = a tag ("TempTerr", "Tempnation"), ebx = caller name
+                           # ("DoShipContruction", "movement"); the result is stored in a global

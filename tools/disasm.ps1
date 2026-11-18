@@ -22,3 +22,6 @@ try {
     Set-Content -Encoding ascii (Join-Path $repo 'disasm\AC_MAIN.linear.asm')
 } finally { Pop-Location }
 Write-Host "Wrote $repo\disasm\AC_MAIN.linear.asm"
+# recursive disassembly: disasm\AC_MAIN.asm (derived, not committed), functions.txt and coverage.txt (committed)
+python -I (Join-Path $PSScriptRoot 'rdisasm.py') $le (Join-Path $repo 'disasm') $Toolchain
+if ($LASTEXITCODE) { throw "rdisasm failed ($LASTEXITCODE)" }

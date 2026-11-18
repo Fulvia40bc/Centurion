@@ -1,0 +1,1491 @@
+# Functions of AC_MAIN.EXE found by tools/rdisasm.py (recursive descent from the entry point).
+# addr     bytes  insns calls-in  how    name (grade)                    first strings referenced
+# how: e = entry, c = called directly, p = address taken (function pointer),
+#      u = reached by nothing, found by its prologue in a gap (unused library API or dead code)
+# grade: D = the binary says so (own trace string, known library code), G = guess (it passes this
+#        identifier string in eax, Watcom's first argument), from disasm/names.txt or automatic
+00010010   1514    427      1  c      -                               cls | Advanced Civilization requires %d additi | Unknown argument  %s\n
+000105FA   4862   1271      0  u      -                               Unable to locate the Advanced Civilizati | anims\aciv.ct4 | %s\ANIMS\
+000118F8    404    100      1  c      -                               maped.gif
+00011A8C   1812    488      1  c      -                               c_invld.gif | tokens2.gif | tokens.gif
+000121A0    500    136      1  c      -                               
+00012394   1320    325      1  c      -                               terrflag.dat | terrflag.dat is wrong version.  It is %d
+000128BC     52     16      1  c      -                               Can't open file - %s\n
+000128F0    528    160      3  c      -                               IBERIA | Iberian | IBER
+00012B00     92     29      1  c      -                               
+00012B5C     92     32      2  c      -                               
+00012BB8    128     37      2  c      -                               
+00012C38    364     98      1  c      -                               
+00012DA4     80     24      1  c      -                               
+00012DF4   1176    310      1  c      -                               %sah_logo.flc | gcivil2_.xmi  | %sP2
+0001328C    128     42      1  c      -                               
+0001330C    932    277      2  c      -                               pal.pal
+000136B0   1684    486      3  c      -                               
+00013D44    164     46      2  c      -                               
+00013DE8    104     36      0  p      -                               
+00013E50   1092    324      1  c      -                               This data is invalid and will remain so 
+00014294   1328    377      3  c      -                               Final Civilization Standings | EXIT | gcivil2_.xmi 
+000147C4    168     45      4  c      -                               
+0001486C    404    117      1  c      -                               
+00014A00    164     56      1  c      -                               
+00014AA4    456     51      1  c      -                               
+00014C6C   4980   2074      2  c      -                               EGYP80.bpm | EGYP70.bpm | EGYP60.bpm
+00015FE0    268     92      3  c      -                               
+000160EC    280     84      3  c      -                               
+00016204    204     63      0  u      -                               
+000162D0   5100   1315      1  c      -                               Acquire Civ | Still needed | POINTS
+000176BC    164     47      1  c      -                               
+00017760    140     38      3  c      -                               
+000177EC   1776    515      1  c      -                               
+00017EDC    688    190      2  c      -                               
+0001818C   2400    598      1  c      -                               Acquire Civilization Tools | POINTS | Goods toward purchase
+00018AEC    380    103      2  c      -                               Still needed | Excess
+00018C68    368     97      1  c      -                               POINTS
+00018DD8    920    224      1  c      -                               
+00019170    572    160      1  c      -                               
+000193AC    156     53      4  c      -                               
+00019448    156     53      1  c      -                               
+000194E4    244     69      6  c      -                               
+000195D8    296    104      9  c      -                               
+00019700   1296    395      1  c      -                               %s has acquired \n | , \n |  and \n
+00019C10   1300    370      1  c      -                               junk | This data is invalid and will remain so  | Civilization Tools
+0001A124    636    204      1  c      -                               junk2 | CONTINUE
+0001A3A0   1256    297      1  c      -                               Tool Acquisition Wrapup | Acquired | Using
+0001A888   3028    842      1  c      -                               
+0001B45C    120     39      1  c      -                               
+0001B4D4    100     33      1  c      -                               
+0001B538    100     32      1  c      -                               
+0001B59C   2156    622      1  c      -                               
+0001BE08   1236    390      1  c      -                               
+0001C2DC    244     85      2  c      -                               
+0001C3D0   1580    428      1  c      -                               %s falls victim to the Barbarian Hordes. | The Barbarians consider their destinatio | The next destination has been referred t
+0001C9FC   2104    581      1  c      -                               
+0001D234   1572    431      1  c      -                               The Barbarian Hordes can no longer do an | The Barbarians finally settle in %s. | %s is invaded.
+0001D858   1620    482      3  c      -                               The next destination has been referred t | %s %s
+0001DEAC    336    118      2  c      -                               
+0001DFFC    164     38      2  c      -                               
+0001E0A0    672    167      1  c      -                               
+0001E340     72     26      1  c      -                               
+0001E388    560    187      1  c      -                               Zeus takes pity upon %s and discards  | , %s |  and %s
+0001E5B8    228     71      1  c      -                               
+0001E69C    260     83     12  c      -                               
+0001E7A0    844    261      1  c      -                               %s has no cities to be affected by volca
+0001EAEC   1084    280      3  c      -                               %s is about to undergo a Volcanic Erupti | ERUPT HERE | %s is about to be hit by an Earthquake. 
+0001EF28    820    269      1  c      -                               
+0001F25C    712    194      1  c      -                               %s eruption casualties
+0001F524   2232    606      1  c      -                               
+0001FDDC    652    168      1  c      -                               %s is about to be hit by an Earthquake.  | %s/%s
+00020068    336    105      1  c      -                               
+000201B8    508    162      1  c      -                               
+000203B4    432    128      1  c      -                               reduced | Earthquake strikes %s!  The city in %s w |  The neighboring %s city in %s was reduc
+00020564    592    184      1  c      -                               %s is a victim of Treachery by %s. | %s is a victim of his own Treachery. | %s has no cities and cannot be affected 
+000207B4   1212    312      3  c      -                               replaced | %s is a victim of Treachery by %s.  %s s | REPLACE CITY
+00020C70    852    271      3  c      -                               
+00020FC4   1020    317      1  c      -                               %s %s city in %s was  | replaced by %s %s city. | eliminated.
+000213C0    992    320      5  c      -                               
+000217A0    372    101      1  c      -                               Crete can not be the Victim of Barbarian
+00021914    348     91      1  c      -                               
+00021A70   1052    270      1  c      -                               %s, possession of Monotheism allows conv
+00021E8C   2340    661      1  c      -                               %s converts %s by Montheism!
+000227B0    848    245      1  c      -                               
+00022B00    716    206      2  c      -                               %s has been eliminated from the game. | del *.pl? >NUL
+00022DCC    368     96      1  c      -                               %s, none of your cities or units | remain on the board. | You have been eliminated from the game.
+00022F3C    380     99      1  c      -                               %s, you have conquered the known world! | Do not send anything to the host.
+000230B8    376    105      1  c      -                               The elimination of %s means that this ga | As the host, send the last batch of .PLR | del *.hst >NUL
+00023230    836    255      1  c      -                               %s has no cities to be affected by Super | %s has been affected by Superstition.  | All your cities have been reduced. 
+00023574    112     36      1  c      -                               
+000235E4    452    138      1  c      -                               %s suffers a Slave Revolt |  and emerges without any losses.
+000237A8    804    251      1  c      -                               %s has no cities to be affected by Civil | %s has been struck by Civil Disorder |  and is unaffected.
+00023ACC   1804    500      1  c      -                               %s has no cities to be affected by Icono | %s has been struck by Iconoclasm & Heres |  and is unaffected.
+000241D8   1204    334      1  c      -                               The management of Skull & Crossbones, In | The primary victim %s has no coastal cit | The Pirates are unable to add more citie
+0002468C   2092    558      2  c      ChooseCitiesToLoseToPirates (G) ChooseCitiesToLoseToPirates | LEFT TO | REMOVE
+00024EB8   1028    311      1  c      -                               %s is overrun by the Pirates.
+000252BC    652    198      1  c      -                               Pirates overrun %s as a secondary victim
+00025548   1264    384      1  c      -                               
+00025A38   1676    427      1  c      -                               Famine ravages %s. | %s, choose sites of Famine losses. | Assignments for Famine secondary losses
+000260C4   5204   1394      3  c      -                               Famine | %s ravages %s.\nChoosing sites of losses | %s forces %s to eliminate %s.
+00027518    824    233      4  c      -                               Assignments for %s secondary losses
+00027850   1180    299      1  c      -                               GRAIN | USED | LOSSES
+00027CEC    736    184      1  c      -                               GRAIN | USED | LOSSES
+00027FCC   3376    852      4  c      NationLosesUnits (G)            NationLosesUnits | LEFT TO | REMOVE
+00028CFC   1236    344      9  c      -                               
+000291D0    896    249      4  c      -                               
+00029550   1860    527      4  c      -                               LEFT TO | ASSIGN
+00029C94    416    114      1  c      -                               
+00029E34   3680    969      1  c      -                               %s has the most units in stock so there  | There are no units available for a secon | Civil War breaks out in %s.
+0002AC94    188     65      1  c      -                               
+0002AD50   2460    667      1  c      -                               LEFT TO | REMOVE | Removing First Faction units adjacent to
+0002B6EC   2724    672      1  c      ChooseFirstFaction (G)          ChooseFirstFaction | TARGET | LEFT TO
+0002C190    264     74      1  c      -                               LEFT TO | SELECT | ANNEX
+0002C298   1248    343      1  c      -                               
+0002C778    284     90      2  c      -                               
+0002C894   2168    549      1  c      -                               LEFT TO | REMOVE
+0002D10C    180     56      1  c      -                               %s annexes the city in %s
+0002D1C0    544    147      1  c      -                               %s annexes tokens in %s
+0002D3E0    272     78      1  c      -                               %s, Choose side to play.
+0002D4F0   3296    880      1  c      -                               %s has no units on any flood plain or co | reduced | %s has no units on any flood plain so a 
+0002E1D0    652    211      2  c      -                               
+0002E45C    320     91      1  c      -                               %s choses the %s to flood.
+0002E59C   1692    437      1  c      -                               Epidemic ravages %s.\nChoose sites of lo | Assignments for Epidemic secondary losse | Epidemic also ravages %s.\nChoose sites 
+0002EC38    564    204      1  c      -                               
+0002EE6C    308     82      2  c      -                               
+0002EFA0   2648    679      1  c      -                               Player %s choose your nation
+0002F9F8    524    149      1  c      -                               %s.gif
+0002FC04   1244    396      1  c      -                               ch_af3 | cv_af3 | ch_italy
+000300E0    148     45      1  c      -                               
+00030174    336     46      1  c      -                               
+000302C4   2708    740      1  c      -                               
+00030D58   2328    575      1  c      -                               Player %d | PBEM User Setup | Nation
+00031670    380     98      1  c      -                               
+000317EC    164     49      1  c      -                               
+00031890    176     51      1  c      -                               
+00031940    152     47      1  c      -                               
+000319D8    160     49      2  c      -                               Player %d
+00031A78    264     86      1  c      -                               
+00031B80    164     52      1  c      -                               
+00031C24   1340    359      1  c      -                               Edit PBEM User Info | Nation | Current
+00032160    180     50      1  c      -                               
+00032214   4564   1169      1  c      -                               TREASURY | CONTRIBUTION | %s builds a city in %s
+000333E8    268     81      1  c      -                               %s builds a city in %s. | %s builds a city in %s using Architectur
+000334F4    724    206      1  c      -                               
+000337C8    412    131      3  c      -                               
+00033964   1384    386      4  c      -                               
+00033ECC   1136    360      1  c      -                               
+0003433C   1396    423      1  c      -                               
+000348B0   2652    760      1  c      -                               
+0003530C     92     38      0  p      -                               
+00035368     92     38      0  p      -                               
+000353C4    680    210      3  c      -                               
+0003566C    416    141      1  c      -                               
+0003580C   4364   1194      3  c      -                               
+00036918   3016    796      3  c      -                               
+000374E0   2072    572      3  c      -                               
+00037CF8   2768    754      1  c      -                               
+000387C8   1676    491      1  c      -                               
+00038E54    532    159      1  c      -                               
+00039068   1684    491      1  c      -                               
+000396FC   1292    358      1  c      -                               
+00039C08    516    155      1  c      -                               
+00039E0C     68     20      0  u      -                               
+00039E50    256     79      1  c      -                               Can't find font file: %s\n | Can't load font file: %s\n | Can't define font: %s\n
+00039F50     64     26      3  c      -                               
+00039F90    156     48     52  c      -                               Font %d is not loaded\n
+0003A02C     24      8      3  c      -                               
+0003A044    108     39     55  c      -                               String too long
+0003A0B0    152     57     86  c      -                               String too long
+0003A148     68     21      2  c      -                               
+0003A18C    284     93     21  c      -                               
+0003A2A8    248     83      0  u      -                               
+0003A3A0    140     53     25  c      -                               String too long
+0003A42C    796    261     19  c      -                               
+0003A748     56     21      1  c      -                               
+0003A780     48     15      5  c      -                               
+0003A7B0    372    138     29  c      -                               
+0003A924    108     40     15  c      -                               
+0003A990    100     34     12  c      -                               
+0003A9F4    392    143     24  c      -                               
+0003AB7C    396    143     11  c      -                               
+0003AD08    308    117      3  c      -                               
+0003AE3C     84     27      1  c      -                               
+0003AE90    196     65      4  c      -                               Insufficient memory for sprite.  Press a
+0003AF54     56     18      2  c      -                               
+0003AF8C    104     36     70  c      -                               
+0003AFF4    104     36      1  c      -                               
+0003B05C    120     42     77  c      -                               
+0003B0D4    516    174      2  c      -                               
+0003B2D8    520    177      2  c      -                               
+0003B4E0    584    201     20  c      -                               
+0003B728    164     53      1  c      -                               Button not found
+0003B7CC    164     53      4  c      -                               Button not found
+0003B870    164     53      4  c      -                               Button not found
+0003B914    144     47      5  c      -                               Button not found
+0003B9A4    140     46      2  c      -                               Button not found
+0003BA30    140     45      1  c      -                               Button not found
+0003BABC    140     45      1  c      -                               Button not found
+0003BB48    144     47     35  c      -                               Button not found
+0003BBD8    140     45      1  c      -                               Button not found
+0003BC64    144     47     35  c      -                               Button not found
+0003BCF4    140     45      1  c      -                               Button not found
+0003BD80    144     47      3  c      -                               Button not found
+0003BE10    144     47      1  c      -                               Button not found
+0003BEA0    144     47      2  c      -                               Button not found
+0003BF30    140     46      5  c      -                               Button not found
+0003BFBC    144     47     23  c      -                               Button not found
+0003C04C    140     46      0  u      -                               Button not found
+0003C0D8    144     47      9  c      -                               Button not found
+0003C168    140     46      0  u      -                               Button not found
+0003C1F4    144     47      1  c      -                               Button not found
+0003C284    144     47     25  c      -                               Button not found
+0003C314    188     59     26  c      -                               Button not found
+0003C3D0    188     59     23  c      -                               Button not found
+0003C48C    164     52      8  c      -                               Button not found
+0003C530    164     52      8  c      -                               Button not found
+0003C5D4    204     64      9  c      -                               Button not found
+0003C6A0    128     44      3  c      -                               
+0003C720    128     44      3  c      -                               
+0003C7A0    136     47      7  c      -                               
+0003C828    156     52      5  c      -                               
+0003C8C4    124     40     12  c      -                               
+0003C940    144     45     14  c      -                               
+0003C9D0    492    182     53  c      -                               
+0003CBBC     88     28     53  c      -                               
+0003CC14     84     28     44  c      -                               
+0003CC68     84     28      9  c      -                               
+0003CCBC     84     28     11  c      -                               
+0003CD10     92     30      6  c      -                               
+0003CD6C    132     44     88  c      -                               
+0003CDF0     84     27      1  c      -                               
+0003CE44    116     49      1  c      -                               
+0003CEB8    300     89      2  c      -                               
+0003CFE4    396    109      3  c      -                               
+0003D170     28      9      1  c      -                               
+0003D18C    280     86      1  c      -                               
+0003D2A4    400    136      2  c      -                               
+0003D434    248     82      2  c      -                               
+0003D52C   1232    350     24  c      -                               
+0003D9FC    100     28     15  c      -                               
+0003DA60    120     36     35  c      -                               
+0003DAD8    872    277      1  c      -                               
+0003DE40   1332    401      1  c      -                               
+0003E374   1320    385      1  c      -                               
+0003E89C     96     34      5  c      -                               
+0003E8FC    144     47      4  c      -                               
+0003E98C     80     26      2  c      -                               
+0003E9DC     80     26      1  c      -                               
+0003EA2C     80     26      1  c      -                               
+0003EA7C    420    123      1  c      -                               mapdataz.dat | Can't find mapdataz.dat\n
+0003EC20    696    202      1  c      -                               borders1.dat | Can't find borders1.dat\n | borders2.dat
+0003EED8   1664    486      1  c      -                               landadj.dat | Can't find landadj.dat\n | coastadj.dat
+0003F558    204     66      2  c      -                               
+0003F624     40     13     33  c      -                               
+0003F64C     36     14      0  u      -                               
+0003F670     40     15     37  c      -                               
+0003F698     40     13     10  c      -                               
+0003F6C0     36     14      0  u      -                               
+0003F6E4     40     15      4  c      -                               
+0003F70C     40     13      4  c      -                               
+0003F734     36     14      0  u      -                               
+0003F758   1084     15      4  c      -                               
+0003FB94  11068   3917      6  c      -                               UN-ZOOM | ZOOM | junk
+000426D0    132     39      2  c      -                               
+00042754    440    109      1  c      -                               
+0004290C    992    287      1  c      -                               Help file '%s' not found. | junk | CONTINUE
+00042CEC   2576   1104      1  c      -                               start.hlp | Select Starting Territory | showast.hlp
+000436FC   1932    449      1  c      -                               Restart Confirmations | Movement Finished Confirmation | Show AI Movement
+00043E88   2424    604      1  c      -                               Sound effects | Volume | Music
+00044800    236     81      1  c      -                               
+000448EC    136     48      2  c      -                               
+00044974     68     24      1  c      -                               
+000449B8     40     14      3  c      -                               
+000449E0     84     31      3  c      -                               
+00044A34    632    158      1  c      -                               junk
+00044CAC    176     51     22  c      -                               aciv.cfg | %s\n
+00044D5C   1880    534      1  c      -                               Scoring History | R O U N D S | Round %d score may not accurately reflec
+000454B4     28      6      0  u      -                               
+000454D0   1300    322      1  c      -                               %s place your token in a starting territ | %s is selecting its starting territory.
+000459E4    844    200     31  c      -                               IN STOCK | ON MAP | TREASURY
+00045D30    600    179      1  c      -                               
+00045F88    312     85      1  c      -                               
+000460C0    152     55      3  c      -                               
+00046158    100     36      3  c      -                               
+000461BC   1840    516      6  c      -                               
+000468EC    172     51      1  c      -                               
+00046998    180     59      1  c      -                               
+00046A4C    232     76      2  c      -                               
+00046B34    132     46      2  c      -                               
+00046BB8    260     79      3  c      -                               
+00046CBC   1296    370      2  c      -                               
+000471CC    724    224      1  c      -                               
+000474A0   1080    310      1  c      -                               
+000478D8    364    100      1  c      -                               
+00047A44    348     93      1  c      -                               
+00047BA0   1160    324      2  c      -                               
+00048028   1860    519     16  c      -                               
+0004876C    448    129      2  c      -                               
+0004892C   1048    300      4  c      -                               
+00048D44   2172    684     13  c      -                               
+000495C0    464    149      5  c      -                               
+00049790    420    127      5  c      -                               
+00049934    232     77      2  c      -                               
+00049A1C    620    185      6  c      -                               
+00049C88    380    110      1  c      -                               
+00049E04    644    195      1  c      -                               
+0004A088    600    190      3  c      -                               
+0004A2E0   2416    737      2  c      -                               
+0004AC50   3980   1148      1  c      -                               
+0004BBDC   1176    336      1  c      -                               
+0004C074   1648    481      3  c      -                               
+0004C6E4    724    213      1  c      -                               
+0004C9B8    676    183      1  c      -                               
+0004CC5C    648    201      4  c      -                               
+0004CEE4    556    169      2  c      -                               
+0004D110    396    131      3  c      -                               
+0004D29C    636    187      2  c      -                               
+0004D518    788    219      1  c      -                               %s is moving.
+0004D82C    672    184      1  c      -                               
+0004DACC    644    189      1  c      -                               
+0004DD50   1416    348      1  c      -                               New Game Options | Number of Human Players | Number of Computer Players
+0004E2D8   2056    598      1  c      -                               Number of Computer Players
+0004EAE0   1000    256      1  c      -                               Variants | Allow purchase from any stack | Draw 2 goods per city
+0004EEC8    700    198      1  c      -                               
+0004F184   2256    610      1  c      -                               savgame%x.dat | *.1st | %s has been corrupted.\n
+0004FA54    136     40      1  c      -                               
+0004FADC    852    238      1  c      -                               *.* | savgam | roundm
+0004FE30    632    170      1  c      -                               PBEM_OUT | %s0100.1ST | pkzip -+ -- -) -a -P pbem_out\host0100 %
+000500A8   1204    341      2  c      -                               Email the following files located in the | PBEM_OUT sub-directory: | %s%s
+0005055C    928    258      1  c      -                               PBEM_OUT | %s.hst | %s to Host file
+000508FC   1036    273      1  c      -                               The file %s.HST has been written.  When | the other players have returned their fi | them in the %s directory.
+00050D08    484    142      1  c      -                               The other nations have entered Trade Ses |  Do not return any files to the host at  | The other nations have entered Trade Ses
+00050EEC   1460    440      1  c      -                               *.hst | ????%02.2d%02.2d.hst | %s%02.2d%02.2d.hst
+000514A0   1104    323      1  c      -                               junk | Select Missing Nation to Play | %s from %s
+000518F0    108     35      5  c      -                               
+0005195C   7972   1930      1  c      -                               Would you like to edit the PBEM player i | Host consolidation processing in progres | ????%02.2d%02.2d.hst
+00053880     96     35      2  c      -                               pbemcopy\*.pl? | pbemcopy\%s
+000538E0     96     35      2  c      -                               pbemcopy\*.1st | pbemcopy\%s
+00053940     96     35      2  c      -                               pbem_out\*.pl? | pbem_out\%s
+000539A0     96     35      2  c      -                               pbem_out\*.1st | pbem_out\%s
+00053A00     96     35      2  c      -                               pbem_out\*.hst | pbem_out\%s
+00053A60     96     35      1  c      -                               pbem_out\*.zip | pbem_out\%s
+00053AC0     64     24      1  c      -                               *.hst
+00053B00     64     24      2  c      -                               *.pl?
+00053B40     64     24      2  c      -                               *.1st
+00053B80     64     24      1  c      -                               prep*.zip
+00053BC0     56     20      2  c      -                               pbem_out\*.1st | copy pbem_out\*.1st pbemcopy >NUL:
+00053BF8     56     20      2  c      -                               pbem_out\*.pl? | copy pbem_out\*.pl? pbemcopy >NUL:
+00053C30    632    177      1  c      -                               The order for Trading Acceptance this ti | This list has also been written to RANDO | random.txt
+00053EA8    988    304      1  c      -                               Choose whom to send PBEM file to. | SEND DIRECT TO %s | RETURN FILE TO HOST
+00054284    264     88      1  c      -                               
+0005438C    544    161      1  c      -                               
+000545AC    632    155      1  c      -                               junk | The players in this PBEM game are: | %s - %s
+00054824   2612    623      1  c      -                               copy savgamea.dat savgameb.dat >NUL: | savgameb.dat | %s nations have indicated their desire\n
+00055258    172     55      1  c      -                               savgameb.dat | AutoSaved at end of Round %d
+00055304    188     58      1  c      -                               r+b | savgamea.dat | AutoSaved at End of Game
+000553C0    320     97      4  c      -                               gcivil2_.xmi 
+00055500    116     36      1  c      -                               
+00055574   7148   1859      1  c      -                               movement | TempTerr | Tempnation
+00057160    244     82      1  c      -                               Restart %s Movement?
+00057254    120     38      1  c      -                               Are you sure that you are Finished movem
+000572CC    484    136      2  c      -                               
+000574B0    504    133      1  c      -                               
+000576A8     80     25      2  c      -                               
+000576F8    184     61      5  c      -                               
+000577B0     96     35      1  c      -                               
+00057810    252     82      1  c      -                               
+0005790C     52     18      1  c      -                               
+00057940     92     33      2  c      -                               
+0005799C    116     42      2  c      -                               
+00057A10    128     47      1  c      -                               
+00057A90    108     41      1  c      -                               
+00057AFC     96     35      1  c      -                               
+00057B5C    124     46      1  c      -                               
+00057BD8    204     73      1  c      -                               
+00057CA4     68     21     14  c      -                               
+00057CE8    120     42     28  c      -                               
+00057D60    200     58      0  u      -                               
+00057E28    300     97     23  c      -                               
+00057F54    376    114      0  u      -                               
+000580CC    248     85      3  c      -                               
+000581C4    264     94      8  c      -                               
+000582CC    100     31      1  c      -                               
+00058330    268     82      1  c      -                               
+0005843C    120     41      5  c      -                               
+000584B4    180     56      1  c      -                               
+00058568    180     56      1  c      -                               
+0005861C    620    174      3  c      -                               
+00058888    492    153      7  c      -                               
+00058A74    856    233      1  c      -                               
+00058DCC    856    233      1  c      -                               
+00059124    372    103      1  cu     -                               
+00059298   3564    994      1  c      -                               PBEMViewer
+0005A084    576    141      2  c      -                               
+0005A2C4    504    123      2  c      -                               
+0005A4BC    324     89      2  c      -                               
+0005A600    336     91      1  c      -                               
+0005A750    428    116      2  c      -                               
+0005A8FC    424    114      1  c      -                               
+0005AAA4   1920    534      6  c      -                               CONFLICT RESOLUTION - UNITS REMOVED
+0005B224    868    251      4  c      -                               
+0005B588   1156    335      8  c      -                               
+0005BA0C   1316    352      1  c      -                               %s gets a random trade good from %s as p | UNITS TO | TRANSFER
+0005BF30    480    126      1  c      -                               UNITS TO | TRANSFER | %s, choosing number units to transfer fr
+0005C110    188     63      1  c      -                               
+0005C1CC    108     41      1  c      -                               
+0005C238    752    216      5  c      -                               
+0005C528    260     83      1  c      -                               %s - %d token%s removed from %s
+0005C62C    292     89      1  c      -                               City Support Check for %s. | City Support Check with Slave revolt los
+0005C750    304     80      2  c      -                               %s You must reduce your cities.
+0005C880   1204    317      4  c      -                               %s First using cities built this round.
+0005CD34    180     61      0  u      -                               
+0005CDE8    868    253      4  c      -                               
+0005D14C   3240    886      9  c      -                               EMBARK | DISEMBARK | DISEMBARK ALL
+0005DDF4    104     31      1  c      -                               
+0005DE5C   2392    719      1  c      -                               %s reduces %s
+0005E7B4     28      6      2  c      -                               
+0005E7D0    284     78      1  c      -                               savgame%d.dat | copy savgamea.dat %s >NUL | Save failed. Probably due to insufficien
+0005E8EC    196     60      1  c      -                               savgamea.dat | AutoSaved after %s - R%d
+0005E9B0   1708    390      6  c      -                               Advanced Civilization | 1.11B1
+0005F05C   3788   1045      6  c      -                               savegame
+0005FF28    580    166      2  c      -                               savgame%x.dat | Save game has been corrupted and is no l | copy %s savgamea.dat >NUL 
+0006016C    108     30      4  c      -                               That save game is an earlier format that
+000601D8   1212    379      2  c      -                               savgame%x.dat | Empty | Save Game
+00060694   1004    323      3  c      -                               
+00060A80     96     26      0  p      -                               
+00060AE0    248     70      1  c      -                               
+00060BD8   1172    308      1  c      -                               %s, select maintenance options for\nShip | Maintenance housekeeping for %s
+0006106C    488    146      1  c      -                               Treasury | %s maintains a ship in %s using %s. | %s doesn't maintain a ship in %s.
+00061254   1388    400      1  c      -                               %s considers ship maintenance. | %s considers ship maintenance. %s
+000617C0    384    124      1  c      -                               
+00061940   2888    744      1  c      DoShipContruction (G)           DoShipContruction | TempTerr | Tempnation
+00062488    464    145      1  c      -                               Treasury and Levy | %s constructed a ship in %s using %s. | Treasury
+00062658    284     84      2  c      -                               
+00062774    204     68      1  c      -                               
+00062840   2796    764      1  c      -                               %s considers building ships. (%d,?,?) | %s considers building ships. (0,%d,%d)
+0006332C   1572    479      1  c      -                               
+00063950    152     49      1  c      -                               
+000639E8    264     86      2  c      -                               
+00063AF0    140     43      1  c      -                               
+00063B7C    240     77      1  c      -                               
+00063C6C    164     51      1  c      -                               
+00063D10   1720    493      1  c      -                               
+000643C8   1280    372      1  c      -                               
+000648C8    752    210      3  c      -                               
+00064BB8   1112    324      1  c      -                               
+00065010   3132    885      1  c      -                               
+00065C4C    100     38      0  p      -                               
+00065CB0    928    270      1  c      -                               
+00066050   1080    280      1  c      -                               %s sets its Tax Rate to %d. | Democrary spares %s from a Tax Revolt.
+00066488    808    207      1  c      -                               %s, a tax revolt is unavoidable.\nThe ta | TAX | RATE
+000667B0    172     54      1  c      -                               
+0006685C    760    207      1  c      -                               %s suffers a Tax Revolt! | %s's revolting cities can no longer be a
+00066B54    216     67      1  c      -                               %s annexes a city in %s.
+00066C2C    352    102      1  c      -                               %s removes a city in %s
+00066D8C   1564    407      1  c      ChooseMultipleCitiesToRemove (G) ChooseMultipleCitiesToRemove | LEFT TO | REMOVE
+000673A8    944    264      1  c      -                               %s, you have no stock for expansion.
+00067758   2436    649      1  c      ManualPopExpansion (G)          ManualPopExpansion | LEFT IN | STOCK
+000680DC   1620    458      1  c      -                               %s cannot fully populate and is consider
+00068730     88     26      1  c      -                               
+00068788    732    241      2  c      -                               
+00068A64    224     70      3  c      -                               
+00068B44    332    100      1  c      -                               
+00068C90    844    244      1  c      -                               
+00068FDC    208     54      3  c      -                               
+000690AC    720    212      3  c      -                               
+0006937C   1320    385      3  c      -                               
+000698A4   3416    914      1  c      -                               
+0006A5FC   1908    556      1  c      -                               
+0006AD70    452    132      1  c      -                               
+0006AF34    440    132      1  c      -                               
+0006B0EC   2108    583      1  c      -                               
+0006B928    132     44      2  c      -                               
+0006B9AC    116     34      1  c      -                               
+0006BA20    888    238      1  c      -                               
+0006BD98   3572    925      1  c      DrawTradingCards (G)            DrawTradingCards
+0006CB8C    532    120      1  c      DrawInitialDrawingScreen (G)    DrawInitialDrawingScreen | Acquire Goods | Stored
+0006CDA0    432    121      1  c      -                               
+0006CF50    192     51      2  c      -                               
+0006D010    180     66      2  c      -                               
+0006D0C4    180     66      5  c      -                               
+0006D178   1004    255      1  c      -                               You acquired... | Stack %d Empty | View Good Bought
+0006D564   1436    362      1  c      -                               You bought... | FINISHED | Choose stack to buy from...
+0006DB00    172     53      3  c      -                               
+0006DBAC    492    140      1  c      -                               %s acquires... | Stack %d Empty
+0006DD98    108     37      3  c      -                               
+0006DE04    852    257      1  c      -                               
+0006E158    776    249      1  c      -                               One or more nations drawing earlier has  | Continue
+0006E460    220     74      4  c      -                               
+0006E53C    564    148      1  c      -                               Buy Trade Good Declaration | You have sufficient treasury to buy a Tr | BUY ONE CARD
+0006E770    256     72      1  c      -                               
+0006E870   1044    268      1  c      -                               
+0006EC84    292     77      1  c      -                               Discard Excess Goods | Choose goods to discard ... | Remaining to discard:
+0006EDA8    720    203      1  c      -                               Discard Excess Goods | %s discards...
+0006F078    504    162      1  c      -                               
+0006F270    484    125      1  c      -                               
+0006F454   1288    320      1  c      -                               Declare Trade Offers - Session %d
+0006F95C    248     85      2  c      -                               
+0006FA54    216     53      2  c      -                               Replace your bluffs with... | Truly stated | Bluff
+0006FB2C    176     45      2  c      -                               Replace your bluffs with... | Truly stated | Bluff
+0006FBDC    492    141      7  c      -                               junk | REVEAL GOODS | NOT REVEAL GDS
+0006FDC8    160     44      2  c      -                               
+0006FE68    348    106     10  c      -                               POINTS
+0006FFC4    176     63      1  c      -                               
+00070074    544    147      1  c      -                               
+00070294   1292    343      1  c      -                               
+000707A0    484    144      3  c      -                               
+00070984    232     76      1  c      -                               
+00070A6C   1584    425      3  c      -                               Replace your bluffs with... | You want to trade for... | Bluff
+0007109C   1568    442      2  c      -                               
+000716BC    172     61      1  c      -                               
+00071768   1024    335      1  c      -                               Your offer is incomplete.\n | You must declare a bluff replacement.
+00071B68    456    145      1  c      -                               junk | CONTINUE
+00071D30    260     88      3  c      -                               
+00071E34    248     81      6  c      -                               
+00071F2C    132     42      4  c      -                               
+00071FB0    496    146     10  c      -                               
+000721A0    572    167      1  c      -                               
+000723DC    768    205      1  c      -                               Do you want another round of trading?
+000726DC    588    176      4  c      -                               
+00072928   1484    389      1  c      -                               Make Counter Offers - Session %d | The offers... | They want...
+00072EF4    208     55      1  c      -                               
+00072FC4   1312    342      1  c      -                               Respond To Offer - Session %d | %s offers for trade... | ... and wants ...
+000734E4   1208    321      1  c      -                               
+0007399C    944    260      1  c      -                               REJECT ALL OFFERS | ACCEPT PREFERRED ORDER
+00073D4C    720    209      2  c      -                               
+0007401C   3384    870      1  c      -                               %+d | N O N E | REJECT ALL OFFERS
+00074D54    684    165      1  c      -                               ACCEPT OFFER | REJECT
+00075000    116     31      1  c      -                               
+00075074   1196    328      2  c      -                               
+00075520   1276    338      2  c      -                               Trade Details | Pre-Trade | You traded
+00075A1C    440    109      2  c      -                               
+00075BD4     52     19      1  c      -                               
+00075C08    160     52      2  c      -                               
+00075CA8    220     79      3  c      -                               
+00075D84    108     40      3  c      -                               
+00075DF0    196     67      3  c      -                               
+00075EB4     84     24      2  c      -                               
+00075F08    172     60      2  c      -                               
+00075FB4    812    228      1  c      -                               Trade Summary - Session %d | <-->
+000762E0    284     90      1  c      -                               
+000763FC    172     54      2  c      -                               
+000764A8    752    215      1  c      -                               Trading Wrapup | <-->
+00076798    772    255      1  c      -                               Select Nation To Show | junk
+00076A9C    948    255      1  c      -                               Goods Held | POINTS
+00076E50    196     58      6  c      -                               
+00076F14     92     29     17  c      -                               
+00076F70    172     55      7  c      -                               
+0007701C    360    116      1  c      -                               
+00077184    116     43      2  c      -                               
+000771F8    128     43      6  c      -                               
+00077278    664    175      2  c      -                               
+00077510    224     78      1  c      -                               
+000775F0     60     21     11  c      -                               
+0007762C    236     84      1  c      -                               
+00077718    308     84      0  u      -                               
+0007784C   2924    911      2  c      -                               
+000783B8    148     45     20  c      -                               
+0007844C    188     59     10  c      -                               
+00078508     52     22      4  c      -                               
+0007853C    152     54     26  c      -                               
+000785D4    144     54      1  c      -                               
+00078664    240     81     25  c      -                               
+00078754     24      8      0  u      -                               
+0007876C    140     39     31  c      -                               
+000787F8    140     40      1  c      -                               
+00078884     40     17     66  c      -                               
+000788AC     40     17     66  c      -                               
+000788D4     44     18      1  c      -                               
+00078900     44     18      0  u      -                               
+0007892C     24      7      1  c      -                               
+00078944     24      8      0  u      -                               
+0007895C     72     23      1  c      -                               
+000789A4     72     24      1  c      -                               
+000789EC     52     20      1  c      -                               
+00078A20     80     29     48  c      -                               
+00078A70    116     33      0  u      -                               
+00078AE4     40     11     16  c      -                               
+00078B0C     24      9     16  c      -                               
+00078B24     32     11      4  c      -                               
+00078B44     96     30      1  c      -                               
+00078BA4    356    116     66  c      -                               
+00078D08    144     45     17  c      -                               
+00078D98    220     75      3  c      -                               
+00078E74    144     36     12  c      -                               
+00078F04    232     74     22  c      -                               
+00078FEC    316    103      9  c      -                               
+00079128    328    101      1  c      -                               
+00079270    824    215     52  c      -                               zeus.wav | zeus.flc | brpc.gif
+000795A8    660    216     12  c      -                               junk | YES
+0007983C    608    203      2  c      -                               junk | CONTINUE
+00079A9C     64     23      9  c      -                               
+00079ADC    404    132      1  c      -                               junk2
+00079C70    500    169      1  c      -                               junk2
+00079E64    572      9      0  u      -                               
+0007A0A0   1024    292      2  c      -                               aciv.cfg | junk2 | Animations
+0007A4A0     36     11      1  c      -                               
+0007A4C4     44     13      6  c      -                               
+0007A4F0    168     55      2  c      -                               
+0007A598    120     46      2  c      -                               
+0007A610    120     46      4  c      -                               
+0007A688    120     46      2  c      -                               
+0007A700    120     46      2  c      -                               
+0007A778     56     24      3  c      -                               
+0007A7B0     56     24      3  c      -                               
+0007A7E8    116     41      2  c      -                               
+0007A85C    116     41      2  c      -                               
+0007A8D0    112     32      5  c      -                               
+0007A940    220     76     24  c      -                               World State Stack has blown its max size
+0007AA1C    264     79     12  c      -                               Move List Stack has blown its max size. 
+0007AB24    172     58      2  c      -                               
+0007ABD0    144     39      5  c      -                               
+0007AC60    196     70     23  c      -                               World State Stack has popped once to oft
+0007AD24     88     36     10  c      -                               World State Stack has popped once to oft
+0007AD7C    152     47      7  c      -                               Move Stack has popped once to often.
+0007AE14    276     90     10  c      -                               Move Stack has popped once to often.
+0007AF28    144     49      5  c      -                               
+0007AFB8    140     50      3  c      -                               
+0007B044   1216    372      3  c      -                               
+0007B504    848    264      6  c      -                               %s\nEffects file:%s,(%d) \n | WAV File loaded
+0007B854    528    164      4  c      -                               %s-%s\n | Music File Loaded
+0007BA64    176     56     20  c      -                               
+0007BB14    112     37      1  c      -                               
+0007BB84    108     36      2  c      -                               
+0007BBF0    228     71      9  c      -                               CRC check | Fptr
+0007BCD4    136     51      2  c      -                               
+0007BD5C   2564    700      2  c      -                               
+0007C760    100     39      6  c      -                               
+0007C7C4    116     45     10  c      -                               
+0007C838    296     96      7  c      -                               
+0007C960    340     97      2  c      -                               
+0007CAB4     97     34      3  c      -                               
+0007CB15    103     28      1  c      -                               
+0007CB7C     33     14      4  c      -                               
+0007CB9D     33     13     10  c      -                               
+0007CBBE    133     43      2  c      -                               
+0007CC43     44     11      4  c      -                               
+0007CC6F    105     32     10  c      -                               
+0007CCD8     37     14      7  c      -                               
+0007CCFD     23      8      7  c      -                               
+0007CD14     23      8      4  c      -                               
+0007CD2B   1469     89      0  u      -                               
+0007D2E8     76     21      8  c      -                               
+0007D334    368     51      6  c      -                               
+0007D4A4      8      2      0  p      -                               
+0007D4AC     19      4    633  c      __CHK (D)                       
+0007D4BF     30     11      1  c      __STK (D)                       
+0007D4DD     15      3      1  c      __STKOVERFLOW (D)               Stack Overflow!\r\n
+0007D4EC    105     44     11  c      -                               COMSPEC | COMMAND.COM | CMD
+0007D555     34     13      6  c      -                               
+0007D577      1      1      0  p      -                               
+0007D578     24      8      5  c      -                               
+0007D590     22      6      1  c      -                               
+0007D5A6     42     11      7  c      -                               
+0007D5D0     24     12     81  c      -                               
+0007D5E8     40     17      3  c      -                               
+0007D610    161     67      4  c      -                               
+0007D6B1     41     24      3  c      -                               
+0007D6DA     87     37      2  c      -                               
+0007D731    180     69      1  c      -                               
+0007D7E5    200     71      1  c      -                               
+0007D8AD     27     13      1  c      -                               
+0007D8C8     10      5     29  c      -                               
+0007D8D2    140     43      0  u      -                               
+0007D95E     47     21     29  c      -                               
+0007D98D     21      9      2  c      -                               
+0007D9A2     12      5      1  c      -                               
+0007D9AE    105     40      1  c      -                               
+0007DA17    137     51      2  c      -                               
+0007DAA0    138     61      1  c      -                               
+0007DB2A     19     11      0  p      -                               
+0007DB3D     48     18    137  c      -                               
+0007DB6D    458    158     10  c      -                               
+0007DD37    231     47      1  c      -                               
+0007DE1E     46     15      0  p      -                               
+0007DE4C     86     28      0  p      -                               
+0007DEA2     68     24      0  p      -                               
+0007DEE6      3      2      1  c      -                               
+0007DEE9     21      8      0  p      -                               
+0007DEFE     39     11      0  p      -                               
+0007DF25     45     13      0  p      -                               
+0007DF52      1      1      0  p      -                               
+0007DF53      1      1      0  p      -                               
+0007DF54     25     10      0  p      -                               
+0007DF6D     31     14      0  p      -                               
+0007DF8C     32     13      0  p      -                               
+0007DFAC     15     12      0  p      -                               
+0007DFBB     11      7      0  p      -                               
+0007DFC6     54     14      0  p      -                               
+0007DFFC     49     11      0  p      -                               
+0007E02D     22      8      0  p      -                               
+0007E043      1      1      0  p      -                               
+0007E044    221     93      2  c      -                               
+0007E121   3628   1088      1  c      -                               AHEAD | `ab | 761295520
+0007EF4D      1      1      0  p      -                               
+0007EF4E     22     15      0  p      -                               
+0007EF64     22     11      0  p      -                               
+0007EF7A     65     39      0  p      -                               
+0007EFBB     68     31      0  p      -                               
+0007EFFF     84     35      0  p      -                               
+0007F053     34     23      0  p      -                               
+0007F075     47     27      0  p      -                               
+0007F0A4     36     19      0  p      -                               
+0007F0C8     86     45      0  p      -                               
+0007F11E     21     11      0  p      -                               
+0007F133     35     19      0  p      -                               
+0007F156     81     30      0  p      -                               
+0007F1A7     21     11      0  p      -                               
+0007F1BC     27     14      0  p      -                               
+0007F1D7     31     18      0  p      -                               
+0007F1F6     41     25      0  p      -                               
+0007F21F     58     27      0  p      -                               
+0007F259     25     12      0  p      -                               
+0007F272     19     10      0  p      -                               
+0007F285     25     13      0  p      -                               
+0007F29E    142     68      0  p      -                               
+0007F32C     32     19      0  p      -                               
+0007F34C    134     33      0  p      -                               
+0007F3D2     30     15      1  c      -                               
+0007F3F0     38     18      1  c      -                               
+0007F416     32     18      1  c      -                               
+0007F436     22      9      1  c      -                               
+0007F44C     31     15      1  c      -                               
+0007F46B     23     10      1  c      -                               
+0007F482     22      7      1  c      -                               
+0007F498     29     17      1  c      -                               
+0007F4B5     42     17      1  c      -                               
+0007F4DF    171     87      1  c      -                               
+0007F58A     26     12      1  c      -                               
+0007F5A4     27     10      1  c      -                               
+0007F5BF     28     10      1  c      -                               
+0007F5DB      5      2      1  c      -                               
+0007F5E0     18     10      1  c      -                               
+0007F5F2     26     14      1  c      -                               
+0007F60C     22     11      1  c      -                               
+0007F622     69     36      1  c      -                               
+0007F667     38     22      1  c      -                               
+0007F68D     31     14      1  c      -                               
+0007F6AC     28     13      1  c      -                               
+0007F6C8     15      5      1  c      -                               
+0007F6D7     17      9      1  c      -                               
+0007F6E8     25     13      1  c      -                               
+0007F701     25      7      1  c      -                               
+0007F71A     89     26      1  c      -                               
+0007F773     50     26      0  p      -                               
+0007F7A5     44     25      0  p      -                               
+0007F7D1     44     25      0  p      -                               
+0007F7FD     35     14      0  p      -                               
+0007F820     31     17      0  p      -                               
+0007F83F     31     17      0  p      -                               
+0007F85E     29     10      0  p      -                               
+0007F87B     20      7      0  p      -                               
+0007F88F     20      7      0  p      -                               
+0007F8A3     41     16      0  p      -                               
+0007F8CC     36     15      0  p      -                               
+0007F8F0     35     15      0  p      -                               
+0007F913     36     11      0  p      -                               
+0007F937     78     33      0  p      -                               
+0007F985     77     33      0  p      -                               
+0007F9D2     94     37      0  p      -                               
+0007FA30     16      6      0  p      -                               
+0007FA40     16      6      0  p      -                               
+0007FA50     23      9      0  p      -                               
+0007FA67     41     12      0  p      -                               
+0007FA90     31     12      0  p      -                               
+0007FAAF     41     12      0  p      -                               
+0007FAD8     33     13      0  p      -                               
+0007FAF9     33     13      0  p      -                               
+0007FB1A     23      8      0  p      -                               
+0007FB31     39     16      0  p      -                               
+0007FB58     28     13      0  p      -                               
+0007FB74     31     14      0  p      -                               
+0007FB93     38     11      0  p      -                               
+0007FBB9     45     14      0  p      -                               
+0007FBE6     35     11      0  p      -                               
+0007FC09     35     11      0  p      -                               
+0007FC2C     31     10      0  p      -                               
+0007FC4B     26     12      0  p      -                               
+0007FC65     26     12      0  p      -                               
+0007FC7F     34     12      0  p      -                               
+0007FCA1     20      7      0  p      -                               
+0007FCB5     17      6      0  p      -                               
+0007FCC6     30     12      0  p      -                               
+0007FCE4     33     14      0  p      -                               
+0007FD05     24     11      0  p      -                               
+0007FD1D     24     11      0  p      -                               
+0007FD35     45     17      0  p      -                               
+0007FD62     36     15      0  p      -                               
+0007FD86     22      9      0  p      -                               
+0007FD9C     22      9      0  p      -                               
+0007FDB2     55     21      0  p      -                               
+0007FDE9     63     22      0  p      -                               
+0007FE28     28     10      0  p      -                               
+0007FE44     27     11      0  p      -                               
+0007FE5F     24     10      0  p      -                               
+0007FE77     26      9      0  p      -                               
+0007FE91     22      9      0  p      -                               
+0007FEA7     22      9      0  p      -                               
+0007FEBD    106     51      0  p      -                               
+0007FF27     53     16      0  p      -                               
+0007FF5C     37     11      0  p      -                               
+0007FF81     37     11      0  p      -                               
+0007FFA6     17      9     26  c      -                               
+0007FFB7     55     26      0  p      -                               
+0007FFEE     46     19      0  p      -                               
+0008001C     64     25      0  p      -                               
+0008005C     88     38      0  p      -                               
+000800B4    130     53      0  p      -                               
+00080136     52     21      0  p      -                               
+0008016A     44     19      0  p      -                               
+00080196     27      8      0  p      -                               
+000801B1     55     23      0  p      -                               
+000801E8     49     24      0  p      -                               
+00080219     33     10      0  p      -                               
+0008023A     33     10      0  p      -                               
+0008025B     61     23      0  p      -                               
+00080298     46     19      0  p      -                               
+000802C6     55     22      0  p      -                               
+000802FD     73     32      0  p      -                               
+00080346     52     21      0  p      -                               
+0008037A     52     25      0  p      -                               
+000803AE     68     26      0  p      -                               
+000803F2     49     20      0  p      -                               
+00080423     46     19      0  p      -                               
+00080451     47     20      0  p      -                               
+00080480    122     54      0  p      -                               
+000804FA     50     21      0  p      -                               
+0008052C     42     18      0  p      -                               
+00080556     49     20      0  p      -                               
+00080587    181     12      0  p      -                               
+0008063C    698    178      1  c      -                               
+000808F6     34     20      1  c      -                               
+00080918     55     24      1  c      -                               
+0008094F     37     14      1  c      -                               
+00080974      6      3      0  p      -                               
+0008097A     30     11      1  c      -                               
+00080998     51     23      1  c      -                               
+000809CB     53     20      1  c      -                               
+00080A00     51     26      1  c      -                               
+00080A33   1868    494      2  c      -                               
+0008117F    193     48      1  c      -                               
+00081240     23      7      1  c      -                               
+00081257     54     15      1  c      -                               
+0008128D     54     15      1  c      -                               
+000812C3     17      5      1  c      -                               
+000812D4     32     17      1  c      -                               
+000812F4     30     15      1  c      -                               
+00081312    427    109      2  c      -                               
+000814BD   1193    322      1  c      -                               
+00081966    463    156      0  p      -                               
+00081B35    741    258      0  p      -                               
+00081E1A   1179    439      0  p      -                               
+000822B5    227     84     38  cp     tagged_alloc? (G)               
+00082398    119     45      1  c      -                               
+0008240F     63     20      6  c      -                               
+0008244E    168     46      1  cp     -                               
+000824F6    108     26      0  p      -                               
+00082562    166     56     70  c      -                               [%.02u:%.02u:%.02u.%.02u] 
+00082608    380     99      1  c      AIL_startup (D)                 AIL_DEBUG | AIL_SYS_DEBUG | w+t
+00082784    147     41      1  c      AIL_shutdown (D)                AIL_shutdown()\n
+00082817    250     73      2  c      AIL_set_preference (D)          Result = %d\n | AIL_set_preference(%d,%d)\n
+00082911      5      1     13  c      -                               
+00082916      5      1     13  c      -                               
+0008291B    235     67      1  c      AIL_get_real_vect (D)           Result = 0x%X\n | AIL_get_real_vect(0x%X)\n
+00082A06    121     38      2  c      AIL_set_real_vect (D)           AIL_set_real_vect(0x%X,0x%X)\n
+00082A7F    138     47      0  u      AIL_set_USE16_ISR (D)           AIL_set_USE16_ISR(%d,0x%X,%u)\n
+00082B09    116     37      2  c      AIL_restore_USE16_ISR (D)       AIL_restore_USE16_ISR(%d)\n
+00082B7D      5      1      2  c      -                               
+00082B82     14      5      2  c      -                               
+00082B90    278     88     20  c      AIL_call_driver (D)             AIL_call_driver(0x%X,0x%X,0x%X,0x%X)\n | Result = %d\n
+00082CA6    109     33      3  c      AIL_delay (D)                   AIL_delay(%d)\n
+00082D13      5      1      2  c      -                               
+00082D18    857    250      3  c      AIL_API_read_INI (D)            AIL_API_read_INI(0x%X,%s)\n | Driver = %s\n | Device = %s\n
+00083071    235     67      3  c      AIL_register_timer (D)          Result = %u\n | AIL_register_timer(0x%X)\n
+0008315C    243     71      3  c      AIL_set_timer_user (D)          AIL_set_timer_user(%u,%u)\n | Result = %u\n
+0008324F    118     37      3  c      AIL_set_timer_period (D)        AIL_set_timer_period(%u,%u)\n
+000832C5    118     37      3  c      AIL_set_timer_frequency (D)     AIL_set_timer_frequency(%u,%u)\n
+0008333B    340     37      0  u      AIL_set_timer_divisor (D)       AIL_set_timer_divisor(%u,%u)\n
+0008348F    109     33      4  c      AIL_start_timer (D)             AIL_start_timer(%u)\n
+000834FC    305     28      0  u      AIL_start_all_timers (D)        AIL_start_all_timers()\n
+0008362D    109     33      4  c      AIL_release_timer_handle (D)    AIL_release_timer_handle(%u)\n
+0008369A     98     28      1  c      AIL_release_all_timers (D)      AIL_release_all_timers()\n
+000836FC    229     65      2  c      AIL_get_IO_environment (D)      AIL_get_IO_environment(0x%X)\n
+000837E1    243     71      2  c      AIL_install_driver (D)          Result = 0x%X\n | AIL_install_driver(0x%X,%u)\n
+000838D4    109     33      5  c      AIL_uninstall_driver (D)        AIL_uninstall_driver(0x%X)\n
+00083941    241     69      1  c      AIL_install_DIG_INI (D)         Result = %d\n | AIL_install_DIG_INI(0x%X)\n
+00083A32    237     69      1  c      AIL_install_DIG_driver_file (D) AIL_install_DIG_driver_file(%s,0x%X)\n
+00083B1F    109     33      0  u      AIL_uninstall_DIG_driver (D)    AIL_uninstall_DIG_driver(0x%X)\n
+00083B8C    229     65      3  c      AIL_allocate_sample_handle (D)  AIL_allocate_sample_handle(0x%X)\n
+00083C71    255     75      0  u      AIL_allocate_file_sample (D)    AIL_allocate_file_sample(0x%X,0x%X,%d)\n | Result = 0x%X\n
+00083D70    109     33      1  c      AIL_release_sample_handle (D)   AIL_release_sample_handle(0x%X)\n
+00083DDD    109     33      4  c      AIL_init_sample (D)             AIL_init_sample(0x%X)\n
+00083E4A    262     77      1  c      AIL_set_sample_file (D)         Result = %d\n | AIL_set_sample_file(0x%X,0x%X,%d)\n
+00083F50    130     42      3  c      AIL_set_sample_address (D)      AIL_set_sample_address(0x%X,0x%X,%u)\n
+00083FD2    130     42      3  c      AIL_set_sample_type (D)         AIL_set_sample_type(0x%X,%d,%u)\n
+00084054    109     33      8  c      AIL_start_sample (D)            AIL_start_sample(0x%X)\n
+000840C1    218     33      0  u      AIL_stop_sample (D)             AIL_stop_sample(0x%X)\n
+0008419B    109     33      7  c      AIL_end_sample (D)              AIL_end_sample(0x%X)\n
+00084208    118     37      3  c      AIL_set_sample_playback_rate (D) AIL_set_sample_playback_rate(0x%X,%d)\n
+0008427E    118     37      5  c      AIL_set_sample_volume (D)       AIL_set_sample_volume(0x%X,%d)\n
+000842F4    118     37      1  c      AIL_set_sample_pan (D)          AIL_set_sample_pan(0x%X,%d)\n
+0008436A    118     37      4  c      AIL_set_sample_loop_count (D)   AIL_set_sample_loop_count(0x%X,%d)\n
+000843E0    229     65      3  c      AIL_sample_status (D)           AIL_sample_status(0x%X)\n
+000844C5   2133     67      0  u      AIL_sample_playback_rate (D)    AIL_sample_playback_rate(0x%X)\n
+00084D1A    821     37      0  u      AIL_set_sample_position (D)     AIL_set_sample_position(0x%X,%u)\n
+0008504F    841     69      2  c      AIL_register_EOS_callback (D)   AIL_register_EOS_callback(0x%X,0x%X)\n
+00085398    229     65      2  c      AIL_active_sample_count (D)     AIL_active_sample_count(0x%X)\n
+0008547D    229     65      1  c      AIL_install_MDI_INI (D)         AIL_install_MDI_INI(0x%X)\n
+00085562    237     69      1  c      AIL_install_MDI_driver_file (D) AIL_install_MDI_driver_file(%s,0x%X)\n
+0008564F    109     33      0  u      AIL_uninstall_MDI_driver (D)    AIL_uninstall_MDI_driver(0x%X)\n
+000856BC    229     65      1  c      AIL_allocate_sequence_handle (D) AIL_allocate_sequence_handle(0x%X)\n
+000857A1    109     33      0  u      AIL_release_sequence_handle (D) AIL_release_sequence_handle(0x%X)\n
+0008580E    249     73      1  c      AIL_init_sequence (D)           AIL_init_sequence(0x%X,0x%X,%d)\n
+00085907    109     33      1  c      AIL_start_sequence (D)          AIL_start_sequence(0x%X)\n
+00085974    109     33      5  c      AIL_stop_sequence (D)           AIL_stop_sequence(0x%X)\n
+000859E1    109     33      1  c      AIL_resume_sequence (D)         AIL_resume_sequence(0x%X)\n
+00085A4E    109     33      3  c      AIL_end_sequence (D)            AIL_end_sequence(0x%X)\n
+00085ABB    130     42      0  u      AIL_set_sequence_tempo (D)      AIL_set_sequence_tempo(0x%X,%d,%d)\n
+00085B3D    130     42      3  c      AIL_set_sequence_volume (D)     AIL_set_sequence_volume(0x%X,%d,%d)\n
+00085BBF    118     37      4  c      AIL_set_sequence_loop_count (D) AIL_set_sequence_loop_count(0x%X,%d)\n
+00085C35    229     65      2  c      AIL_sequence_status (D)         AIL_sequence_status(0x%X)\n
+00085D1A   1532     65      0  u      AIL_sequence_tempo (D)          AIL_sequence_tempo(0x%X)\n
+00086316    109     33      1  c      AIL_set_GTL_filename_prefix (D) AIL_set_GTL_filename_prefix(%s)\n
+00086383   1473     73      0  u      AIL_timbre_status (D)           AIL_timbre_status(0x%X,%d,%d)\n
+00086944    264     80      1  c      AIL_sequence_position (D)       AIL_sequence_position(0x%X,0x%X,0x%X)\n | Result = %d:%d\n
+00086A4C    118     37      1  c      AIL_branch_index (D)            AIL_branch_index(0x%X,%u)\n
+00086AC2    948     69      0  u      AIL_register_prefix_callback (D) AIL_register_prefix_callback(0x%X,0x%X)\
+00086E76    237     69      1  c      AIL_register_event_callback (D) AIL_register_event_callback(0x%X,0x%X)\n
+00086F63    722     69      1  c      AIL_register_timbre_callback (D) AIL_register_timbre_callback(0x%X,0x%X)\
+00087235    229     65      2  c      AIL_lock_channel (D)            AIL_lock_channel(0x%X)\n
+0008731A    118     37      2  c      AIL_release_channel (D)         AIL_release_channel(0x%X,%d)\n
+00087390    130     42      1  c      AIL_map_sequence_channel (D)    AIL_map_sequence_channel(0x%X,%d,%d)\n
+00087412    881     69      0  u      AIL_true_sequence_channel (D)   AIL_true_sequence_channel(0x%X,%d)\n
+00087783     42     15      0  p      -                               
+000877AD     57     28      5  c      -                               
+000877E6     94     35     38  cp     -                               
+00087844    146     55      1  c      -                               
+000878D6     33     13     77  c      -                               
+000878F7    229     97      3  c      -                               
+000879DC     62     32      6  c      -                               
+00087A1A    168     74     89  c      -                               
+00087AC2    367     80    125  c      -                               
+00087C31    322     81    130  c      -                               
+00087D73    132     32    130  c      -                               
+00087DF7     23      9     37  c      -                               
+00087E0E     27     15      0  u      -                               
+00087E29     26     15      1  c      -                               
+00087E43     57     23      2  c      -                               
+00087E7C     43     25      6  c      -                               
+00087EA7     82     37      1  c      -                               
+00087EF9    155     59      1  c      -                               
+00087F94   3184   1193      1  c      -                               
+00088C04     13      6      0  p      -                               
+00088C11      7      3      0  p      -                               
+00088C18     34     10      0  p      -                               
+00088C3A     10      4      0  p      -                               
+00088C44      8      2      0  p      -                               
+00088C4C      7      3      0  p      -                               
+00088C53     37     16      0  p      -                               
+00088C78      7      3      0  p      -                               
+00088C7F     47     21      0  p      -                               
+00088CAE     67     35      0  p      -                               
+00088CF1    186     81      0  p      -                               
+00088DAB     47     21      0  p      -                               
+00088DDA    271     36      1  c      -                               
+00088EE9    144      6      1  c      -                               
+00088F79     31     17      1  c      -                               
+00088F98      2      1     18  c      -                               
+00088F9A      9      5      0  p      -                               
+00088FA3      5      3      0  p      -                               
+00088FA8   1095    400      0  p      -                               
+000893EF    118     46      0  p      -                               
+00089465     46     18      0  p      -                               
+00089493     78     32      0  p      -                               
+000894E1     16      8      0  p      -                               
+000894F1     46     18      0  p      -                               
+0008951F    116     38      0  p      -                               
+00089593    154     57      0  p      -                               
+0008962D     62     20      0  p      -                               
+0008966B    292     59      1  c      -                               
+0008978F    218     32      1  c      -                               
+00089869    238     40      1  c      -                               
+00089957    539    144      1  c      -                               
+00089B72     64     30      0  p      -                               
+00089BB2    306     65      1  c      -                               
+00089CE4     31     17      4  c      -                               
+00089D03    226     81      1  c      -                               
+00089DE5     67     28      1  c      -                               
+00089E28    103     24      1  c      -                               
+00089E8F     45     19      1  c      -                               
+00089EBC     74     31      1  c      -                               
+00089F06     86     37      1  c      -                               
+00089F5C     81     24      1  c      -                               
+00089FAD    119     42      1  c      -                               
+0008A024     92     35      1  c      -                               
+0008A080      5      1     15  c      -                               
+0008A085    628     92     36  c      -                               
+0008A2F9    711     11      0  p      -                               
+0008A5C0    391     77      0  p      -                               
+0008A747     10      8      0  p      -                               
+0008A751      4      2      0  p      -                               
+0008A755    136     52      0  p      -                               
+0008A7DD     86     43     19  c      -                               
+0008A833   5921   2319      8  c      -                               
+0008BF54    657    169      0  e      _cstart_ (D)                    
+0008C1E5     68     28      1  c      -                               
+0008C229      3      2      0  p      -                               
+0008C22C    135     52     13  c      -                               
+0008C2B3     38     22      1  c      -                               
+0008C2D9     88     44      1  c      -                               
+0008C331   1085    338      5  c      -                               
+0008C76E    149     61      8  c      -                               
+0008C803     74     14      1  c      -                               
+0008C84D     74     35      1  c      -                               
+0008C897     27     13     39  c      -                               
+0008C8B2   1438    536     13  c      -                               
+0008CE50    482    166     16  c      -                               GIF87a
+0008D032     80     39      1  c      -                               
+0008D082     84     43      1  c      -                               
+0008D0D6    215     86      0  p      -                               
+0008D1AD     40     18      0  p      -                               
+0008D1D5     61     27      0  p      -                               
+0008D212     52     28      0  p      -                               
+0008D246    151     69      0  p      -                               
+0008D2DD    153     69      0  p      -                               
+0008D376     39     19      0  p      -                               
+0008D39D    720    196      1  c      -                               
+0008D66D     70     22      1  c      -                               
+0008D6B3     43     21      1  c      -                               
+0008D6DE     73     29      1  c      -                               
+0008D727     77     29      1  c      -                               
+0008D774     55     23      2  c      -                               
+0008D7AB     97     40      1  c      -                               
+0008D80C     23      9      2  c      -                               
+0008D823     17      3      8  c      -                               stack data has been corrupted!
+0008D834    156     59      2  cu     -                               
+0008D8D0     39     18      1  c      -                               
+0008D8F7     22      5      1  c      -                               violation of function exception specific
+0008D90D    103     18      1  c      -                               
+0008D974    273     93      1  cu     -                               
+0008DA85     27     13      1  cu     -                               
+0008DAA0     59     27      1  c      -                               
+0008DADB    257     84      1  c      -                               
+0008DBDC    132     38      1  cu     -                               throw during destructor for handled exce | throw during construction of exception! | throw while "terminate" function active!
+0008DC60    309     92      1  cu     -                               re-throw when no exception handler activ | no handler active to catch thrown object
+0008DD95     29     11      1  c      -                               
+0008DDB2     49     18      1  c      -                               
+0008DDE3    243      6      0  u      -                               
+0008DED6     11      2      0  p      -                               
+0008DEE1     65     23      1  c      -                               
+0008DF22    204     82      1  c      -                               
+0008DFEE    266    112      1  c      -                               
+0008E0F8    144     55      1  c      -                               
+0008E188     99     35      1  c      -                               
+0008E1EB     83     43      1  c      -                               
+0008E23E      6      2      1  c      -                               
+0008E244     15      7      2  c      -                               
+0008E253    497    207      1  c      -                               
+0008E444   1738    677      1  c      -                               
+0008EB0E    314     85      1  c      -                               
+0008EC48   3560   1348      1  c      -                               
+0008FA30   3856   1491      1  c      -                               
+00090940   1604    578      4  c      -                               
+00090F84     67     35      2  c      -                               
+00090FC7    662    193      4  c      -                               
+0009125D     97     30      1  c      -                               
+000912BE     23      9      3  c      -                               
+000912D5    487    165     12  c      -                               
+000914BC    659    198      2  c      -                               
+0009174F    775    181      1  c      -                               
+00091A56     93     36      1  c      -                               
+00091AB3    187     74      2  c      -                               
+00091B6E     29     15     19  c      -                               
+00091B8B     31     11     14  c      -                               
+00091BAA     35     19      2  c      -                               
+00091BCD     35     19      1  c      -                               
+00091BF0     87     41     12  c      -                               
+00091C47     23     11      2  c      -                               
+00091C5E     42     23      1  c      -                               
+00091C88     31     15      3  c      -                               
+00091CA7      5      1     15  c      -                               
+00091CAC    166     68      1  c      -                               
+00091D52     66     32      1  c      -                               
+00091D94    252    101      3  c      -                               
+00091E90     14      6      2  c      -                               
+00091E9E   1384    447      4  c      -                               
+00092406     26     14      2  c      -                               
+00092420     42     17      3  c      -                               
+0009244A      7      2      0  u      -                               
+00092451     53     23      2  c      -                               
+00092486   3320   1228      2  c      -                               
+0009317E     13      6      0  p      -                               
+0009318B      7      3      0  p      -                               
+00093192     34     10      0  p      -                               
+000931B4      8      2      0  p      -                               
+000931BC      7      3      0  p      -                               
+000931C3     37     16      0  p      -                               
+000931E8     47     21      0  p      -                               
+00093217     67     35      0  p      -                               
+0009325A    186     81      0  p      -                               
+00093314    217     23      1  c      -                               
+000933ED    144      6      1  c      -                               
+0009347D     31     17      1  c      -                               
+0009349C    137     38      1  cp     -                               
+00093525     79     23      0  p      -                               
+00093574    161     59      1  c      -                               0123456789ABCDEF
+00093615    712    195      1  c      -                               DRIVER | DEVICE | IO_ADDR
+000938DD     25      6      1  c      -                               
+000938F6    558    192      1  c      -                               Insufficient memory for driver descripto | Insufficient low memory\n | AIL3DIG
+00093B24    163     63      1  c      -                               
+00093BC7    113     41      1  c      -                               
+00093C38    274     87      1  c      -                               
+00093D4A     45     16      1  c      -                               
+00093D77    135     39      0  p      -                               
+00093DFE     37     23      2  c      -                               
+00093E23     65     26      7  c      -                               
+00093E64    275    103      2  c      -                               
+00093F77     27     11      3  c      -                               
+00093F92     36     16      3  c      -                               
+00093FB6    453    159      2  c      -                               
+0009417B    101     46      0  u      -                               
+000941E0      5      1      3  c      -                               
+000941E5     61     28      1  c      -                               
+00094222    465    169      1  c      -                               
+000943F3      5      1      1  c      -                               
+000943F8     29     14      3  c      -                               
+00094415      1      1      0  p      -                               
+00094416     90     48      7  c      -                               
+00094470     38     19      2  c      -                               
+00094496     31     13      1  c      -                               
+000944B5     51     22      1  c      -                               
+000944E8    766    236      2  c      -                               .bat | CMD | COMSPEC
+000947E6     22      9      1  c      -                               
+000947FC     17      8      0  p      -                               
+0009480D    147     52      2  c      -                               
+000948A0     55     24      1  c      -                               
+000948D7    108     48      1  c      -                               
+00094943     19      6      2  c      -                               
+00094956     35      6     19  c      -                               
+00094979     19      6      4  c      -                               
+0009498C    168     57      1  c      -                               
+00094A34     87     36      2  c      -                               
+00094A8B     49     22      3  c      -                               
+00094ABC      6      2      1  c      -                               
+00094AC2    191     68      6  c      -                               
+00094B81     48     25      1  c      -                               
+00094BB1     50     23      1  c      -                               
+00094BE3     37     23      3  c      -                               
+00094C08    641    223      2  c      -                               
+00094E89    307    135      1  c      -                               
+00094FBC     91     38      1  c      -                               
+00095017     36     23      1  c      -                               
+0009503B     35     18      1  c      -                               
+0009505E     97     50      1  c      -                               
+000950BF    219     90      1  c      -                               
+0009519A      7      2      1  c      -                               
+000951A1   1097    371      1  c      -                               
+000955EA     24     12      1  c      -                               
+00095602    119     38      6  c      -                               
+00095679     31     14      2  c      -                               
+00095698    137     55      1  c      -                               
+00095721     47     24      1  c      -                               
+00095750    172     60      2  c      -                               
+000957FC    168     74      1  c      -                               
+000958A4    267    119      1  c      -                               
+000959AF     63     23      2  c      -                               
+000959EE     94     41      2  c      -                               
+00095A4C    259     93      1  c      -                               
+00095B4F    116     39      3  c      -                               
+00095BC3     78     31      1  c      -                               
+00095C11    211     84      1  c      -                               
+00095CE4    175     63      1  c      -                               
+00095D93    324    111      2  c      -                               
+00095ED7    119     47      2  c      -                               
+00095F4E      6      2      1  c      -                               
+00095F54     13      8      1  cp     -                               
+00095F61     13      8      1  c      -                               
+00095F6E    294     86      0  p      -                               
+00096094     48     29      2  c      -                               
+000960C4     51     21      1  c      -                               
+000960F7    339    108      1  c      -                               
+0009624A     59     28      1  c      -                               
+00096285     44     26      1  c      -                               
+000962B1     39     19      1  c      -                               
+000962D8     85     37      0  p      -                               
+0009632D    534    155      1  c      -                               
+00096543     73     30      1  c      -                               
+0009658C    103     13      1  c      -                               
+000965F3    218     74      1  c      -                               
+000966CD     61     28      1  c      -                               
+0009670A     12      8     69  c      -                               
+00096716     71     25      2  c      -                               
+0009675D     40     19      1  c      -                               
+00096785     39     16      1  c      -                               
+000967AC     36     15      1  c      -                               
+000967D0     48     18      2  c      -                               
+00096800    120     15      1  cu     -                               
+00096878     48     17      1  c      -                               
+000968A8     48     20      2  c      -                               
+000968D8     78     25      1  cu     -                               
+00096926     37      9      1  cp     -                               
+0009694B     30     16      4  c      -                               
+00096969     29     11      1  c      -                               
+00096986     45     19      1  c      -                               
+000969B3     81     30      2  c      -                               
+00096A04     13      5      1  c      -                               
+00096A11     51     23      1  c      -                               
+00096A44    233     71      2  c      -                               JFMAMJJASONDaeapauuuecoenbrrynlgptvcSMTW
+00096B2D     30     10      0  u      -                               
+00096B4B     13      5      1  c      -                               
+00096B58     40     15      3  c      -                               
+00096B80    192     51      1  cp     -                               
+00096C40    128     22      0  u      -                               
+00096CC0    800    237      4  c      -                               
+00096FE0    560    142      0  p      -                               
+00097210   1152    352      1  c      -                               Minimum DMA buffer size too large for VD
+00097690    256     80      1  c      -                               
+00097790    176     62      0  u      -                               
+00097840   1568    510      1  c      -                               Could not allocate build buffer\n
+00097E60    192     50      1  c      -                               
+00097F20    128     37      1  c      -                               Unable to open file DIG.INI\n
+00097FA0     16      6      1  c      -                               
+00097FB0     48     19      1  c      -                               
+00097FE0    112     40      1  c      -                               
+00098050     16      5      1  c      -                               
+00098060    208     36      1  c      -                               
+00098130     16      6      1  c      -                               
+00098140     48     10      1  c      -                               
+00098170     48     15      1  c      -                               
+000981A0     16      6      1  c      -                               
+000981B0     32      6      1  c      -                               
+000981D0     48     11      1  c      -                               
+00098200     64     11      1  c      -                               
+00098240     64      9      1  c      -                               
+00098280     16      6      1  c      -                               
+00098290    128     40      1  c      -                               
+00098310    128      7      1  c      -                               
+00098390    144     23      1  c      -                               
+00098420    592     52      1  c      -                               
+00098670    184     51      0  p      -                               
+00098728     44     14      1  cp     -                               
+00098754     10      4      1  c      -                               
+0009875E     94     15      1  c      -                               
+000987BC    621    197      3  c      -                               
+00098A29     16      6      0  p      -                               
+00098A39    234     86      2  c      -                               fmt  | data
+00098B23    206     60      1  cu     -                               Creative | WAVE | Unrecognized digital audio file type\n
+00098BF1     30      9      0  u      -                               
+00098C0F     63     22      0  u      -                               Invalid or missing data block\n
+00098C4E    244     64      1  c      -                               Creative | WAVE | Unrecognized digital audio file type\n
+00098D42     46     15      0  p      -                               
+00098D70    368     71      1  cp     -                               SAMPLE
+00098EE0     80     20      1  c      -                               
+00098F30    480     75      5  c      -                               
+00099110    112     22      1  c      -                               
+00099180    704     97      1  c      -                               FORM
+00099440    464    184      1  c      -                               
+00099610   1168    369      8  c      -                               
+00099AA0    208     59      1  c      -                               
+00099B70    176     50      1  c      -                               
+00099C20    576    205      2  c      -                               
+00099E60    224     39      3  c      -                               
+00099F40     64     29      2  c      -                               
+00099F80   1968    536      0  p      -                               
+0009A730    208     65      1  c      -                               
+0009A800     96     37      0  u      -                               
+0009A860   1712    552      1  c      -                               SAMPLE | Could not initialize instrument manager\ | Out of timer handles\n
+0009AF10    192     50      1  c      -                               
+0009AFD0    128     37      1  c      -                               Unable to open file MDI.INI\n
+0009B050    176      6      1  c      -                               
+0009B100    128     56      1  c      -                               SAMPLE
+0009B180    128     41      1  c      -                               
+0009B200     32     10      1  c      -                               
+0009B220    960    284      1  c      -                               TIMB
+0009B5E0     64     18      1  c      -                               
+0009B620    208     63      1  c      -                               
+0009B6F0    144     49      1  c      -                               
+0009B780     48     18      1  c      -                               
+0009B7B0     16      6      1  c      -                               
+0009B7C0    112     39      1  cu     -                               
+0009B830    128     51      1  c      -                               
+0009B8B0     48      6      1  c      -                               
+0009B8E0    128      6      1  c      -                               
+0009B960    608     17      1  c      -                               
+0009BBC0    112     49      1  c      -                               
+0009BC30    144     51      1  c      -                               
+0009BCC0    128      9      1  c      -                               
+0009BD40     32      5      1  c      -                               
+0009BD60    112      5      1  c      -                               
+0009BDD0    416    131      1  c      -                               
+0009BF70    304     94      1  c      -                               
+0009C0A0     64     16      1  c      -                               
+0009C0E0    416      9      1  c      -                               
+0009C280    756     67      0  p      -                               SAMPLE
+0009C574     44     14      1  cp     -                               
+0009C5A0    437    174      1  c      -                               
+0009C755     41     20      2  c      -                               
+0009C77E    108     38      1  c      -                               
+0009C7EA    266     80      1  c      -                               
+0009C8F4     37     10      0  p      -                               
+0009C919   1012    288      0  p      -                               
+0009CD0D    460     97      0  u      -                               Insufficient memory for HWAVE descriptor
+0009CED9     42     15      0  p      -                               
+0009CF03      1      1      0  p      -                               
+0009CF04     91     36      1  c      -                               
+0009CF5F     44     15      0  p      -                               
+0009CF8B     79     26      1  c      -                               
+0009CFDA     75     38      1  c      -                               
+0009D025     79     39      1  c      -                               
+0009D074    189     68      0  p      -                               
+0009D131    233    101      1  c      -                               
+0009D21A    122     37      1  c      -                               
+0009D294      5      1      1  c      -                               
+0009D299      9      4      1  c      -                               
+0009D2A2     66     27      1  c      -                               
+0009D2E4     74     31      1  c      -                               
+0009D32E     74     12      1  c      -                               
+0009D378    304     95      1  c      -                               
+0009D4A8     48      5      2  c      -                               
+0009D4D8     42      7      1  c      -                               
+0009D502     10      6      2  c      -                               
+0009D50C     46     23      2  c      -                               
+0009D53A     33     11      2  c      -                               
+0009D55B      5      2      1  c      -                               
+0009D560    133     58      2  c      -                               
+0009D5E5    147     53      2  c      -                               
+0009D678     64     14      5  c      -                               
+0009D6B8    304    105      1  cu     -                               no memory left to handle thrown exceptio
+0009D7E8     44     21      1  c      -                               
+0009D814     15      9      1  cu     -                               
+0009D823     13      7      1  c      -                               
+0009D830   2000    779      1  c      -                               
+0009E000     16      8      0  p      -                               
+0009E010      6      2      1  c      -                               
+0009E016      6      2      1  c      -                               
+0009E01C    164     66      2  c      -                               
+0009E0C0     26      8      3  c      -                               
+0009E0DA      5      3      2  c      -                               
+0009E0DF    133     53     11  c      -                               
+0009E164      9      4      1  c      -                               
+0009E16D     56     21      1  c      -                               
+0009E1A5    498    173      1  c      -                               
+0009E397     17      8      2  c      -                               
+0009E3A8     56     28      1  c      -                               
+0009E3E0    129     13      1  c      -                               
+0009E461     37     15      0  u      -                               
+0009E486    768      2      0  p      -                               
+0009E786     25     17      5  c      -                               
+0009E79F     99     45      1  c      -                               
+0009E802     76     47      3  c      -                               
+0009E84E     85     35      5  c      -                               
+0009E8A3     21      9      3  c      -                               
+0009E8B8     40     16      1  c      -                               
+0009E8E0      9      3      3  c      -                               
+0009E8E9     20      7      2  c      -                               
+0009E8FD     19     11      0  u      -                               
+0009E910     15     10      2  c      -                               
+0009E91F    312    105      1  c      -                               
+0009EA57     85     38      2  c      -                               
+0009EAAC    206     70      1  c      -                               
+0009EB7A     68     35      1  c      -                               
+0009EBBE    137     61      1  c      -                               
+0009EC47      1      1      0  p      -                               
+0009EC48     18      9      1  c      -                               
+0009EC5A    203     91      1  c      -                               
+0009ED25      6      2      4  c      -                               
+0009ED2B      6      2      1  c      -                               
+0009ED31     30     12      1  c      -                               
+0009ED4F     14      5      1  c      -                               
+0009ED5D    120     37      0  p      -                               Not enough memory to allocate file struc
+0009EDD5     17      3      0  p      -                               
+0009EDE6     82     36      1  c      -                               
+0009EE38    124     55      1  c      -                               
+0009EEB4     55      6      0  p      -                               Floating-point support not loaded\r\n
+0009EEEB     73     33      2  c      -                               
+0009EF34     32     13      1  c      -                               
+0009EF54     47     22      1  c      -                               
+0009EF83     29     11      1  c      -                               
+0009EFA0    207     12      0  u      -                               
+0009F06F    194     71      1  c      -                               
+0009F131    103     38      1  c      -                               
+0009F198    195     74      1  c      -                               
+0009F25B    341    124      2  c      -                               
+0009F3B0     19      5      2  c      -                               
+0009F3C3     38     20      2  c      -                               
+0009F3E9    278    113      1  c      -                               
+0009F4FF    385    130      1  c      -                               EST | EDT
+0009F680    277    108      3  c      -                               
+0009F795     41     11      0  u      -                               
+0009F7BE     59     29      4  c      -                               
+0009F7F9    229     81      1  c      -                               
+0009F8DE     40     19      1  c      -                               
+0009F906    691    236      2  c      -                               
+0009FBB9   7775   2129      1  c      -                               
+000A1A18    539    162      1  c      -                               
+000A1C33    147     53      4  c      -                               
+000A1CC6     44     27      4  c      -                               
+000A1CF2     47     19      1  c      -                               
+000A1D21    411    117      2  c      -                               
+000A1EBC     76     38      1  c      -                               
+000A1F08     12      2      1  c      -                               
+000A1F14     76     21      1  c      -                               return from "terminate" function!
+000A1F60     52     17      0  u      -                               return from "unexpected" function!
+000A1F94     48     19      1  c      -                               
+000A1FC4     64     14      2  c      -                               
+000A2004     65     30      2  c      -                               
+000A2045    212     81      0  p      -                               
+000A2119    307     93      1  c      -                               PATH
+000A224C      4      2      0  p      -                               
+000A2250     25     11      0  p      -                               
+000A2269      5      2      0  p      -                               
+000A226E     11      2      0  p      -                               L"\n
+000A2279     48     16      1  c      -                               
+000A22A9     26     16      1  c      -                               
+000A22C3     60     24      1  c      -                               
+000A22FF    424    155      7  c      -                               
+000A24A7    268     96      9  c      -                               
+000A25B3    282    105      8  c      -                               
+000A26CD    419    141      1  c      -                               
+000A2870     23     11      0  p      -                               
+000A2887     60     34      0  p      -                               
+000A28C3     30     15      0  p      -                               
+000A28E1     30     15      0  p      -                               
+000A28FF     27     15      0  p      -                               
+000A291A    850    224      1  c      -                               
+000A2C6C     32     17      1  c      -                               
+000A2C8C    157     72      1  c      -                               
+000A2D29   3277   1209      1  c      -                               
+000A39F6     13      6      0  p      -                               
+000A3A03      7      3      0  p      -                               
+000A3A0A     34     10      0  p      -                               
+000A3A2C      8      2      0  p      -                               
+000A3A34      7      3      0  p      -                               
+000A3A3B     37     16      0  p      -                               
+000A3A60     47     21      0  p      -                               
+000A3A8F     67     35      0  p      -                               
+000A3AD2    186     81      0  p      -                               
+000A3B8C    217     23      1  c      -                               
+000A3C65    144      6      1  c      -                               
+000A3CF5     31     17      1  c      -                               
+000A3D14      2      1      1  c      -                               
+000A3D16      9      5      0  p      -                               
+000A3D1F      5      3      0  p      -                               
+000A3D24   1043    379      0  p      -                               
+000A4137    118     46      0  p      -                               
+000A41AD     46     18      0  p      -                               
+000A41DB     78     32      0  p      -                               
+000A4229     16      8      0  p      -                               
+000A4239     46     18      0  p      -                               
+000A4267    116     38      0  p      -                               
+000A42DB    154     57      0  p      -                               
+000A4375     62     20      0  p      -                               
+000A43B3    292     59      1  c      -                               
+000A44D7    218     32      1  c      -                               
+000A45B1    238     40      1  c      -                               
+000A469F    539    144      1  c      -                               
+000A48BA     64     30      0  p      -                               
+000A48FA    306     65      1  c      -                               
+000A4A2C     31     17      4  c      -                               
+000A4A4B    226     81      1  c      -                               
+000A4B2D     67     28      1  c      -                               
+000A4B70    103     24      1  c      -                               
+000A4BD7     45     19      1  c      -                               
+000A4C04     74     31      1  c      -                               
+000A4C4E     86     37      1  c      -                               
+000A4CA4     81     24      1  c      -                               
+000A4CF5    119     42      1  c      -                               
+000A4D6C     92     35      1  c      -                               
+000A4DC8    353    122      1  c      -                               
+000A4F29     51     21      0  p      -                               
+000A4F5C     90     40      0  p      -                               
+000A4FB6     54     22      0  p      -                               
+000A4FEC     30     12      0  p      -                               
+000A500A     54     22      0  p      -                               
+000A5040     45     22      0  p      -                               
+000A506D    174     74      0  p      -                               
+000A511B    129     55      0  p      -                               
+000A519C   1486    458      1  c      -                               
+000A576A     64     30      0  p      -                               
+000A57AA    207     29      1  c      -                               
+000A5879     32     17      1  c      -                               
+000A5899    157     72      1  c      -                               
+000A5936   1723    644      1  c      -                               
+000A5FF1    126     57      0  p      -                               
+000A606F     98     47      0  p      -                               

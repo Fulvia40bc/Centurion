@@ -67,16 +67,29 @@ Code regions, by the strings each region references (G for the boundaries, refin
 | 0x50000-0x67FFF | PBEM files, trade sessions, ship movement, conflict, city building, ship maintenance, tax |
 | 0x68000-0x77FFF | trade cards and the trading screens |
 | 0x78000-0x7BFFF | animations (FLC + WAV) |
-| 0x7C000-0x7FFFF | Watcom C runtime (stack check `__CHK` G at 0x7D4AC, called 625 times = about 620 game functions) |
+| 0x7C000-0x7FFFF | Watcom C runtime (stack check `__CHK` D at 0x7D4AC, called from 633 functions) |
 | 0x80000-0x87FFF | Miles AIL 3.03 (with its debug trace "AIL_install_driver(0x%X,%u)" …) |
 | 0x87000-0x9FFFF | Fastgraph 4.04 (+ Fastgraph/Image 2.04: GIF/FLC, Fastgraph/Fonts 2.04), C++ runtime, DOS/4GW glue |
 
 So about **440 KB of game code (≈620 functions)** to translate, roughly three times Centurion. The ≈170 KB of
 libraries are not translated but replaced (C library, a small 8-bit rasterizer, our own GIF/FLC/XMI code).
 
-The linear listing (`tools/disasm.ps1` → `disasm/AC_MAIN.linear.asm`) loses sync on jump tables and data in
-code (it misses the entry point itself). M0 writes a recursive disassembler that seeds from the entry,
-call targets and the fixup list.
+**Recursive disassembly (M0, done 2026-11-17).** `tools/rdisasm.py` (run by `tools/disasm.ps1`) follows the
+code from the entry point, every direct call and jump, address-taken code (fixups) and the jump tables, and
+writes `disasm/AC_MAIN.asm` (labelled listing, not committed), `disasm/functions.txt` and `disasm/coverage.txt`:
+- **1,485 functions**, 179,447 instructions; 95.5 % of the code object decoded, 1,761 jump-table entries;
+  0 overlapping instructions, every call target decoded. The rest (20 KB in small gaps) is alignment padding,
+  data and dead code without a recognisable prologue.
+- Below 0x7C000 (the game, ah_civl.cpp): **627 functions, 444 KB** (V for the ≈620 estimate above), of which
+  20 are reached by nothing (dead code). From 0x7C000 on (libraries): 858 functions, 170 KB, 44 unreached
+  (mostly AIL API the game never calls).
+- 106 code addresses taken as immediates proved to be data (jump-table bases, the "con" string of the Watcom
+  start-up): rejected because they decode into instructions a compiler never emits.
+- Names: 70 AIL functions from AIL's own trace strings (D), the Watcom start-up and stack check (D), and
+  8 game functions from the identifier strings they pass (G: e.g. `NationLosesUnits`, `DrawTradingCards`,
+  `DoShipContruction` (sic)). Hand-kept names go in `disasm/names.txt`.
+- Watcom register calling convention throughout (first arguments in eax, edx, ebx, ecx); the game was built
+  with stack checking on (`push framesize; call __CHK` at the top of 633 functions).
 
 ## 3. Platform
 

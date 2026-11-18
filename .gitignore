@@ -5,3 +5,4 @@ __pycache__/
 /disasm/le/
 /disasm/AC_MAIN.linear.asm
 
+/disasm/AC_MAIN.asm
