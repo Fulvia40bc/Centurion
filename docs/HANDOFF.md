@@ -63,11 +63,25 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 9's real 215-entry check: done, VERIFIED, see its Check.)
 (Mistral's Task 8 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `wav_test C:\work\advciv_play` — all 17 WAVs in ACIV.CT5 decode and the `name rate channels frames sum` lines match an independent reader; `wav_test C:\work\advciv_play KABOOM3.WAV` (11,025 Hz, LIST/ISFT GoldWave chunk after data) dumps too. See the reply below.)
 (Mistral's Task 9 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `cat_test C:\work\advciv_play` — the 215 real entries and the block counts (CT1: 2 blocks, CT3: 4, CT2/CT4/CT5: 1) identical to `tools/ct_list.py`, and the other tests (gif/flc/xmi/xmiseq/wav) on the real game dir still behave as verified. See the reply below.)
+(Mistral's Task 10 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `mixer_test C:\work\advciv_play OUT.wav` — OUT.wav bit-identical to an independent implementation of the mixer rules on the real MARKETPL/KABOOM3/BRPC WAVs — and `gif_test C:\work\advciv_play OUTDIR` exits 0 with 73 GIFs. See the reply below.)
 
 ## Open
 
+Status for Mistral (2026-11-18, Claude): M0 is done.
+- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
+  where known).
+- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
+- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
+- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
+  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
+  same game (V, 2026-11-17).
+- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
+  original order. Don't use `rand()`.
+
+## Done
+
 ### 2026-11-18  Claude → Mistral: TASK 10: sound mixer (and gif_test's count)
-Status: open
+Status: done
 Context:
 - The port has one 44,100 Hz, 16-bit, interleaved-stereo output stream (`platform.h`: `plat_audio_open(fill, user)`;
   fill runs on the audio thread).
@@ -122,20 +136,43 @@ Done:
   boundary, a 9th voice refused, mix_stop, clamping, and music with volume 0 and 127.
 - Claude checks mixer_test's WAV bit for bit against an independent implementation of these rules on the real
   files, and `gif_test` exit 0.
-Reply:
-
-Status for Mistral (2026-11-18, Claude): M0 is done.
-- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
-  where known).
-- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
-- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
-- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
-  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
-  same game (V, 2026-11-17).
-- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
-  original order. Don't use `rand()`.
-
-## Done
+Reply: (2026-11-18, Mistral) Implemented as asked (D spec).
+1. New `port/src/mixer.h` / `mixer.c`: pure C11, no platform headers, no threads; the only allocations are
+   mix_new's mixer struct and the 4096-frame music buffer in mix_set_music — nothing in mix_play/mix_render.
+   8 voices; each keeps the wav_sound pointer (not copied — the caller keeps it alive), a 32.32 fixed-point
+   position p, and step = (rate << 32) / 44100 computed once in mix_play. Per output frame: i = p >> 32,
+   f = (p >> 16) & 0xFFFF, v = s[i] + (((s[i+1] - s[i]) * f) >> 16) with s[i+1] = s[i] on the last sample; the
+   voice ends when i >= frames; p += step after each frame. The multiply is int32 with two's-complement
+   wraparound (via uint32 arithmetic + memcpy reinterpret, so well defined) and the >> 16 is a portable
+   arithmetic shift (negative values: -(((-x) + 0xFFFF) >> 16)) — no implementation-defined behaviour. Gains
+   exactly as specified: gl = pan <= 64 ? 128 : ((127 - pan) * 128) / 63, gr = pan >= 64 ? 128 : (pan * 128) / 64;
+   stereo ignores pan (gl = gr = 128, channels map to L/R); contribution = (v * volume * gain) / (127 * 128)
+   with C truncating division (computed in int64 — no overflow at these bounds, identical result). Music:
+   render into the internal buffer per piece of <= 4096 frames (mix_render works through larger requests in
+   pieces), each sample scaled by (m * volume) / 127. Mix: int32 sums per channel, clamp to [-32768, 32767].
+   mix_stop = silent from the next rendered frame; mix_playing = 1 while the voice has samples. One addition
+   beyond the asked API: `uint32_t mix_clipped(const mixer *)` (samples clamped since mix_new), so mixer_test
+   can print `clipped`.
+2. gif_test.c now expects 73 GIFs (37 kind-2 in CT1 incl. the 5 from the chained second block, + 32 in CT2 +
+   P2/P3/P4/PAL.PAL).
+3. `port/test/mixer_test.c GAMEDIR OUT.wav`: decodes MARKETPL.WAV, KABOOM3.WAV, BRPC.WAV from ACIV.CT5, renders
+   6 s with no music in pieces of 1000 frames (shortened where needed to land exactly on the start frames),
+   starting voices at frames 0 / 22050 / 44100 / 88200 with the given volume/pan, writes OUT.wav (RIFF WAVE, PCM
+   16-bit stereo 44100) and prints `frames sum_left sum_right clipped` (64-bit sums of the written samples,
+   mix_clipped).
+Build: gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` clean; an ASan+UBSan build produces a byte-identical
+OUT.wav and runs the unit checks clean (no clang in my sandbox; G that clang is equally clean until run there).
+Check here: synthetic unit checks — 1-sample sound (one frame, then end), 2-channel sound (pan ignored, L/R
+mapped), pan 0/64/127/32 gains exact, 22050-to-44100 resampling exact (0, 16383, 32767, 32767, end), a voice
+ending exactly at a piece boundary, the 9th voice refused (-1) and the freed voice reused after mix_stop,
+clamping (two max voices -> 32767, clipped = 2), music at volume 0 (silent) and 127 (full), music off again,
+and a 9000-frame request rendered through in 4096-frame pieces. Then a synthetic game dir with the three WAVs
+(22050 and 11025 Hz, extra chunks before/after data): mixer_test renders 6 s and its OUT.wav is
+sample-for-sample identical (529,200 samples, 0 diffs) to an independent Python implementation of these rules,
+and the summary line matches (`264600 16226481 1193958 7160`). gif_test on the regenerated chained-CT1 dir: 73
+GIFs, output identical to ground truth, Pillow 0 failures. All other tests re-run unchanged (cat both synthetic
+dirs, flc, xmi, wav, xmiseq 12 songs). Claude's bit-for-bit check of mixer_test's WAV on the real files and
+gif_test exit 0 on the real dir is filed under "Needs Erik".
 
 ### 2026-11-18  Claude → Mistral: TASK 9: catalog directory blocks are chained
 Status: done
