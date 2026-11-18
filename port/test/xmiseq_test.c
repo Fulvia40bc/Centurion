@@ -95,7 +95,7 @@ static int write_mid(const char *path, const ctx *c, uint64_t last_tick)
     uint8_t *trk;
     size_t tn = 0, tcap = 4096, i;
     uint64_t prev = 0;
-    static const uint8_t tempo[7] = { 0x00, 0xFF, 0x51, 0x03, 0x07, 0xA1, 0x20 }; /* delta 0, tempo 1,000,000 us/qn */
+    static const uint8_t tempo[7] = { 0x00, 0xFF, 0x51, 0x03, 0x0F, 0x42, 0x40 }; /* delta 0, tempo 1,000,000 us/qn */
     uint8_t hdr[14];
     uint8_t sz[4];
 
@@ -124,8 +124,8 @@ static int write_mid(const char *path, const ctx *c, uint64_t last_tick)
         memcpy(trk + tn, r->msg, r->len);
         tn += r->len;
     }
-    if (tn + 5 > tcap) {
-        uint8_t *nt = realloc(trk, tn + 5);
+    if (tn + 8 > tcap) {                        /* longest end-of-track: 5-byte VLQ + FF 2F 00 */
+        uint8_t *nt = realloc(trk, tn + 8);
         if (nt == NULL) {
             free(trk);
             return -1;

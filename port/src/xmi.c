@@ -115,6 +115,8 @@ static int parse_evnt(const uint8_t *data, size_t start, size_t end, ev_list *l)
             d1 = data[pos++];
             if (ndata == 2)
                 d2 = data[pos++];
+            if ((d1 & 0x80u) != 0 || (ndata == 2 && (d2 & 0x80u) != 0))
+                return -4;              /* a data byte >= 0x80 is a malformed stream */
             if (type == 0x90u) {
                 uint32_t dur;
                 rc = read_vlq(data, end, &pos, &dur);
