@@ -228,6 +228,61 @@ static void boot_vbuffer(uint8_t **heap, uint32_t size, int w, int h, uint32_t h
    File names: the original opens everything relative to its working directory; title_boot puts gamedir in front of the
    catalogs and pal.pal. The menu's savgame%x.dat and the quit's aciv.cfg stay relative, as in the original (G: the port
    runs in the game folder). The caller has opened the platform layer (platform.h) before. */
+/* 0x10BEE..0x10E7F, the data side of the sound start-up (the port plays music itself, gm_synth.c): MDI.INI's DRIVER
+   picks the music set (OVERVIEW §2), whose four file names go to 0xCAB1C/0xCAB2C/0xCAB3C/0xCAB4C; when the driver
+   installs, [0xF625D] = 1 (music on) and [0xF6284] = a sequence handle. G: the port treats a readable MDI.INI with a
+   DRIVER line as "installed" (AIL_install_MDI_INI 0x8547D succeeded in DOSBox-X with SBPRO2.MDI). [0xF6270] and
+   [0xF6284] are AIL handles and differ from a DOSBox-X dump by design (the port stores 1). */
+/* stricmp 0x877AD: ASCII case folding of A..Z only */
+static int ui_stricmp(const char *a, const char *b)
+{
+    for (;; a++, b++) {
+        int x = (unsigned char)*a, y = (unsigned char)*b;
+        if (x >= 'A' && x <= 'Z') x += 0x20;
+        if (y >= 'A' && y <= 'Z') y += 0x20;
+        if (x != y || y == 0)
+            return x - y;
+    }
+}
+
+static void boot_music_set(void)
+{
+    static const uint32_t dst[4] = { 0xCAB1Cu, 0xCAB2Cu, 0xCAB3Cu, 0xCAB4Cu };
+    static const uint32_t gset[4] = { 0xB0A5Cu, 0xB0A68u, 0xB0A75u, 0xB0A82u };   /* 0x10C13: no MDI.INI */
+    static const uint32_t fset[4] = { 0xB0AA6u, 0xB0AB2u, 0xB0ABFu, 0xB0ACCu };   /* 0x10CB1: adlib, sblaster */
+    static const uint32_t sset[4] = { 0xB0AEFu, 0xB0AFBu, 0xB0B08u, 0xB0B15u };   /* 0x10D4F: sbpro1, sbpro2 */
+    static const uint32_t g2set[4] = { 0xB0B22u, 0xB0B2Eu, 0xB0B3Bu, 0xB0B48u };  /* 0x10DC2: any other driver */
+    const uint32_t *set = gset;
+    char line[256], driver[128] = "";
+    FILE *f = fopen(DSTR(0xB0A54u), "r");             /* 0x10C07 AIL_API_read_INI("MDI.INI") */
+    int i;
+
+    if (f != NULL) {
+        while (fgets(line, sizeof line, f) != NULL) {
+            char key[32];
+            if (sscanf(line, "%31s %127s", key, driver) == 2 && strcmp(key, "DRIVER") == 0)
+                break;
+            driver[0] = 0;
+        }
+        fclose(f);
+    }
+    if (driver[0] != 0) {                             /* 0x10C11 the INI read succeeded */
+        if (ui_stricmp(driver, DSTR(0xB0A8Fu)) == 0 || ui_stricmp(driver, DSTR(0xB0A99u)) == 0)
+            set = fset;                               /* 0x10C94 / 0x10CA8 "adlib.mdi", "sblaster.mdi" */
+        else if (ui_stricmp(driver, DSTR(0xB0AD9u)) == 0 || ui_stricmp(driver, DSTR(0xB0AE4u)) == 0)
+            set = sset;                               /* 0x10D32 / 0x10D46 "sbpro1.mdi", "sbpro2.mdi" */
+        else
+            set = g2set;
+    }
+    for (i = 0; i < 4; i++)                           /* the inline strcpy loops into the four name buffers */
+        strcpy((char *)DP(dst[i]), DSTR(set[i]));
+    if (driver[0] != 0) {                             /* 0x10E57 AIL_install_MDI_INI(&[0xF6270]) */
+        setD32(0xF6270u, 1);
+        setD8(0xF625Du, 1);                           /* 0x10E6C music on */
+        setD32(0xF6284u, 1);                          /* 0x10E7A AIL_allocate_sequence_handle */
+    }
+}
+
 int title_boot(const char *gamedir)
 {
     char path[0x200];
@@ -264,6 +319,22 @@ int title_boot(const char *gamedir)
             snprintf((char *)DP(0xF57BCu), 0x64, DSTR(0xB081Eu), DSTR(0xF40CCu));
             snprintf((char *)DP(0xF5820u), 0x64, DSTR(0xB0823u), DSTR(0xF40CCu));
         }
+    }
+
+    /* 0x107A4..0x10826: the settings file aciv.cfg (6 bytes) into 0xF097C, if it is there (cwd = the game folder) */
+    f = fopen(DSTR(0xB0849u), "rb");                  /* 0x107A9 fopen("aciv.cfg") -> [0xF52D8] (FILE *: port-side) */
+    if (f != NULL) {                                  /* 0x107B3 */
+        uint16_t w7c, w80;
+        size_t got = fread(DP(0xF097Cu), 6, 1, f);    /* 0x107C8 fread(0xF097C, 6, 1, fp) */
+        (void)got;                                    /* the original does not check it either */
+        fclose(f);                                    /* 0x107D2 */
+        w80 = D16(0xF0980u);                          /* 0x107D7 */
+        w7c = D16(0xF097Cu);                          /* 0x107E6 */
+        /* 0x107DD..0x107E4: ax = (word << 8) >> 13 in 16 bits = low byte of 0xF0980 >> 5 */
+        setD16(0xF097Cu, (uint16_t)(w7c & 0xFFDFu)); /* 0x107FB and al,0xDF; 0x10803 */
+        setD16(0xF0982u, (uint16_t)((w7c >> 9) + (((w80 & 0xFFu) >> 5) << 7)));   /* 0x107F4..0x10813 */
+        if (S16(0xF40AEu) == 1)                       /* 0x10809 dword [0xF40AC] sar 16 == 1 */
+            setD8(0xF097Cu, (uint8_t)(D8(0xF097Cu) & 0xFAu));   /* 0x1081F */
     }
 
     /* 0x10865..0x1097F: the five catalogs; a failure quits with a message */
@@ -305,6 +376,7 @@ int title_boot(const char *gamedir)
     f39E50(2);                                        /* 0x10B2A: cognac19.fgf */
     f39F90(1);                                        /* 0x10B39 */
     f118F8();                                         /* 0x10B3E: the sprites from maped.gif */
+    boot_music_set();                                 /* 0x10BEE..0x10E7F (data side only) */
 
     /* 0x10EAD..0x10F02: the map buffer, 1716x568 -> [0xF52C4]; the menu does not use it, but defining it here keeps
        the handles as in the original (Page2 = handle 2, G: fg_vbdefine takes the first free slot, 0x823A8) */

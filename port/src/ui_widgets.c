@@ -13,7 +13,7 @@
    handle lives in the record itself, a copy of the 8 bytes of a record still draws the same pixels, as a copied
    pointer would in the original. ui_sprite_put is for the translation of 0x3AE90 (not yet written); neither function
    is in ui.h yet. */
-#define UI_SPR_MAX 128
+#define UI_SPR_MAX 512   /* 286 sprite records: 12 (0x118F8) + 273 (0x11A8C) + the minimap (main 0x11628) */
 static uint8_t *s_spr_heap[UI_SPR_MAX];
 
 
