@@ -179,6 +179,27 @@ objects in a flat dump and compares them with `le_unbind`'s images (V, at the fi
 code identical except 2 bytes in `_cstart_`, the 84,936 relocated bytes identical after rebasing; data identical
 except 200 bytes the C start-up has already set (stack limits, the debugger flag).
 
+**M1 platform layer (2026-11-18, first version):**
+- `port/src/platform.h`, the SDL3 backend `plat_sdl3.c`, and `png_write.c`.
+- The window:
+  - The largest whole multiple of 640x480 within 85% of the desktop.
+  - Letterboxed 4:3 at any window size, scaled with SDL's pixel-art sampling.
+  - Alt+Enter or F11 for full screen.
+- Input: events in order.
+  - Keys carry the PC set-1 scan code and the US-layout ASCII code, as INT 16h gave them (G until the game's key
+    reader is decoded).
+  - Mouse in game pixels. Pen and touch arrive as the mouse.
+- Sound: one 44.1 kHz stereo stream with a fill callback and a lock.
+- `PLAT_HEADLESS` opens nothing. `plat_save_png` writes the last frame as an 8-bit indexed PNG, so palette indices
+  can be compared exactly with DOSBox-X captures (M2).
+- `port/test/plat_demo.c`: P2-P4 with the civil theme playing. Built by `tools/build_port.ps1` into
+  `C:\work\advciv_port\<arch>`, one folder per CPU.
+- Check (V, headless, ARM64 and x64):
+  - P2's PNG is identical on both CPUs.
+  - An independent Python check finds valid CRCs and zlib stream, 0 of 307,200 pixels different from a separate
+    GIF decode, and the palette identical.
+- The windowed run is Erik's to try (Claude doesn't open windows unasked).
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 

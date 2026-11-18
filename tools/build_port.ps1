@@ -1,0 +1,34 @@
+# Build the port's programs for ARM64 and x86_64 Windows with llvm-mingw (libraries from tools\build_deps.ps1).
+#   powershell -ExecutionPolicy Bypass -File tools\build_port.ps1 [-Out C:\work\advciv_port]
+# Each arch gets its own folder with the DLLs next to the programs, so a running copy is never overwritten by a
+# build of the other one. Strict C11 (-Werror -pedantic) for the port's own code.
+param(
+  [string]$Out       = 'C:\work\advciv_port',
+  [string]$Prefix    = 'C:\work\toolchain',
+  [string]$Toolchain = 'C:\work\toolchain\llvm-mingw-20261104-ucrt-aarch64\bin'
+)
+$ErrorActionPreference = 'Stop'
+$repo = Split-Path -Parent $PSScriptRoot
+$src  = Join-Path $repo 'port\src'
+$test = Join-Path $repo 'port\test'
+$warn = @('-std=c11', '-O2', '-Wall', '-Wextra', '-Werror', '-pedantic')
+$gui  = @('-Wl,--subsystem,windows', '-Wl,-e,mainCRTStartup')   # no console window; plat_console() attaches to a terminal
+
+foreach ($arch in 'aarch64', 'x86_64') {
+  $cc  = Join-Path $Toolchain "$arch-w64-mingw32-clang.exe"
+  $sdl = Join-Path $Prefix "sdl3-3.4.20\$arch"
+  $fs  = Join-Path $Prefix "fluidsynth-2.6.2\$arch"
+  $o   = Join-Path $Out $arch
+  New-Item -ItemType Directory -Force $o | Out-Null
+  $fmt = @('catalog.c', 'xmi.c', 'xmiseq.c', 'gif.c') | ForEach-Object { Join-Path $src $_ }
+  & $cc @warn "-I$sdl\include" "-I$fs\include" (Join-Path $test 'plat_demo.c') (Join-Path $src 'plat_sdl3.c') `
+        (Join-Path $src 'png_write.c') (Join-Path $src 'gm_synth.c') @fmt "$sdl\lib\libSDL3.dll.a" `
+        "$fs\lib\libfluidsynth-3.dll.a" @gui -o (Join-Path $o 'plat_demo.exe')
+  if ($LASTEXITCODE) { throw "plat_demo ${arch}: build failed" }
+  & $cc @warn "-I$fs\include" (Join-Path $test 'gm_render.c') (Join-Path $src 'gm_synth.c') @fmt `
+        "$fs\lib\libfluidsynth-3.dll.a" -o (Join-Path $o 'gm_render.exe')
+  if ($LASTEXITCODE) { throw "gm_render ${arch}: build failed" }
+  $rt = Join-Path (Split-Path $Toolchain) "$arch-w64-mingw32\bin"
+  Copy-Item "$sdl\bin\SDL3.dll", "$fs\bin\libfluidsynth-3.dll", "$rt\libc++.dll", "$rt\libunwind.dll" $o -Force
+  Write-Host "built $o"
+}
