@@ -8,8 +8,9 @@
 
    Surfaces: the screen (640x480, what the window shows) and up to 32 virtual buffers (handles 0..31, Fastgraph's
    table at 0xCB196). Drawing goes to the active virtual buffer after fg_vbopen(h), to the screen after fg_vbclose().
-   Coordinates: x to the right, y down, inclusive bounds, as Fastgraph. The graphics cursor, the colour and the
-   clipping region belong to the active surface as in Fastgraph (fg_vbopen saves the screen's and loads the buffer's).
+   Coordinates: x to the right, y down, inclusive bounds, as Fastgraph. The graphics cursor and the clipping region
+   belong to the active surface as in Fastgraph (fg_vbopen saves the screen's and loads the buffer's); the colour is
+   global (D: fg_vbopen 0x87C31 saves and loads no colour).
 
    The port's addition: the screen is shown in the window (platform.h) whenever the game reads input or waits
    (fg_mousepos, fg_intkey, fg_waitfor), so the original's direct video-memory writes appear without explicit calls. */
@@ -86,6 +87,7 @@ void fg_set_gamedir(const char *dir);     /* relative file names (fg_showgif, fg
 void fg_set_quit(void (*handler)(void));  /* run when the window is closed (PLAT_QUIT); default plat_shutdown + exit(0) */
 void fg_set_input_hook(void (*hook)(void));  /* called each time the game polls input (tests: save the frame, quit) */
 void fg_frame_with_pointer(uint8_t *out, int x, int y);   /* tests: the screen + Fastgraph's pointer at (x, y) if shown */
+void fg_test_mouse(int x, int y, int buttons);            /* tests (headless): set the mouse as the game will read it */
 int  fg_imagebuf(uint8_t *buffer, uint32_t size);   /* 0x8240F: the buffer fg_showgif(.., flags & 4) reads; size 0 =
                                                        Fastgraph's internal 4096 bytes (0xD6694); returns 0 */
 int  cat_read(int handle, uint8_t *buffer, unsigned count, unsigned *bytes);  /* _dos_read (0x92420) on a catalog

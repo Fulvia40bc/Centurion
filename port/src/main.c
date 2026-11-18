@@ -1,5 +1,6 @@
 /* advciv GAMEDIR [--original] [--headless-frame OUT.png]
-   The port's program. So far: the start-up the title menu needs (title_boot) and the title menu (0x4F184).
+   The port's program. So far: the start-up the title menu needs (title_boot), the title menu (0x4F184) and, for a new
+   game, the setup screens (title_newgame: 0x4DD50, 0x4EAE0).
    --headless-frame opens no window: it runs until the game first waits for input, saves the screen as an indexed PNG
    (the 6-bit DAC widened as the VGA shows it) and exits, for frame comparisons with DOSBox-X captures. */
 #include <stdio.h>
@@ -15,6 +16,29 @@
 
 static const char *s_frame_path;
 static int s_pointer_x = -1, s_pointer_y = -1;
+
+/* --click X Y (repeatable, headless): each is a press for one input poll, then a release; after the last one the
+   frame is saved once the game has polled input a few more times (its screen is drawn before it waits) */
+enum { MAX_CLICKS = 32, SETTLE_POLLS = 4 };
+static int s_clicks[MAX_CLICKS][2], s_nclicks, s_click, s_pressed, s_idle;
+
+static void save_frame_and_exit(void);
+
+static void script_hook(void)
+{
+    if (s_click < s_nclicks) {   /* per click: 2 polls released (the game first waits for a release, 0x775F0),
+                                    2 polls pressed (its click wait), then released again */
+        int x = s_clicks[s_click][0], y = s_clicks[s_click][1];
+        fg_test_mouse(x, y, s_pressed >= 2 && s_pressed < 4);
+        if (++s_pressed == 5) {
+            s_pressed = 0;
+            s_click++;
+        }
+        return;
+    }
+    if (++s_idle >= SETTLE_POLLS)
+        save_frame_and_exit();
+}
 
 static void save_frame_and_exit(void)
 {
@@ -48,10 +72,15 @@ int main(int argc, char **argv)
             s_pointer_x = atoi(argv[++i]);
             s_pointer_y = atoi(argv[++i]);
         }
+        else if (strcmp(argv[i], "--click") == 0 && i + 2 < argc && s_nclicks < MAX_CLICKS) {
+            s_clicks[s_nclicks][0] = atoi(argv[++i]);
+            s_clicks[s_nclicks][1] = atoi(argv[++i]);
+            s_nclicks++;
+        }
         else if (argv[i][0] != '-' && gamedir == NULL)
             gamedir = argv[i];
         else {
-            fprintf(stderr, "usage: advciv GAMEDIR [--original] [--headless-frame OUT.png]\n");
+            fprintf(stderr, "usage: advciv GAMEDIR [--original] [--headless-frame OUT.png [--pointer X Y] [--click X Y]...]\n");
             return 2;
         }
     }
@@ -76,8 +105,18 @@ int main(int argc, char **argv)
         return 1;
     }
     if (s_frame_path != NULL)   /* start-up polls the keyboard too; the menu's first poll is its click wait (0x4F6CE) */
-        fg_set_input_hook(save_frame_and_exit);
-    rc = title_menu();
+        fg_set_input_hook(s_nclicks > 0 ? script_hook : save_frame_and_exit);
+    for (;;) {   /* main 0x111A2..0x113FE: the menu, and for a new game the setup screens; CANCEL returns to 0x11168 */
+        rc = title_menu();
+        if (rc != -0x45)
+            break;
+        if (title_newgame() != 0) {
+            fprintf(stderr, "advciv: new game set up; the game itself is not ported yet\n");
+            plat_shutdown();
+            return 0;
+        }
+        title_menu_again();
+    }
     fprintf(stderr, "advciv: the title menu returned %d (the game itself is not ported yet)\n", rc);
     plat_shutdown();
     return 0;

@@ -33,7 +33,7 @@ foreach ($arch in 'aarch64', 'x86_64') {
   if ($LASTEXITCODE) { throw "font_test ${arch}: build failed" }
   # the port itself (so far: start-up and the title menu)
   $game = @('main.c', 'fg.c', 'ui_text.c', 'ui_dialog.c', 'ui_screen.c', 'title.c', 'state.c', 'le_image.c', 'fgfont.c',
-            'gif.c', 'catalog.c', 'palette.c', 'png_write.c', 'plat_sdl3.c') | ForEach-Object { Join-Path $src $_ }
+            'gif.c', 'catalog.c', 'palette.c', 'png_write.c', 'plat_sdl3.c', 'ui_widgets.c', 'setup.c', 'variants.c') | ForEach-Object { Join-Path $src $_ }
   & $cc @warn "-I$sdl\include" @game "$sdl\lib\libSDL3.dll.a" @gui -o (Join-Path $o 'advciv.exe')
   if ($LASTEXITCODE) { throw "advciv ${arch}: build failed" }
   $rt = Join-Path (Split-Path $Toolchain) "$arch-w64-mingw32\bin"

@@ -1,5 +1,5 @@
-/* The title menu of AC_MAIN.EXE (0x4F184, 0x4FA54) and the part of the start-up (main, 0x10010..0x111A2) the menu
-   needs. Literal translations; the address of each instruction a line comes from is in its comment.
+/* The title menu of AC_MAIN.EXE (0x4F184, 0x4FA54), the part of the start-up (main, 0x10010..0x111A2) the menu
+   needs, and main's new-game part around the setup screens (0x111DC..0x113FE, title_newgame). Literal translations; the address of each instruction a line comes from is in its comment.
    D = read in the code, G = inference. Prototypes and the shared layouts: ui.h.
 
    Play-by-email is dropped (Erik's ruling, OVERVIEW §7.5): the menu's PBEM file checks and buttons
@@ -21,6 +21,11 @@ void f78508(void);
    three fonts [0xF8B04 + 4*i] (fgf_define keeps pointers into it, so it lives as long as the program). */
 static uint8_t *s_heap_F52BC, *s_heap_F52B8, *s_heap_F52C0;
 static uint8_t *s_heap_F8B04[3];
+
+/* The game folder title_boot was given (port: title_menu_again puts it in front of pal.pal, as title_boot did). */
+static char s_gamedir[0x200];
+
+/* Port entry point, not yet in ui.h (Claude moves it there): main 0x11168..0x111A2, see below. */
 
 /* 0x4FA54: title button id -> menu code (16-bit unsigned compares, D) */
 int f4FA54(int id)
@@ -316,11 +321,123 @@ int title_boot(const char *gamedir)
 
     if (S16(0xF40C0u) == 0)                           /* 0x11155 */
         setD16(0xF408Au, 0);                          /* 0x11161: no preset menu outcome */
+    snprintf(s_gamedir, sizeof s_gamedir, "%s", gamedir);   /* for title_menu_again (port) */
+    title_menu_again();                               /* 0x11168 */
+    return 0;
+}
+
+/* main 0x11168..0x111A2: what main does before each call of the menu 0x4F184. Start-up falls into it (title_boot),
+   and the new game's CANCEL (0x113E6) and the restore dialog's cancel (0x115A3) jump back to it (D). The caller then
+   calls title_menu (0x111A2).
+   0x11198: if [0xF40BA] != 0 (the continuous-test player count, set at 0x11110 from [0xF40C8]; the port skips that
+   set-up, so it stays 0) the original skips the menu and goes 0x111A9..0x111D7: flags 0xE1624 |= 0x04, &= 0x7F, the
+   screen erased (0x81312) with the pointer hidden, fade in to pal.pal (0x3CFE4). Left out with the continuous test. */
+void title_menu_again(void)
+{
+    char path[0x200];
+
     if (S16(0xF40BEu) != 0) {                         /* 0x11168: titles skipped */
-        snprintf(path, sizeof path, "%s/%s", gamedir, DSTR(0xB0C87u));
+        snprintf(path, sizeof path, "%s/%s", s_gamedir, DSTR(0xB0C87u));
         fg_gifpal(path, DP(0xF5D58u));                /* 0x1117C fg_gifpal("pal.pal", 0xF5D58) */
         fg_setdacs(0, 0x100, DP(0xF5D58u));           /* 0x11190 */
     }
-    /* 0x11198: [0xF40BA] (the self-running demo /SRD) is 0, so the original calls the menu next (0x111A2). */
-    return 0;
+}
+
+/* main 0x111DC..0x113FE, the new game (bit 0x04 of 0xE1624, set by the menu at 0x4F7D7): the defaults of the setup
+   data, then the loop 0x113CD of the setup screen 0x4DD50 and the variants screen 0x4EAE0. D unless marked.
+   Returns 0 where main jumps back to the menu 0x11168 (the caller then runs title_menu_again and title_menu), 1 where
+   it goes on to 0x113FE. Not yet ported from 0x113FE on: 0x12DA4 (clears byte [0xF40FE], word [0xF5478], dword
+   [0xEDF58], and 20 bytes at 0xF6E76 and 100 bytes at 0xF6E12 through 0x7D5D0, G: memset), then bit 0x80 of 0xE1624
+   = PBEM (0x11410..0x114CA: 0x128F0, 0x30D58, the "Starting this new PBEM game will remove ..." box 0x795A8, the
+   "Preparing initial PBEM game files" screen), dropped: the menu clears 0x80 with 0x04 (0x4F7CC), so the port always
+   takes 0x114CF ("Loading game data and maps" on background 8) and 0x115B0 into the game.
+   [0xF40BA] and [0xF40C6] / [0xF40C8] are the continuous test's (set at 0x11085..0x11110, not ported): 0 in the port,
+   but their branches are kept, as they are plain data. */
+int title_newgame(void)
+{
+    uint8_t ch = D8(0xE1624u);                        /* 0x111DC mov ch, byte [0xE1624] */
+    uint16_t ax;
+    uint8_t al;
+    int32_t r;                                        /* [ebp-0x2C] */
+
+    if ((ch & 0x04) == 0)                             /* 0x111E2 je 0x11557: the restore path (G: never here, the */
+        return 0;                                     /* port calls this only after START A NEW GAME) */
+
+    if (S16(0xF40BAu) == 0) {                         /* 0x111EB word [0xF40BA]; 0x111F5 jne 0x1125E */
+        ax = (uint16_t)(D16(0xE1624u) & 0xFFFDu);     /* 0x111FD, 0x11206 and al,-3 */
+        if (S16(0xF40C6u) == 0) {                     /* 0x111F7 dword [0xF40C4] sar 16; 0x1120A */
+            setD8(UI_SETUP_HUMANS, 3);                /* 0x1120C: 3 humans */
+            setD16(0xE1624u, ax);                     /* 0x11215: flag 0x02 off */
+            setD8(UI_SETUP_COMPUTERS, 0);             /* 0x1121B: 0 computers (dh = 0) */
+        } else {                                      /* 0x11226: the continuous test's players */
+            setD8(UI_SETUP_COMPUTERS, D8(0xF40C8u));  /* 0x1122C */
+            setD8(UI_SETUP_HUMANS, 1);                /* 0x1123D */
+            if (S16(0xF40C8u) + 1 > 3)                /* 0x11232 dword [0xF40C6] sar 16; 0x11243 inc; jle */
+                setD8(0xE1624u, (uint8_t)(ch | 0x02));   /* 0x1124E */
+            else
+                setD16(0xE1624u, ax);                 /* 0x11256 */
+        }
+    } else {                                          /* 0x1125E: the continuous test, no setup screen */
+        int32_t total;
+        setD8(UI_SETUP_COMPUTERS, D8(0xF40BAu));      /* 0x11263 */
+        setD8(UI_SETUP_HUMANS, 0);                    /* 0x11272 */
+        ch &= 0xFD;                                   /* 0x11283 and ch,-3 */
+        setD8(0xE1624u, ch);                          /* 0x11288 */
+        total = S8(UI_SETUP_HUMANS) + S8(UI_SETUP_COMPUTERS);   /* 0x11299..0x112AC dword [0xE161D] / [0xE161E] sar 24 */
+        setD16(0xE1624u, (uint16_t)(D16(0xE1624u) | (S16(0xF40BAu) != 3 ? 0x02u : 0u)));   /* 0x11278 setne, 0x112AE */
+        setD32(UI_PLAYERS_A, (uint32_t)total);        /* 0x112B5 */
+        setD32(UI_PLAYERS_B, (uint32_t)total);        /* 0x112BB */
+    }
+
+    /* 0x112C1: the computers' AI level, bits 10..11 of word [0xE1624] (the cleared value is also stored first at
+       0x112D4 / 0x112F1; nothing reads it in between) */
+    ax = (uint16_t)(D16(0xE1624u) & 0xF3FFu);         /* 0x112C1, 0x112CD and ah,-0xD */
+    if (S32(0xF5884u) == 0)                           /* 0x112D0 */
+        ax |= 0x0400u;                                /* 0x112DA or ah,4: 1 "Normal" */
+    else                                              /* 0x112DF: ([0xF5884] - 10) & 3; only bits 10..11 reach the word */
+        ax |= (uint16_t)(((D32(0xF5884u) - 0xAu) & 3u) << 10);
+    setD16(0xE1624u, ax);                             /* 0x112F9 */
+
+    al = (uint8_t)(D8(UI_SETUP_TRADE) & 0xF0);        /* 0x112FF, 0x1130A: "# of Trading Sessions" */
+    if (S32(0xF5888u) == 0)                           /* 0x1130C */
+        al |= 0x02;                                   /* 0x11315 */
+    else
+        al |= (uint8_t)(D8(0xF5888u) & 0x0F);         /* 0x11319 */
+    setD8(UI_SETUP_TRADE, al);                        /* 0x11329 */
+    al = (uint8_t)(D8(UI_SETUP_TRADE) & 0x0F);        /* 0x1132E, 0x11339: "Minimum Goods Before Trading Allowed" */
+    if (S32(0xF588Cu) == 0)                           /* 0x1133B */
+        al |= 0x60;                                   /* 0x11344 */
+    else
+        al |= (uint8_t)((D8(0xF588Cu) & 0x0F) << 4);  /* 0x11348..0x11359 */
+    setD8(UI_SETUP_TRADE, al);                        /* 0x1135B */
+
+    if (S32(0xF5890u) == 0)                           /* 0x11360 */
+        setD8(0xE1624u, (uint8_t)(D8(0xE1624u) & 0xEF));   /* 0x11369 and -0x11 */
+    else
+        setD8(0xE1624u, (uint8_t)(D8(0xE1624u) | 0x10));   /* 0x11372 */
+    if (S32(0xF5894u) == 0)                           /* 0x11379 */
+        setD8(0xE1624u, (uint8_t)(D8(0xE1624u) & 0xDF));   /* 0x11382 and -0x21 */
+    else
+        setD8(0xE1624u, (uint8_t)(D8(0xE1624u) | 0x20));   /* 0x1138B */
+    if (S32(0xF5898u) == 0)                           /* 0x11392 */
+        setD8(0xE1624u, (uint8_t)(D8(0xE1624u) & 0xBF));   /* 0x1139B and -0x41 */
+    else
+        setD8(0xE1624u, (uint8_t)(D8(0xE1624u) | 0x40));   /* 0x113A4 */
+    if (S32(0xF589Cu) == 0)                           /* 0x113AB */
+        setD8(0xE1625u, (uint8_t)(D8(0xE1625u) & 0xDF));   /* 0x113B4 and -0x21 */
+    else
+        setD8(0xE1625u, (uint8_t)(D8(0xE1625u) | 0x20));   /* 0x113BD */
+    setD16(0xE1624u, (uint16_t)(D16(0xE1624u) & 0xEDF7u));   /* 0x113C4: 0xE1624 0x08, 0xE1625 0x02 and 0x10 off */
+
+    for (;;) {                                        /* 0x113CD */
+        if (S16(0xF40BAu) != 0)                       /* 0x113D5 jne 0x113FE */
+            break;
+        r = (int16_t)f4DD50();                        /* 0x113D7; 0x113DC cwde */
+        if (r == -0xF)                                /* 0x113E3: CANCEL */
+            return 0;                                 /* 0x113E6 je 0x11168 */
+        if (r != -0x82)                               /* 0x113EF: START GAME (-1) */
+            break;                                    /* 0x113F5 jne 0x113FE */
+        f4EAE0();                                     /* 0x113F7: VARIANTS */
+    }                                                 /* 0x113FC jmp 0x113CD */
+    return 1;                                         /* 0x113FE: on into the game (not ported yet) */
 }

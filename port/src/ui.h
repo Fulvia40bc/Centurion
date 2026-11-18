@@ -142,4 +142,92 @@ _Noreturn void f44CAC(void);           /* D: quit to DOS: writes aciv.cfg (6 byt
 int title_boot(const char *gamedir);   /* the part of start-up (0x10010) the menu needs: state_init, the catalogs (0x1086F..: [0xF40D4] CT1, [0xF40D8] CT2, ...), the video mode and mouse, the back buffer [0xF52C8], the imagebuf [0xF522C], the three fonts (0x39E50 at 0x10B11..0x10B2A), the background buffer [0xF52CC], the fade to black (0x3CEB8 at 0x11022) (G: the list of steps; addresses D). 0 ok */
 int title_menu(void);                  /* 0x4F184: runs f4F184 and returns the code that ended it (G, port design): -0x45 new game, -0x46 restore, -0x47 / -0x5C PBEM resume / new (D: the codes and the flag updates at 0x4F7C6..0x4FA41); QUIT exits through f44CAC */
 
+/* ---- Sprites ---------------------------------------------------------------------------------------------------
+
+   Sprite record (8 bytes in the data object, passed as its link address; made by 0x3AE90(spr, x, y, w, h), which
+   captures the w x h block at top-left (x, y) of the active surface with fg_getimage and keeps it with fg_unpack):
+     +0x00  uint32  the pixel block, a heap block from 0x822B5 (tagged_alloc?, 0x3AEB3); outside the data object, so
+                    the port keeps these blocks in its own table, as with the font data (G)
+     +0x04  uint16  w (mov word [spr+4], D 0x3AEEF; read as word & 0xFFFF, D 0x3AFD3)
+     +0x06  uint16  h (D 0x3AEF9, 0x3AFC6)
+   The start-up routine 0x118F8 (called at 0x10B3E) shows maped.gif and captures 0xF51AC, 0xF51B4, 0xF51D4, 0xF51CC,
+   0xF51E4, 0xF51DC, ... from it (D 0x1192C..0x119D6). The setup screens use two 14 x 14 of them:
+     0xF51CC  captured at (0x40, 0x3A): drawn when a flag is set (the ticked box, G: the look)
+     0xF51D4  captured at (0x40, 0x4C): drawn when a flag is clear (the empty box, G)
+   title_boot does not run 0x118F8 yet; the setup screens need at least these two. */
+#define UI_SPR_DATA 0x00
+#define UI_SPR_W    0x04
+#define UI_SPR_H    0x06
+#define UI_SPR_CHECK_ON  0xF51CCu
+#define UI_SPR_CHECK_OFF 0xF51D4u
+
+void f3AF8C(uint32_t spr, int x, int y);   /* D: draw sprite spr with its top-left at (x, y): fg_move(x, y + h - 1), fg_clpimage(data, w, h) (colour 0 transparent), on the active surface. Void: eax is fg_clpimage's result and no caller reads it (all 233 call sites scanned; a few are tail calls in small wrappers such as the one ending at 0x3E9DB, whose own callers were not checked, G) */
+
+/* ---- Dialog helpers by button id (the search of f3C314: 16-bit compare of the id, the first match wins) -------- */
+
+int  f3BF30(uint32_t dlg, int id);     /* D: the enabled byte (rec+0x10, sign-extended: dword [dlg+20*i+0xF] sar 24, 0x3BFB0) of the button id; if none, the "Button not found" box (0xB3D02, f3A7B0) and 0 */
+void f3BFBC(uint32_t dlg, int id, int enabled); /* D: rec+0x10 = (int8)enabled (bl, 0x3C043) of the button id, without redrawing (unlike f3C314/f3C3D0); if none, the "Button not found" box (0xB3D13) */
+
+/* ---- New-game setup ("New Game Options", 0x4DD50) and "Variants" (0x4EAE0) -------------------------------------
+
+   Setup data (D: the reads and writes in 0x4DD50..0x4F183 and main 0x111EB..0x113C4):
+     0xE1620  int8   human players (read as dword [0xE161D] sar 24). Buttons 0x5F '-' (only if > 0 and the total
+                     > 3, 0x4E582) and 0x60 '+' (only if < 8 and the total < 8, 0x4EA6B)
+     0xE1621  int8   computer players (dword [0xE161E] sar 24). Buttons 0x61 '-' (> 0, total > 3, 0x4E5C1) and
+                     0x62 '+' (< 8, total < 8, 0x4E692). With 0 computers the AI-level buttons 0x67/0x68 are
+                     disabled and the AI-level text is drawn in colour 7 (else 0xF)
+     0xE1622  -      not touched by these screens
+     0xE1623  uint8  low nibble: "# of Trading Sessions" 1..4 (buttons 0x63 '-' if > 1, 0x64 '+' if < 4);
+                     high nibble: "Minimum Goods Before Trading Allowed" 3..7 (0x65 '-' if > 3, 0x66 '+' if < 7).
+                     Defaults in main: 2 (0x11315) and 6 (0x11344), or the settings at 0xF5888 / 0xF588C
+     0xE1624  uint8  flags: 0x01 cleared by START GAME (0x4E29D; meaning G); 0x02 set by START GAME when the total
+                     > 3, else cleared (0x4E2AC; G: the larger board); 0x04 new game (title, OVERVIEW §5); 0x08
+                     cleared by main 0x113C4 (G); 0x10 variant "Allow more than 2 calamities per victim"; 0x20
+                     variant "Allow purchase from any stack"; 0x40 variant "Draw 2 goods per city" (forced off with
+                     more than 4 players: 0x4E290, 0x4EB7C); 0x80 play-by-email
+     0xE1625  uint8  bits 2..3 (word [0xE1624] bits 10..11): computer AI level 0 "Stronger", 1 "Normal" (main's
+                     default, 0x112DA), 2 "Weaker"; names at 0xC4040 (uint32[3]: 0xB4BC5, 0xB4BDA, 0xB4BED), drawn
+                     at (0x7D, 0xE1). Button 0x67 '-' raises the index (weaker, if < 2, 0x4E825), 0x68 '+' lowers it
+                     (stronger, if > 0, 0x4E764); both repaint (0x7D..0x275, 0xE1..0xF7) from [0xF52CC] first.
+                     0x10 variant "Another trade round needs only 2 players" (offered only with PBEM: cleared at
+                     0x4EBB3 otherwise, and by main 0x113C4); 0x20 variant "Real Goods in trade are known"; 0x02 cleared by
+                     main 0x113C4 (word &= 0xEDF7, G)
+     0xF40EC, 0xF40F0  int32  both = humans + computers, written by START GAME (0x4E281) and main 0x112B5
+     0xF5884, 0xF5888, 0xF588C, 0xF5890, 0xF5894, 0xF5898, 0xF589C  int32  settings main turns into the defaults
+                     above (AI level = [0xF5884] - 10, sessions, minimum goods, then the four variant flags 0x10,
+                     0x20, 0x40 and 0xE1625 0x20; 0 = the built-in default / off, D 0x112C7..0x113BD). Where they
+                     are written: no direct store found (G: a settings table)
+   Setup dialog 0xC28B8 (14 records, D obj2): 0x59 the PBEM row (88,152,200,14, style 2), 0x5F/0x60, 0x61/0x62,
+   0x63/0x64, 0x65/0x66, 0x67/0x68 the '-'/'+' pairs (12 x 11), 0x4E CANCEL (48,420), 0x2A START GAME (246,420),
+   0x5B VARIANTS (445,420). Numbers in sunken boxes f3C9D0(0x56, y, 0x12, 0x13, 5) at y 0x63, 0x7C, 0xAE, 0xC7,
+   colour 5 (the computers' count 0x17 when button 0x62 is disabled, 0x4E072).
+   Variants dialog 0xC2CA4 (6 records): rows 0x5A (y 102), 0x5C (127), 0x5D (152), 0x104 (175), 0x105 (200), each
+   (88, y, 500, 14) style 2, with the box sprite at (0x58, y) and the text at (0x7D, y - 2); 0x2A CONTINUE
+   (245,420). The rows 0x5C, 0x5D, 0x104 have their text in colour 7 when
+   the button is disabled, else 0xF; 0x5A and 0x105 always 0xF (0x4EBDF..0x4ECC2).
+   Play-by-email (dropped from the port): the PBEM row of the setup screen (label "Play-by-email" 0x4DE96, box
+   0x4DEDF, button 0x59 -> 0x4E355..0x4E581, which disables 0x61, 0x62, 0x67, 0x68 and the variant 0x5C, sets
+   3 humans if fewer and 0 computers), and the variant 0x104 that only PBEM enables (0x4EB99..0x4EBCB). */
+#define UI_DIALOG_SETUP    0xC28B8u
+#define UI_DIALOG_VARIANTS 0xC2CA4u
+#define UI_SETUP_HUMANS    0xE1620u
+#define UI_SETUP_COMPUTERS 0xE1621u
+#define UI_SETUP_TRADE     0xE1623u
+#define UI_SETUP_FLAGS     0xE1624u
+#define UI_SETUP_FLAGS2    0xE1625u
+#define UI_SETUP_AI_NAMES  0xC4040u
+#define UI_PLAYERS_A       0xF40ECu
+#define UI_PLAYERS_B       0xF40F0u
+
+int  f4DD50(void);                     /* D: the setup screen (f3CD6C(7) = partha.gif, title "New Game Options"); loops until f4E2D8 returns other than -100: -1 START GAME (then [0xF40EC] = [0xF40F0] = total and the flag updates 0x4E26E..0x4E2C3), -0xF CANCEL, -0x82 VARIANTS. Its caller sign-extends ax (cwde, 0x113DC) */
+int  f4E2D8(int id);                   /* D: one click on the setup dialog's button id (16-bit unsigned compares): the counter and AI-level changes listed above; returns -1 for START GAME (0x2A), -0xF for CANCEL (0x4E), -0x82 for VARIANTS (0x5B), else -100 */
+void f4EAE0(void);                     /* D: the variants screen (f3CD6C(7), title "Variants"): enables/disables 0x5D (total <= 4) and 0x104 (PBEM) with f3BFBC, draws the rows, then loops until f4EEC8 returns -1 (CONTINUE). Its caller 0x113F7 ignores eax */
+int  f4EEC8(int id);                   /* D: one click on the variants dialog: 0x5A, 0x5C, 0x5D, 0x104, 0x105 toggle their flag and redraw the box sprite (inside fg_vbopen/vbclose of the back buffer); returns -1 for CONTINUE (0x2A), else -100 */
+
+void title_menu_again(void);           /* main 0x11168..0x111A2: what main re-does before showing the menu again */
+int ui_sprite_put(uint32_t spr, uint8_t *pixels);   /* port: keep the pixels of sprite record spr (its +0 dword holds a
+                                                       handle, as a 64-bit pointer does not fit); 0 ok, -1 table full */
+uint8_t *ui_sprite_pixels(uint32_t spr);            /* port: the pixel block of sprite record spr, or NULL */
+int title_newgame(void);               /* main 0x111DC..0x113FE: the new-game defaults and the loop 0x113CD (0x4DD50, 0x4EAE0), without PBEM: returns 1 when the player started a game, 0 when they went back to the title menu (0x11168) */
+
 #endif

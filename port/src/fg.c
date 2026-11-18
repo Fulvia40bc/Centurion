@@ -286,6 +286,14 @@ static void poll_events(void)
    times a second, as the window's present waits for vsync), then take the platform's events */
 static void (*s_input_hook)(void);
 
+void fg_test_mouse(int x, int y, int buttons)
+{
+    s_mx = x;
+    s_my = y;
+    s_mlatch |= buttons & ~s_mb;   /* a new press reads as down once, as a real one does */
+    s_mb = buttons;
+}
+
 void fg_set_input_hook(void (*hook)(void))
 {
     s_input_hook = hook;
