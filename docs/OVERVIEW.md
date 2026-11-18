@@ -23,7 +23,7 @@ It is a full hard-disk install of the CD version (animations and sounds local, n
 | `LANDADJ`, `COASTADJ`, `SEAADJ.DAT` | adjacency tables (land, coast, sea) | G |
 | `TERRFLAG.DAT` | territory flags; versioned ("terrflag.dat is wrong version. It is %d and should be %d") | D (header G) |
 | `3.RL` .. `8.RL` | per player count: `u32 n`, 0x2084 bytes, 0x5644 bytes, n bytes (loader at 0x3F409); precomputed tables | D layout, G purpose (AI / map analysis) |
-| `SAVGAMEA.DAT`, `savgameb.dat` | save games, 44,062 bytes; header "Advanced Civilization" + "AutoSaved after SHIP MAINTENANCE - R4" | D |
+| `SAVGAMEA.DAT`, `savgameb.dat` | the game's own autosaves, 44,062 bytes each: `savgamea.dat` "AutoSaved after SHIP MAINTENANCE - R4" (written after every phase), `savgameb.dat` "AutoSaved at end of Round 3" (written at every round end). Both were already in the folder Erik copied (every file there has the same copy time, 2026-11-17 14:52). They are from an earlier session on the machine this install came from; Erik made no save. | D |
 | `ACIV.CFG` (6 bytes) | settings | G |
 | `ACIV.SHR` | the installer's compressed archive of the install files (DOS dates 1995-10-04); redundant | D |
 | `*.MDI`, `*.DIG`, `MDI.INI`, `DIG.INI`, `AILDRVR.LST`, `SETSOUND.EXE` | Miles AIL 3.03 sound drivers and setup; Erik's setup: SB Pro 2 FM (SBPRO2.MDI) + SB16 digital | D |
@@ -144,7 +144,7 @@ verify against the original in DOSBox-X. Each module lands with its checks; 1990
 | M1 | Platform layer: Win32 (GDI blit with scaling, keyboard/mouse, waveOut, winmm MIDI) behind a `platform.h` like Centurion's; headless `--dump-frame`; builds **natively for ARM64** and x86_64 with the existing llvm-mingw (checked today: an aarch64 test program built and ran natively) | builds both; headless run writes frames |
 | M2 | Assets: catalog reader, GIF decoder, palette from PAL.PAL, FLC player, HLP text, fonts | each title/screen GIF pixel-for-pixel vs a DOSBox-X capture; FLC frames likewise |
 | M3 | Fastgraph subset: identify each fg_ routine the game calls (≈80 G), implement those | frame diffs of the first screens = 0 px |
-| M4 | UI kit (0x38000-0x3FFFF) + the map: zoom levels, borders, tokens, cities | map screen of Erik's R4 save = 0 px |
+| M4 | UI kit (0x38000-0x3FFFF) + the map: zoom levels, borders, tokens, cities | map screen of the R4 autosave in the originals = 0 px |
 | M5 | Game state + save/load (44 KB layout) | load → save round trip byte-exact; DOSBox save of the same state = the port's |
 | M6 | Phases in turn order, human side: tax, population expansion, census, ships, movement, conflict, cities, surplus, trade cards, trade, calamities, civ advances, AST | per phase: the game autosaves after every phase ("AutoSaved after SHIP MAINTENANCE - R4"), so load the autosave before the phase in both, same random state, compare the next autosave byte-for-byte |
 | M7 | AI (the largest part, spread through the phases) | the self-running demo `/SRD` and the hidden continuous test `/C`: whole AI-only games, compared autosave by autosave against DOSBox-X from the same seed |
@@ -159,11 +159,11 @@ verify against the original in DOSBox-X. Each module lands with its checks; 1990
   seed = hundredths << 24 | hours << 16 | seconds << 8 | minutes; this runs only when bit 0x04 of the flags at
   0xE1624 ("new game") is set, and the restore dialog (0x5FF28) clears that bit when a game is loaded;
 - **save** writes it (0x5EB7B, 4 bytes) and **load** reads it back (0x5F27C): it is in the save file, at offset
-  **0x3D0C** of `SAVGAMEA.DAT` (V: 0xDE9B76A2 in Erik's R4 autosave = the seed in memory right after loading);
+  **0x3D0C** of `SAVGAMEA.DAT` (V: 0xDE9B76A2 in the R4 autosave in the originals = the seed in memory right after loading);
 - 0x55963 / 0x55B28 save it and put it back around a block in the movement code (G: a trial run that must not
   use up random numbers); 0x4FE86 copies it to 0xF40F4 (G: the seed a game or PBEM round started with).
 
-**Reproducible (V, DOSBox-X 2026-11-17):** Erik's R4 autosave loaded in two fresh DOSBox-X sessions and left to
+**Reproducible (V, DOSBox-X 2026-11-17):** the R4 autosave in the originals loaded in two fresh DOSBox-X sessions and left to
 run to the same point (the AI players' ship construction, then Africa, a human player, is asked to choose):
 seed 0xA7BB1DC8 in both, and the whole data object identical except 228 bytes of timers, mouse and sound-driver
 state and the AI think-time counters (0x10F2C0..: `clock()` before and after each AI move, G). So M6/M7 can run
@@ -263,5 +263,4 @@ Centurion `docs/HANDOFF.md` protocol, with a `docs/HANDOFF.md` here).
    - The new-game screen keeps "Number of Human Players" and "Number of Computer Players".
    - The "Play-by-email" choice and the PBEM menus are left out, and so is pkzip.
    - The Military advance's text says "PBEM only: removes one opposing unit before normal conflict resolution"
-     (data 0xB8063). That sentence describes a mode the port won't have. Proposed: leave it out by default and
-     keep it with `--original`. Erik to confirm.
+     (data 0xB8063). RULED 2026-11-18: the sentence and the rule are left out (`--original` keeps the text).

@@ -40,6 +40,8 @@ Reply:
 
 Still open (OVERVIEW §7): Win32 or SDL2 platform layer.
 RULED 2026-11-18: PBEM dropped (no `*.hst`, `pbem_out`, pkzip). Hot seat stays: several human players at one PC.
+RULED 2026-11-18: Military's "PBEM only: removes one opposing unit …" sentence and its rule are left out
+(`--original` keeps the text).
 RULED 2026-11-18 (music, OVERVIEW §7.2):
 - All three music sets are in the port, chosen by a line next to Music on the game's Preferences screen. The
   default is stereo FM (`s*`).
