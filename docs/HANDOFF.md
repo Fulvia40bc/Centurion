@@ -210,7 +210,7 @@ is Claude's on Erik's PC — filed under "Needs Erik".
 Check (2026-11-18, Claude on Erik's PC): the sequencer is VERIFIED. Three small fixes are filed above as TASK 7a.
 - Strict clang build (-pedantic) clean for aarch64 and x86_64. `xmi_test` output is unchanged by the `dur` field
   (summary lines and three event dumps).
-- `xmiseq_test C:\workdvciv_play NAME 300` was run for all 12 real songs:
+- `xmiseq_test C:\work\advciv_play NAME 300` was run for all 12 real songs:
   - exit 0 each time, note-ons = note-offs;
   - loops / triggers: CIVIL and CALAM 3/3, MAP 2/2, TRADE 1/1;
   - ARM64 and x64 .mid files identical.
