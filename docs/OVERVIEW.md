@@ -141,7 +141,7 @@ verify against the original in DOSBox-X. Each module lands with its checks; 1990
 | # | Module | Verified by |
 |---|---|---|
 | M0 | Tooling: recursive disassembler (entry + calls + fixups; jump tables), function list named from the trace strings; DOSBox-X profile for the game (S3 SVGA, XMS, DOS/4GW); protected-mode memory dumps (find the load base of object 2 by its first bytes, then dump it linearly); frame capture at 640x480 | listing covers every call target with 0 overlaps; a dump of the data object matches `obj2.bin`'s initialised bytes at start-up |
-| M1 | Platform layer: Win32 (GDI blit with scaling, keyboard/mouse, waveOut, winmm MIDI) behind a `platform.h` like Centurion's; headless `--dump-frame`; builds **natively for ARM64** and x86_64 with the existing llvm-mingw (checked today: an aarch64 test program built and ran natively) | builds both; headless run writes frames |
+| M1 | Platform layer: **SDL3** (window with scaling, keyboard/mouse/pen/touch, audio stream mixing FluidSynth, the FM synth and the WAVs) behind a `platform.h` like Centurion's; headless `--dump-frame`. Builds for ARM64 and x86_64 Windows with llvm-mingw (SDL3 built from source with CMake, as FluidSynth); Mac and Linux possible later | builds both; headless run writes frames |
 | M2 | Assets: catalog reader, GIF decoder, palette from PAL.PAL, FLC player, HLP text, fonts | each title/screen GIF pixel-for-pixel vs a DOSBox-X capture; FLC frames likewise |
 | M3 | Fastgraph subset: identify each fg_ routine the game calls (≈80 G), implement those | frame diffs of the first screens = 0 px |
 | M4 | UI kit (0x38000-0x3FFFF) + the map: zoom levels, borders, tokens, cities | map screen of the R4 autosave in the originals = 0 px |
@@ -255,8 +255,11 @@ Centurion `docs/HANDOFF.md` protocol, with a `docs/HANDOFF.md` here).
      - Civil: intro 0-6564 ticks (55 s), loop 6564-14645 (67 s). Calamity: loops from tick 0.
      - One callback trigger (119) just before the NEXT; what the game does with it: G, to decode.
      - SCIVIL2 has 4 notes still sounding at the NEXT. A sequencer must keep their note-offs across the jump.
-3. **Platform layer**: plain **Win32** (no SDL; builds natively for ARM64 today), or SDL2 as Centurion (needs
-   SDL2 built from source for ARM64)? I propose Win32.
+3. **Platform layer**: RULED 2026-11-18: SDL, because the port must run on Intel machines as well as ARM, and battery
+   use doesn't matter for this game.
+   - SDL3: SDL2, Centurion's, is in maintenance.
+   - Built from source for ARM64 so the Surface runs it natively. Centurion's SDL2 build is x64 under emulation
+     there, because the SDL2 mingw package has no ARM64 libraries.
 4. **Running the original**: verification needs DOSBox-X runs of the game in a window. May I use the screen for
    those, and when?
 5. **PBEM**: RULED 2026-11-18: dropped. Erik plays hot seat (several human players at one PC), and hot seat stays.

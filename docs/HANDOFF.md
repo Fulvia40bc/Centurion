@@ -38,7 +38,8 @@ Reply:
 
 ## Needs Erik
 
-Still open (OVERVIEW §7): Win32 or SDL2 platform layer.
+RULED 2026-11-18 (OVERVIEW §7.3): the platform layer is SDL3, for ARM64 and x86_64 (Mac/Linux possible later).
+Nothing in §7 is open now.
 RULED 2026-11-18: PBEM dropped (no `*.hst`, `pbem_out`, pkzip). Hot seat stays: several human players at one PC.
 RULED 2026-11-18: Military's "PBEM only: removes one opposing unit …" sentence and its rule are left out
 (`--original` keeps the text).
