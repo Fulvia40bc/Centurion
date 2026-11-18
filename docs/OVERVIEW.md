@@ -449,6 +449,23 @@ takes, by player count 3..8: fixed orders, pairs and triples drawn with `game_ra
     `--mouse 320 240`).
   - Not covered yet: the movement phase's drawing (tokens under ships in sea mode, the ship values), which needs a
     save in MOVEMENT (module MOVE).
+
+**M4, module PANEL (2026-11-18 night).**
+- `panel.c`: the nation status panel 0x459E4, the ZOOM overview 0x3E374, the message-strip eraser 0x3A990, the
+  mirrored sprite 0x3AFF4, the player-button labels 0x783B8, and appending/removing dialog records 0x7853C/0x78664.
+  The dispatcher's player buttons 9..0x10, ZOOM 0x25 and DETAIL's zoomed branch are translated.
+- `shippanel.c`: the ship panel 0x5D14C with its labels 0x5DDF4, the territory refresh 0x426D0 and the count
+  buttons 0x572CC (used in MOVEMENT; their frame check comes with MOVE).
+- **BUG(1995), fixed by default:** the overview draws the viewer's own ships on top of shared stacks, but its two
+  ship loops compare with the nation *before* the viewer's (P-1), and the second loop stops at nation 8. So nation
+  P-1's ships end up on top, and Egypt's never do. It only changes which 2-px stack lies on top.
+- Oddities kept (D): the overview prints Illyria's token counts with one extra shadow copy (as MAP1's ship
+  numbers do for Iberia); the status panel reads the ships count unsigned and the others signed.
+- **Check (V):** from the restored R4 screen the original was clicked through the eight player buttons and ZOOM
+  (`run_map_states.sh`); the port replays each from the dump before it:
+  - all eight nations: status panel and name box, and the map window at that nation's home view: **0 px** each;
+  - the ZOOM overview (Africa's): **0 px** in the map window, with and without `--original` (no shared ship
+    stack involves Africa or the nation before it here).
 - Oddity (D): in the movement phase the number on a ship stack gets one extra shadow copy (colour 5), only when the
   current player is nation 2 (Iberia, 0x3E24A); G: so it stays readable on that nation's colour.
 

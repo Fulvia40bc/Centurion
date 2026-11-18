@@ -20,6 +20,7 @@
 #include "game.h"
 #include "save.h"
 #include "map.h"
+#include "panel.h"
 
 static const char *s_frame_path;
 static int s_pointer_x = -1, s_pointer_y = -1;
@@ -42,7 +43,7 @@ static void save_frame_and_exit(void);
    window as the game does (f3D52C(0, 0): clamp, map picture, borders, markers, cities, tokens, ships, mini-map).
    The frame is then compared with the DOSBox-X capture in the map window and the mini-map only. */
 static const char *s_map_state;
-static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1;
+static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview;
 static const struct { uint32_t addr, len; } MAP_STATE[] = {
     { 0xF4884u, 8 },        /* scroll column, row */
     { 0xF6110u, 4 },        /* int16 min, max column */
@@ -59,6 +60,11 @@ static const struct { uint32_t addr, len; } MAP_STATE[] = {
     { 0xC1A34u, 1 },        /* detail level */
     { 0x108804u, 1 },       /* land/sea mode */
     { 0x107690u, 2 },       /* int16 zoomed (the dispatcher's DETAIL and ZOOM test it) */
+    { 0xEE168u, 1 },        /* the background picture of the game screen (f3CD6C, the status panel) */
+    { 0xF06B0u, 0x10 },     /* int16[8] the nation of each player button */
+    { 0xF40ECu, 4 },        /* players */
+    { 0xF40F0u, 4 },        /* player count (the overview's zoom picture) */
+    { 0xEE26Eu, 0x782 },    /* the overview's point arrays (tokens, cities, ships) */
 };
 
 static int map_state_draw(const char *path)
@@ -79,7 +85,10 @@ static int map_state_draw(const char *path)
     }
     for (i = 0; i < sizeof MAP_STATE / sizeof MAP_STATE[0]; i++)
         memcpy(DP(MAP_STATE[i].addr), dump + (MAP_STATE[i].addr - 0xB0000u), MAP_STATE[i].len);
-    if (s_press >= 0) {   /* --press ID [--mouse X Y]: the button the player clicked next, through the dispatcher */
+    setD8(0xF52D0u, 0xFF);   /* the port's background buffer holds the restore's picture: let f3CD6C reload */
+    if (s_overview)          /* --overview: the ZOOM view of the current player (f3E374, as case 0x25 draws it) */
+        f3E374(S32(0xF40F8u));
+    else if (s_press >= 0) {   /* --press ID [--mouse X Y]: the button the player clicked next, through the dispatcher */
         if (s_mouse_x >= 0) {
             setD32(0xE1628u, (uint32_t)s_mouse_x);
             setD32(0xE162Cu, (uint32_t)s_mouse_y);
@@ -152,6 +161,8 @@ int main(int argc, char **argv)
             s_dump_path = argv[++i];
         else if (strcmp(argv[i], "--map-state") == 0 && i + 1 < argc)
             s_map_state = argv[++i];
+        else if (strcmp(argv[i], "--overview") == 0)
+            s_overview = 1;
         else if (strcmp(argv[i], "--press") == 0 && i + 1 < argc)
             s_press = (int)strtol(argv[++i], NULL, 0);
         else if (strcmp(argv[i], "--mouse") == 0 && i + 2 < argc) {

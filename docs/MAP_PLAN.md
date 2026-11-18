@@ -98,7 +98,7 @@ in protected mode after int 21h AH=2Ch. Data dumps go through tools/verify/dscom
 - **START** (needs readers first).
   - Frame after the nation choice: "Player One place your token in a starting territory".
   - Data at the next main breakpoint after 0x454D0. 0x6B9AC uses game_rand.
-- **PANEL.**
+- **PANEL.** Player buttons and the overview DONE 2026-11-18 (V, OVERVIEW §5); the ship panel waits for a MOVEMENT save.
   - Restore R4, then click the player buttons 9..0x10: status panel + map centred. Compare the panel rectangle
     (0x3C..0x9A, 0x162..0x1C5) and the map window.
   - ZOOM (0x25): full-screen overview frame (0x3E374).

@@ -35,8 +35,8 @@
      INFO  : 4, 6, 7, 0x103
      MENU1 : 5, 0x52, 0x53
      MENU2 : 8, 0x56, 0xE2
-     PANEL : 9..0x10, 0x25
-     MAP1  : 0x1B..0x24 DONE (2026-11-18), apart from DETAIL while zoomed (0x3E374, PANEL)
+     PANEL : 9..0x10, 0x25 and DETAIL while zoomed DONE (2026-11-18, panel.c)
+     MAP1  : 0x1B..0x24 DONE (2026-11-18)
      MOVE  : 0x26, 0x27, 0x28, 0x2B..0x32, 0xC4..0xC8
      STACK : 0x4F, 0x51, 0x101
      S1    : 0x50
@@ -55,6 +55,9 @@
 #include <stdint.h>
 #include "game.h"
 #include "map.h"
+#include "mapdata.h"
+#include "panel.h"
+#include "save.h"
 
 /* 0x3FB94: the button dispatcher. id = the button's int16 +0x0E, sign-extended by the callers. Returns the code for
    the caller's loop, -100 = nothing to do. */
@@ -62,6 +65,7 @@ int f3FB94(int id)
 {
     int32_t code;
     uint16_t index;
+    int32_t i;                                  /* [ebp-0x40] (case 0x25) */
 
     code = -100;                                /* 0x3FBAC mov [ebp-0x3C], 0xFFFFFF9C */
     index = (uint16_t)((uint32_t)id - 3u);      /* 0x3FBB3 mov eax, [ebp-0x1C]; sub eax, 3 */
@@ -129,37 +133,85 @@ int f3FB94(int id)
            0x7ABD0, the same frees as 0x51, f3C7A0([0xF8E78]), longjmp(0xF58A0) (S1) */
         not_ported(0x3FEA0u);
     case 0x09:  /* -> 0x3FF87 */
-        /* player button 0: n = int16 [0xF06B0]; int16 [0x107690] == 0: 0x459E4(n), 0x3D9FC(n), f3CBBC; else
-           0x3E374(n); -100 (PANEL) */
-        not_ported(0x3FF87u);
+        /* player button 0: n = int16 [0xF06B0] (dword [0xF06AE] sar 16) */
+        if (D16(0x107690u) == 0) {              /* 0x3FF87 cmp word [0x107690],0; jne 0x3FFBD: not zoomed */
+            f459E4((int)S16(0xF06B0u));        /* 0x3FF99 the nation's status panel (panel.c) */
+            f3D9FC((int)S16(0xF06B0u));        /* 0x3FFA6 its home view (mapdata.c) */
+            f3CBBC();                           /* 0x3FFAB the lower panel to the screen */
+            return code;                        /* 0x3FFB0 -100 */
+        }
+        f3E374((int)S16(0xF06B0u));            /* 0x3FFC5 zoomed: the overview as nation n sees it (panel.c) */
+        return code;                            /* 0x3FFCA -100 */
     case 0x0A:  /* -> 0x3FFD7 */
-        /* player button 1: n = int16 [0xF06B2]; int16 [0x107690] == 0: 0x459E4(n), 0x3D9FC(n), f3CBBC; else
-           0x3E374(n); -100 (PANEL) */
-        not_ported(0x3FFD7u);
+        /* player button 1: n = int16 [0xF06B2] (dword [0xF06B0] sar 16) */
+        if (D16(0x107690u) == 0) {              /* 0x3FFD7 cmp word [0x107690],0; jne 0x4000D: not zoomed */
+            f459E4((int)S16(0xF06B2u));        /* 0x3FFE9 the nation's status panel (panel.c) */
+            f3D9FC((int)S16(0xF06B2u));        /* 0x3FFF6 its home view (mapdata.c) */
+            f3CBBC();                           /* 0x3FFFB the lower panel to the screen */
+            return code;                        /* 0x40000 -100 */
+        }
+        f3E374((int)S16(0xF06B2u));            /* 0x40015 zoomed: the overview as nation n sees it (panel.c) */
+        return code;                            /* 0x4001A -100 */
     case 0x0B:  /* -> 0x40027 */
-        /* player button 2: n = int16 [0xF06B4]; int16 [0x107690] == 0: 0x459E4(n), 0x3D9FC(n), f3CBBC; else
-           0x3E374(n); -100 (PANEL) */
-        not_ported(0x40027u);
+        /* player button 2: n = int16 [0xF06B4] (dword [0xF06B2] sar 16) */
+        if (D16(0x107690u) == 0) {              /* 0x40027 cmp word [0x107690],0; jne 0x4005D: not zoomed */
+            f459E4((int)S16(0xF06B4u));        /* 0x40039 the nation's status panel (panel.c) */
+            f3D9FC((int)S16(0xF06B4u));        /* 0x40046 its home view (mapdata.c) */
+            f3CBBC();                           /* 0x4004B the lower panel to the screen */
+            return code;                        /* 0x40050 -100 */
+        }
+        f3E374((int)S16(0xF06B4u));            /* 0x40065 zoomed: the overview as nation n sees it (panel.c) */
+        return code;                            /* 0x4006A -100 */
     case 0x0C:  /* -> 0x40077 */
-        /* player button 3: n = int16 [0xF06B6]; int16 [0x107690] == 0: 0x459E4(n), 0x3D9FC(n), f3CBBC; else
-           0x3E374(n); -100 (PANEL) */
-        not_ported(0x40077u);
+        /* player button 3: n = int16 [0xF06B6] (dword [0xF06B4] sar 16) */
+        if (D16(0x107690u) == 0) {              /* 0x40077 cmp word [0x107690],0; jne 0x400AD: not zoomed */
+            f459E4((int)S16(0xF06B6u));        /* 0x40089 the nation's status panel (panel.c) */
+            f3D9FC((int)S16(0xF06B6u));        /* 0x40096 its home view (mapdata.c) */
+            f3CBBC();                           /* 0x4009B the lower panel to the screen */
+            return code;                        /* 0x400A0 -100 */
+        }
+        f3E374((int)S16(0xF06B6u));            /* 0x400B5 zoomed: the overview as nation n sees it (panel.c) */
+        return code;                            /* 0x400BA -100 */
     case 0x0D:  /* -> 0x400C7 */
-        /* player button 4: n = int16 [0xF06B8]; int16 [0x107690] == 0: 0x459E4(n), 0x3D9FC(n), f3CBBC; else
-           0x3E374(n); -100 (PANEL) */
-        not_ported(0x400C7u);
+        /* player button 4: n = int16 [0xF06B8] (dword [0xF06B6] sar 16) */
+        if (D16(0x107690u) == 0) {              /* 0x400C7 cmp word [0x107690],0; jne 0x400FD: not zoomed */
+            f459E4((int)S16(0xF06B8u));        /* 0x400D9 the nation's status panel (panel.c) */
+            f3D9FC((int)S16(0xF06B8u));        /* 0x400E6 its home view (mapdata.c) */
+            f3CBBC();                           /* 0x400EB the lower panel to the screen */
+            return code;                        /* 0x400F0 -100 */
+        }
+        f3E374((int)S16(0xF06B8u));            /* 0x40105 zoomed: the overview as nation n sees it (panel.c) */
+        return code;                            /* 0x4010A -100 */
     case 0x0E:  /* -> 0x40117 */
-        /* player button 5: n = int16 [0xF06BA]; int16 [0x107690] == 0: 0x459E4(n), 0x3D9FC(n), f3CBBC; else
-           0x3E374(n); -100 (PANEL) */
-        not_ported(0x40117u);
+        /* player button 5: n = int16 [0xF06BA] (dword [0xF06B8] sar 16) */
+        if (D16(0x107690u) == 0) {              /* 0x40117 cmp word [0x107690],0; jne 0x4014D: not zoomed */
+            f459E4((int)S16(0xF06BAu));        /* 0x40129 the nation's status panel (panel.c) */
+            f3D9FC((int)S16(0xF06BAu));        /* 0x40136 its home view (mapdata.c) */
+            f3CBBC();                           /* 0x4013B the lower panel to the screen */
+            return code;                        /* 0x40140 -100 */
+        }
+        f3E374((int)S16(0xF06BAu));            /* 0x40155 zoomed: the overview as nation n sees it (panel.c) */
+        return code;                            /* 0x4015A -100 */
     case 0x0F:  /* -> 0x40167 */
-        /* player button 6: n = int16 [0xF06BC]; int16 [0x107690] == 0: 0x459E4(n), 0x3D9FC(n), f3CBBC; else
-           0x3E374(n); -100 (PANEL) */
-        not_ported(0x40167u);
+        /* player button 6: n = int16 [0xF06BC] (dword [0xF06BA] sar 16) */
+        if (D16(0x107690u) == 0) {              /* 0x40167 cmp word [0x107690],0; jne 0x4019D: not zoomed */
+            f459E4((int)S16(0xF06BCu));        /* 0x40179 the nation's status panel (panel.c) */
+            f3D9FC((int)S16(0xF06BCu));        /* 0x40186 its home view (mapdata.c) */
+            f3CBBC();                           /* 0x4018B the lower panel to the screen */
+            return code;                        /* 0x40190 -100 */
+        }
+        f3E374((int)S16(0xF06BCu));            /* 0x401A5 zoomed: the overview as nation n sees it (panel.c) */
+        return code;                            /* 0x401AA -100 */
     case 0x10:  /* -> 0x401B7 */
-        /* player button 7: n = int16 [0xF06BE]; int16 [0x107690] == 0: 0x459E4(n), 0x3D9FC(n), f3CBBC; else
-           0x3E374(n); -100 (PANEL) */
-        not_ported(0x401B7u);
+        /* player button 7: n = int16 [0xF06BE] (dword [0xF06BC] sar 16) */
+        if (D16(0x107690u) == 0) {              /* 0x401B7 cmp word [0x107690],0; jne 0x401ED: not zoomed */
+            f459E4((int)S16(0xF06BEu));        /* 0x401C9 the nation's status panel (panel.c) */
+            f3D9FC((int)S16(0xF06BEu));        /* 0x401D6 its home view (mapdata.c) */
+            f3CBBC();                           /* 0x401DB the lower panel to the screen */
+            return code;                        /* 0x401E0 -100 */
+        }
+        f3E374((int)S16(0xF06BEu));            /* 0x401F5 zoomed: the overview as nation n sees it (panel.c) */
+        return code;                            /* 0x401FA -100 */
     case 0x12:  /* -> 0x40207 */
         code = -0x36;                   /* 0x40207 mov [ebp-0x3C], 0xFFFFFFCA */
         break;
@@ -221,7 +273,8 @@ int f3FB94(int id)
             f3D52C(0, 0);                       /* 0x403F4 */
             return code;                        /* -100 */
         }
-        not_ported(0x3E374u);                   /* 0x4040B 0x3E374([0xF40F8]): the zoomed overview (PANEL) */
+        f3E374(S32(0xF40F8u));                  /* 0x40406 mov eax,[0xF40F8]; 0x4040B zoomed: the overview again (panel.c) */
+        return code;                            /* 0x40410 -100 */
     case 0x101: /* -> 0x4041D */
         /* REPLAY: [0xEDF58] == 0 -> -100; int16 [0x107692] != 0 -> -1 via 0x3FD35; else "Map shows Round %d post
            movement state.": message area resized, "junk" GIF of the strip, f3C828(0xF596C), labels via sprintf
@@ -230,10 +283,32 @@ int f3FB94(int id)
            (0x7ABD0 if it allocated), restore; -100 (STACK) */
         not_ported(0x4041Du);
     case 0x25:  /* -> 0x406E0 */
-        /* ZOOM: int16 [0x107690] != 0 -> -1 via 0x3FD35; else f3CD10, [0xF52D0] = 0, f3C828(0xF596C), label "UN-
-           ZOOM", enable 0x25, 0x24 and 9..9+[0xF40EC]-1, [0x107690] = 1, 0x3E374([0xF40F8]), f78BA4(0xF596C, 0)
-           until -1, [0x107690] = 0, label "ZOOM", f3C7A0, f3CC68, f3D52C(0, 0); -100 (PANEL) */
-        not_ported(0x406E0u);
+        /* ZOOM / UN-ZOOM. While zoomed this case is reached from its own click wait below: UN-ZOOM returns -1,
+           which ends that wait. */
+        if (D16(0x107690u) != 0) {              /* 0x406E0 cmp word [0x107690],0; 0x406E8 jne 0x3FD35 */
+            code = -1;                          /* 0x3FD35 mov [ebp-0x3C], 0xFFFFFFFF */
+            break;
+        }
+        f3CD10();                               /* 0x406EE the screen into the background buffer [0xF52CC] */
+        setD8(0xF52D0u, 0);                     /* 0x406FD xor ch,ch; 0x40704 mov [0xF52D0],ch */
+        f3C828(0xF596Cu);                       /* 0x4070A disable the panel buttons (saved in 0xF8E44) */
+        f3C284(0xF596Cu, 0x25, 0xB404Eu);       /* 0x40714 "UN-ZOOM" (edx 0x25, ebx 0xB404E set at 0x406F8/0x406FF) */
+        f3C314(0xF596Cu, 0x25);                 /* 0x40723 */
+        f3C314(0xF596Cu, 0x24);                 /* 0x40734 DETAIL */
+        for (i = 0; i < S32(0xF40ECu); i++)     /* 0x40739 [ebp-0x40] = 0; 0x40747 cmp [0xF40EC]; jge */
+            f3C314(0xF596Cu, (int16_t)(i + 9)); /* 0x40752 add eax,9; movsx edx,ax; 0x4075F: the player buttons */
+        setD16(0x107690u, 1);                   /* 0x40766 mov esi,1; 0x40770 mov [0x107690],si */
+        f3E374(S32(0xF40F8u));                  /* 0x40777 the overview as the current nation sees it (panel.c) */
+        do                                      /* 0x4077C */
+            code = f78BA4(0xF596Cu, 0);         /* 0x40783; 0x40788 mov [ebp-0x3C],eax */
+        while (code != -1);                     /* 0x4078E cmp edi,-1; jne 0x4077C */
+        setD16(0x107690u, 0);                   /* 0x4079D xor edi,edi; 0x407A4 */
+        f3C284(0xF596Cu, 0x25, 0xB4056u);       /* 0x407AB "ZOOM" */
+        f3C7A0(0xF596Cu);                       /* 0x407B5 the panel buttons as they were, in the back buffer */
+        f3CC68();                               /* 0x407BA the background buffer (the screen grabbed above) */
+        f3D52C(0, 0);                           /* 0x407C3 redraw the map window */
+        code = -100;                            /* 0x407C8 mov [ebp-0x3C], 0xFFFFFF9C */
+        return code;                            /* 0x407CF */
     case 0x26:  /* -> 0x407DC */
         /* LAND: f3B9A4(0xF596C, 0x26) != 0 -> -100; else 0x26 pressed (f3B7CC), byte [0x108804] = 1, [0xF06CC] =
            0, 0x572CC([0x109E10]) (count buttons), 0x27 up (f3B870), f3CBBC; -3 (MOVE) */
