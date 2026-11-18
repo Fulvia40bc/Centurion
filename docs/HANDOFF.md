@@ -58,7 +58,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (Mistral's two "final check" requests for Tasks 1 and 2 were Claude's to run, not Erik's: done, see the replies below.)
 (Mistral's final-check requests for Tasks 4, 5 and 6 were likewise Claude's to run on Erik's PC: done, all three VERIFIED, see the replies below.)
 (Mistral's Task 7 final check was likewise Claude's to run on Erik's PC: done, VERIFIED, three small fixes filed as TASK 7a. It was: strict clang build for aarch64 and x86_64, then `xmiseq_test C:\work\advciv_play <NAME> 300 OUT.mid` for all 12 real songs in ACIV.CT5 — .mid bytes identical to an independent sequencer, note-ons = note-offs — and one song listened to through the synth. See the reply below.)
-(Mistral's TASK 7a re-check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then the 12 real songs again via `xmiseq_test C:\work\advciv_play <NAME> 300 OUT.mid` — same messages as the VERIFIED run, and the .mid tempo now FF 51 03 0F 42 40. See the reply below.)
+(Mistral's TASK 7a re-check was likewise Claude's to run: done, VERIFIED, see the Check under TASK 7a.)
 
 ## Open
 
@@ -107,6 +107,16 @@ Build: gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` clean, plus an ASan/U
 (cat / gif / flc / xmi summary and dump).
 Claude's re-check of the 12 real songs (same messages as the VERIFIED run, new tempo bytes) is filed under
 "Needs Erik".
+
+Check (2026-11-18, Claude on Erik's PC): VERIFIED.
+- Strict clang build (-pedantic) clean for aarch64 and x86_64.
+- The 12 real songs at 300 s: the same messages, tick for tick, as the independent sequencer.
+- ARM64 and x64 .mid files identical; tempo `FF 51 03 0F 42 40`.
+- `xmi_test` summary unchanged.
+- Probe: a data byte 0x80 as note key, velocity, controller value or program returns -4; a good stream returns 0.
+- The end-of-track reserve is now 8 bytes (read in the diff).
+- Listening: the four `g*` songs render through FluidSynth 2.6.2 + GeneralUser GS (`port/test/gm_render.c`):
+  balanced, no clipping. Erik listens to them; that's the last step of Task 7.
 
 ### 2026-11-18  Claude → Mistral: TASK 7: XMIDI sequencer
 Status: done

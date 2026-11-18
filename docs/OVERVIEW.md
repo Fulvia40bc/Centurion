@@ -141,7 +141,7 @@ verify against the original in DOSBox-X. Each module lands with its checks; 1990
 | # | Module | Verified by |
 |---|---|---|
 | M0 | Tooling: recursive disassembler (entry + calls + fixups; jump tables), function list named from the trace strings; DOSBox-X profile for the game (S3 SVGA, XMS, DOS/4GW); protected-mode memory dumps (find the load base of object 2 by its first bytes, then dump it linearly); frame capture at 640x480 | listing covers every call target with 0 overlaps; a dump of the data object matches `obj2.bin`'s initialised bytes at start-up |
-| M1 | Platform layer: **SDL3** (window with scaling, keyboard/mouse/pen/touch, audio stream mixing FluidSynth, the FM synth and the WAVs) behind a `platform.h` like Centurion's; headless `--dump-frame`. Builds for ARM64 and x86_64 Windows with llvm-mingw (SDL3 built from source with CMake, as FluidSynth); Mac and Linux possible later | builds both; headless run writes frames |
+| M1 | Platform layer: **SDL3** (window with scaling, keyboard/mouse/pen/touch, audio stream mixing FluidSynth, the FM synth and the WAVs) behind a `platform.h` like Centurion's; headless `--dump-frame`. Builds for ARM64 and x86_64 Windows with llvm-mingw (SDL3 3.4.20 built from source by `tools/build_deps.ps1`: the official mingw package has no ARM64 build); Mac and Linux possible later | builds both; headless run writes frames |
 | M2 | Assets: catalog reader, GIF decoder, palette from PAL.PAL, FLC player, HLP text, fonts | each title/screen GIF pixel-for-pixel vs a DOSBox-X capture; FLC frames likewise |
 | M3 | Fastgraph subset: identify each fg_ routine the game calls (≈80 G), implement those | frame diffs of the first screens = 0 px |
 | M4 | UI kit (0x38000-0x3FFFF) + the map: zoom levels, borders, tokens, cities | map screen of the R4 autosave in the originals = 0 px |
@@ -242,11 +242,18 @@ Centurion `docs/HANDOFF.md` protocol, with a `docs/HANDOFF.md` here).
      - Synth: **FluidSynth** (LGPL-2.1; linked as a DLL to keep within the LGPL).
        - It has reverb and chorus: the `g*` songs set both sends (controllers 91, 93). They also use GS bank select
          (0/32), NRPN (98/99/6) and controller 70 (D, the event dumps).
-       - 2.5.0 drops GLib (needs C++17); llvm-mingw has clang++ for ARM64 and x64. CMake isn't installed yet (pip).
+       - BUILT 2026-11-18: FluidSynth 2.6.2 (no GLib since 2.5, osal cpp11, every audio/MIDI driver off) as
+         `libfluidsynth-3.dll` for ARM64 and x64, by `tools/build_deps.ps1`. It needs llvm-mingw's `libc++.dll`
+         and `libunwind.dll` next to it.
+       - `port/src/gm_synth.c` connects it to the sequencer: GS bank select, gain 0.6 (the loudest song, GCIVIL2,
+         peaks at -3.4 dBFS).
+       - `port/test/gm_render.c` renders a song to WAV, about 100x real time on the Surface.
+       - ARM64 and x64 renders differ by at most 1 LSB (float rounding), so tests compare MIDI events, not
+         audio.
      - SoundFont: **GeneralUser GS** 2.0.x (S. Christian Collins). Its license allows use in software projects,
        private or commercial, and modifying the bank or its packaging. It needs a synth with full SoundFont 2.01
        modulators; FluidSynth has them, TinySoundFont doesn't fully.
-       - Not in git: a fetch script with a hash, like the toolchain.
+       - Not in git: `tools/build_deps.ps1` fetches it at a pinned commit and SHA-256.
        - A player's own `.sf2` in the game folder takes precedence.
    - Order: General MIDI first (sequencer = Mistral Task 7, FluidSynth glue = Claude), then FM. The FM part is one
      driver logic for `f*` (OPL2) and `s*` (OPL3 stereo).
