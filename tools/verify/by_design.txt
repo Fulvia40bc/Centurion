@@ -1,7 +1,7 @@
 # Data-object ranges that differ between a DOSBox-X dump and the port by design (dscompare.py's third argument).
 # ADDR LEN reason. Established 2026-11-18 on the new-game dump at main 0x1184F (OVERVIEW §5, M4 loading check).
 CAC68 0x10698 library data: AIL 3.03, Fastgraph 4.04 and the Watcom runtime (the port's libraries keep their own state); game code writes only 0xCAC60/0xCAC64 here
-E1628 5 mouse position and buttons
+E1628 0xC mouse position and buttons (three dwords)
 F40BE 1 titles flag: the port starts as with /NT (no intro yet)
 F422C 4 _dos_gettime result (the clock)
 F48A4 0x98C sprite records: the +0 pixel pointers are port handles

@@ -327,6 +327,26 @@ START A NEW GAME and START GAME.
   - the stack.
 - `tools/verify/dsclassify.py` sorts differences by whether game or library code references them.
 
+**M4, module N1: the nation choice for human players (2026-11-18 evening).** `choose.c` (0x2EFA0, 0x2F9F8, 0x2FC04,
+0x300E0) and `ui_kit2.c` (0x3AB7C, 0x3A9F4, 0x3AF54, 0x79A9C, 0x78A20, 0x3C940, 0x3C7A0), translated and reviewed in a
+workflow (plan: docs/MAP_PLAN.md; inventory of the 115 functions under 0x2EFA0: docs/INVENTORY_2EFA0.json). The AST
+button (0x136B0) and the computer nations (0x302C4) stop with `not_ported()` until N2/N3.
+- **Check (V):** setup defaults (3 humans). The clicks: START A NEW GAME, START GAME; SELECT; right arrow, left
+  arrow; SELECT; SELECT.
+  - Frames F1 ("Player One choose your nation"), F4 ("Player Two"), F2b/F3b (after the arrows) and F5
+    ("Player Three") equal the DOSBox-X captures: **0 px each**, Fastgraph's pointer at (320,240) included, on ARM64
+    and x64.
+  - Memory at main 0x11854 (the return of 0x2EFA0), same seed (`--seed 3D0F2338`): **0 unexplained bytes**; the
+    final seed is identical.
+- **Clicks without focus (`tools/dosbox/pokeclick.sh`):** the desktop was locked that evening. The script breaks in
+  through DOSBox-X's menu ("Start DOSBox-X Debugger"), stops in protected mode on the loop's mouse call
+  (`BPINT 33 00 03`: AH then AL), then at the loop's `cmp [0xE1630],0`, and writes x, y and button into
+  0xE1628..0xE1633 (`SM`, every byte with a leading 0: the debugger reads "AC" as the alignment flag).
+  - Raw screenshots need the emulation running for a frame: take them after F5.
+  - Posting window messages to DOSBox-X does nothing: SDL ignores them.
+- The next screen, captured for module START: "AFRICA place your token in a starting territory" on the zoomed map
+  with the full game panel.
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 

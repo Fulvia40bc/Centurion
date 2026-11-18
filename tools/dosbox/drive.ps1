@@ -72,6 +72,13 @@ public class D {
     var seen = new List<string>(); uint id = FindItem(m, text, seen);
     if (id == 0 || id == 0xFFFFFFFF) return "menu item not found: " + text + " (items: " + string.Join(" | ", seen) + ")";
     PostMessage(win, 0x0111, (IntPtr)id, IntPtr.Zero); return "menu: " + text + " (id " + id + ")"; }
+  // A left click by posting the window messages (no focus, no real cursor). Tried 2026-11-18: DOSBox-X (SDL)
+  // ignores posted mouse messages, so it does nothing there; use pokeclick.sh. x, y: client pixels.
+  public static void PostClick(IntPtr win, int x, int y) {
+    IntPtr lp = (IntPtr)((y << 16) | (x & 0xFFFF));
+    PostMessage(win, 0x0200, IntPtr.Zero, lp); System.Threading.Thread.Sleep(120);
+    PostMessage(win, 0x0201, (IntPtr)1, lp); System.Threading.Thread.Sleep(120);
+    PostMessage(win, 0x0202, IntPtr.Zero, lp); }
   public static string DbgScreen(uint pid) {
     IntPtr h = Con(pid, "CONOUT$"); byte[] info = new byte[22]; GetConsoleScreenBufferInfo(h, info);
     int w = BitConverter.ToInt16(info,0), top = BitConverter.ToInt16(info,12), bot = BitConverter.ToInt16(info,16);
@@ -124,5 +131,6 @@ switch ($Action) {
   'dbgkey' { [D]::DbgType($pid_, '', [uint16]$vk[$A1]); Start-Sleep -Milliseconds 800; "dbgkey $A1" }
   'dbgscreen' { [D]::DbgScreen($pid_) }
   'menu' { [D]::Menu($game, $A1) }
+  'postclick' { $c = ClientRect; [D]::PostClick($game, [int](([double]$A1 + 0.5) * $c.W / 640), [int](([double]$A2 + 0.5) * $c.H / 480)); "posted click $A1,$A2" }
   default { throw "unknown action $Action" }
 }

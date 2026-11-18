@@ -258,4 +258,89 @@ uint8_t *load_heap_ptr(uint32_t handle, uint32_t n);  /* n bytes at the handle, 
 void     load_heap_free(uint32_t handle);
 int ds_dump(const char *path);         /* port: write the data object, DS_SIZE bytes from link address DS_BASE, to the file path; 0 ok, -1 on error */
 
+/* ---- Nation choice, human players (module N1 of MAP_PLAN.md: 0x2EFA0 and its helpers) --------------------------
+
+   Main calls 0x2EFA0 at 0x1184F, after the loading step above, and it returns to 0x11854 (the data-compare point).
+   Data the choice uses (D, read in the code at the addresses given; obj2 = the initial data in disasm/le/obj2.bin):
+     0xC0794  10 records of 14 bytes, record v at 0xC0794 + 14*v (lea 7v, then *2: 0x2F111): int32 count, uint8
+              nations[10]. nations[0] is 0 in all ten and is dropped after the copy (0xF7B00). obj2, nations after the
+              0: v0 1-4; v1, v2 1-5; v3 6-9; v4 1-6; v5 1, 5-9; v6, v7, v8 1-9; v9 1-7, 9 (count = these + 1)
+     0xF7C78  int32 v (0x2F09B..0x2F10B): [0xF40F0] - 2; if [0xF40F0] >= 6: + 2, then 9 if bit 0x02 of word
+              [0xE1624] (shl 0xE, shr ax 0xF) is set and [0xF40F0] == 6; else if [0xF40F0] >= 4: + 1 if that bit is
+              clear, + 1 if [0xF40F0] == 5. (Bit 0x02: set by START GAME when the total > 3, ui.h.)
+     0xF7B00  14 bytes: record v copied (3 movsd + movsw, 0x2F128); then byte 0xF7B04[i] = 0xF7B05[i] for i < count - 1
+              and count - 1 (0x2F13D..0x2F172): the list without its 0 (the last old byte stays). 0x2F9F8 reads the
+              count and int8 0xF7B04[i] (dword [i + 0xF7B01] sar 24, 0x2FAD6)
+     0xF7C9C  int32 count, 0xF7CA0 int32[9]: the candidates, 0xF7CA0[i] = int8 0xF7B04[i] for i < [0xF7B00] (0x2F1C7..
+              0x2F1E0: [4*(count+1) + 0xF7C9C]). SELECT removes entry idx: shift down, count - 1 (0x2F7EF..0x2F864). Other
+              code uses the same list and clamp (0x79A9C callers 0x24E59, 0x28CAA, 0x2C13F, 0x5CCE3; 0x61E62 reads
+              0xF7CA0; G: a general choice list)
+     0xF7C00  uint32 heap block: the zoom map GIF, name [0xC1A38 + 4*[0xF40F0]] (zoom3/4/5/6.gif, zoom78.gif for 7 and
+              8; obj2), from ACIV.CT1 [0xF40D4]; 0xF7C04 uint16 its size (cat_size's low word, 0x2FA29)
+     0xF7C08  uint32[9] heap blocks: candidate i's "<ch_ name>.gif" (sprintf "%s.gif" of [0xC1494 + 4n], 0x2FAE6);
+              0xF7C2C uint16[9] their sizes
+     0xF7C40  uint32[9] heap blocks: candidate i's "<cv_ name>.gif" ([0xC14BC + 4n], 0x2FB86); 0xF7C64 uint16[9] sizes
+              0x2F9F8 zeroes all 9 slots and sizes first. Slot i = candidate i: SELECT frees slot idx (0x2F7C7, 0x2F7D6),
+              shifts slots and sizes with the list, zeroes slot [count] (0x2F879, 0x2F880); the end frees and zeroes
+              the map and every non-zero slot (0x2F93E..0x2F9BA). So 0xF7C00, 0xF7C08[9] and 0xF7C40[9] are 0 again at
+              0x11854 (D); the size words keep their values.
+     0xC1494  uint32[10] -> the ch_ picture names, 0xC14BC uint32[10] -> the cv_ names (literals 0xB39CB.. and
+              0xB3A1A..; [0] = ""). 0x2FC04 strcpy's INTO the literals of ch_ slots 1, 2, 7, 9 and cv_ slots 1, 2, 3, 5,
+              7, 9 (inline copy loops; each new name fits the one it replaces): writes in g_ds, DP(D32(0xC1498)) etc.
+     0xC14E4  int16[10][4] {x, y, w, h}: nation n's card rectangle at 0xC14E4 + 8n (read as dword [8n + 0xC14E2],
+              [+0xC14E4], [+0xC14E6], [+0xC14E8] sar 16, 0x2F2D1..0x2F428). Card drawn at (x + 8, y + 6) (the map
+              margin), copied with fg_vbtccopy(x+8, x+8+w-1, y+6, y+6+h-1, x+8, y+6+h-1, [0xF52CC], [0xF52C8]).
+              0x2FC04 rewrites n = 1 (0xC14EC..0xC14F2), 2 (0xC14F4..), 7 (0xC151C..), 9 (0xC152C..0xC1532)
+     0xC076C, 0xC0780  int16[10] x, y of nation n's 35x35 token, sprite 0xF4A5C + 8n, drawn for n 1..9 with nation
+              byte +0x9A != 0 (0x2F459..0x2F48F, 0x2F8CA..0x2F900)
+     0xC768C  uint32[] -> nation names ([0] "", 1 "AFRICA" .. 9 "EGYPT"), centred in the sunken box (0x109, 0x185,
+              0x6E, 0x13) at y 0x189 (f3A0B0, 0x2F4DB)
+     0xC08AC  uint32[9] -> "Zero" .. "Eight", the %s of "Player %s choose your nation" (0xB378D, 0x2F25F)
+     Player records 0xF40E4 + 32p, 1-based: SELECT sets byte +0 = the nation for p = 1..[0xE1620] (0x2F72A; G: the
+              computer players follow, 0x302C4). p = 0 would be 0xF40E4 itself, ACIV.CT5's handle; 0x12C38's
+              [0xF4104 + 32*p] is the same record with p from 0.
+     Nation byte +0x9A (0xF1566 + 199n): SELECT writes 3 (human, 0x2F7B6); != 0 counts as taken (token drawn)
+     Dialog 0xC08D0 (obj2, 4 records): 0x39 left arrow (251,389, 13x19, style 2), 0x3A right arrow (376,389, 13x19,
+              style 2), 0x58 SELECT (251,409, 138x19), 3 AST (251,429, 138x19); the arrows' pictures are the sprites
+              0xF51AC / 0xF51B4 drawn at (0xFB, 0x185) / (0x178, 0x185) (0x2F178, 0x2F18C). 0x2EFA0 hit-tests it by
+              hand (0x2F525..0x2F59B): int16 count [0xC08D0], enabled byte == 1, x <= [0xE1628] < x + w, y <=
+              [0xE162C] < y + h; then f3C5D4(0xC08D0, id) and f300E0(id)
+     Also written by 0x2EFA0: int16 0xBB3FA, 0xBB3FC, 0xBB3FE, 0xBB400 = 169, 340, 300, 35 (the message area, 0x2EFD1);
+              int8 0xEE168 = 6 (0x2F017; G: the picture shown); int8 0xF52D0 = 0 (0x2F34F: the background buffer no
+              longer holds a clean picture, so f3CD6C reloads it)
+   Heap pointers the choice keeps in 32-bit data fields (port handles: load_heap_alloc / load_heap_ptr / load_heap_free
+   as gfxload.c; ui_sprite_put / ui_sprite_pixels for sprite records):
+     0xF7C00, 0xF7C08[9], 0xF7C40[9] (malloc 0x2FA34, 0x2FB25, 0x2FBC6; free above). 0 at 0x11854, as said.
+     +0 of 0x2EFA0's local sprite record [ebp-0x34] (8 bytes on its stack): f3AE90 0x2F05B (the message area of
+       [0xF52CC]), f3AF8C 0x2F29F, f3AF54 0x2F932. The ui.h routines take link addresses, so the port needs the record
+       at one (G: port design, e.g. 8 bytes of the stack range 0x121C00..0x122BFF that by_design.txt excludes), with
+       +0 cleared before f3AE90: a stale value of 1..UI_SPR_MAX would make ui_sprite_put reuse another record's slot.
+     [0xF522C] (read only, 0x2F91B and 0x30116): ui_screen.c's ui_heap_F522C (extern in title.c, not in ui.h).
+   Pictures from memory: the original sets a block with 0x8240F and calls fg_showgif(an empty string: 0xB378C, 0xB37AA,
+   0xB37AB, 0xB37AC, 0xB37AD, 7): flags 4 = from the fg_imagebuf buffer, 2 = at the cursor (fg_move before), 1 = keep
+   the palette. In the port, ui.h's f8240F only writes the size into the data object, and fg.c's fg_showgif reads the
+   buffer fg.h's fg_imagebuf was given. So where the original calls 0x8240F with a block, the translation calls
+   fg_imagebuf(load_heap_ptr(block, size), size) (and f8240F for the data fields, G); at 0x2F91B and 0x30116 both get
+   ui_heap_F522C, 0xFF00, so fg.c keeps no pointer to a freed card block.
+   Runtime calls (Watcom C runtime -> standard C): 0x7DB3D sprintf; 0x822B5 malloc (load_heap_alloc for these fields);
+   0x877E6 free (load_heap_free; for a sprite record free(ui_sprite_pixels(spr))); 0x8A080 clock (Watcom: hundredths of
+   a second since start-up, CLOCKS_PER_SEC 100, LIBRARY_CALLS.md) -> clock() converted to hundredths (clock() * 100 /
+   CLOCKS_PER_SEC, G). A headless run must not wait in f78A20 (MAP_PLAN.md risk 3; fg.c's fg_waitfor returns at once
+   when headless). Catalog: cat_size 0xA24A7, cat_load 0xA25B3 (fg.h).
+   Not ported yet: 0x136B0 (the AST chart: 0x300E0 for button 3, 0x3012F) and 0x302C4 (the computer nations: 0x2EFA0
+   at 0x2F9DE when [0xE1621] > 0). Their call sites call not_ported(addr). */
+
+void f2EFA0(void);                     /* D: the nation choice (choose.gif, f3CD6C(6)): the message area saved in a local sprite, list v and the candidates (above), f2FC04, f2F9F8, the zoom map from memory at (8, 6); for p = 1..[0xE1620] "Player %s choose your nation" (f3AB7C) and the loop over the candidates (arrows -9/-10 move idx with the cv_ card drawn back, SELECT -16 takes it, -100 redraws); then the taken tokens, f3CC14 and f78A20(750) if there are humans; clean-up; with [0xE1621] > 0: f3CC14, f3C940(0xC08D0), f302C4, f3C7A0(0xC08D0). Its caller main 0x1184F ignores eax (0x6B9AC takes no argument) */
+void f2F9F8(void);                     /* D: load from ACIV.CT1 [0xF40D4] the zoom map into [0xF7C00] (size word 0xF7C04), zero the 9 slots of 0xF7C08/0xF7C2C and of 0xF7C40/0xF7C64, then for i < [0xF7B00] the ch_ GIFs, then the cv_ GIFs (cat_size, malloc of the low word, cat_load). One caller (0x2F1E7) */
+void f2FC04(void);                     /* D: the picture names and card rectangles for [0xF40F0] players (strcpy into the literals, int16 writes; above): 3 players af3, italy, ill3, cret3, else af48, ibera, illy, crete; 4: cv_cret3; 5 or 6: ass56, else ass78; 6: egy6, else egy78. One caller (0x2F12D) */
+int  f300E0(int id);                   /* D: the choice dialog's button id -> code (16-bit unsigned compares): 0x39 -> -9, 0x3A -> -10, 0x58 -> -16; 3: f8240F([0xF522C], 0xFF00), f136B0(1) (port: not_ported(0x136B0)), f3CC14, f3CD6C(6), -100; else -100. id = the record's int16 +0x0E (sar 16) */
+void f3AB7C(const char *text);         /* D: message box sized to its text, centred in the area 0xBB3FA..0xBB400 (w - 10 for the wrapping, align 2 = centred in both f3A42C calls), in the back buffer [0xF52C8] (fg_vbopen/vbclose): fill 13, boxes 4 (and at inset 2) and 14 (inset 1), text colour 5. Callers pass caller stack buffers (0x2F2A9) and data strings (0x2B220), so a C pointer; none reads eax (12 call sites) */
+void f3A9F4(const char *text);         /* D: as f3AB7C with align 0 (left) in both f3A42C calls. Callers pass data strings (0xF5500, 0x1D8EC) and stack buffers; eax unused after the 34 call sites (a few are tail positions, G) */
+void f3AF54(uint32_t spr);             /* D: if word [spr+4] != 0: free([spr]) (0x3AF7A), word [spr+4] = 0; +0 and +6 untouched. Callers: 0x121A0's 28 records in 0xF48A4..0xF522F (by_design.txt) and 0x2EFA0's stack record. Port (G): free(ui_sprite_pixels(spr)), ui_sprite_put(spr, NULL) and +0 = 0, so the freed slot cannot alias two records later; the original's dangling +0 is a by-design byte range anyway */
+void f79A9C(int32_t *p);               /* D: clamp *p: if [0xF7C9C] <= *p then *p = [0xF7C9C] - 1; then if *p < 0, *p = 0 (signed). Unusual prologue (push 0x10, __CHK, push edx, push ebp). All 9 callers pass a caller's stack int32 (lea; 0x62835 forwards one), hence a C pointer; void (no caller reads eax; 0x62835 is a tail position, G) */
+void f78A20(int t);                    /* D: busy wait: start = clock(); loop while (unsigned) start + (t / [0xBB3F4]) / 10 > clock() (signed idiv twice, 0x78A49, 0x78A58). [0xBB3F4] = 1 (obj2), 10 with the /C switch (0x10494, "Continuous testing", OVERVIEW §6). So t ms in Watcom's hundredths and the DOS clock's ~55 ms steps. eax at the return is clock()'s; no caller reads it (89 call sites; 6 tail positions, G) */
+void f3C940(uint32_t dlg);             /* D: disable a dialog, saving its state: mouse hidden (f78884); for i < int16 [dlg]: int8 0xF8E44[i] = byte [dlg + 20i + 0x12], that byte = 0, redraw record i (f3B4E0(dlg + 2 + 20i), active surface); f788AC. dlg + 20i + 0x12 is record i's +0x10, the ENABLED byte (not +0x12 pressed as INVENTORY_2EFA0.json says; ui.h's name UI_SAVED_PRESSED notwithstanding) */
+void f3C7A0(uint32_t dlg);             /* D: undo f3C940: fg_vbopen([0xF52C8]); for i < int16 [dlg]: byte [dlg + 20i + 0x12] (record i's enabled byte) = 0xF8E44[i], f3B4E0(dlg + 2 + 20i); fg_vbclose. No mouse hiding */
+_Noreturn void not_ported(uint32_t addr);  /* port (choose.c): prints "advciv: 0xADDR is not ported yet" (addr in hex, e.g. 0x136B0) and ends the program through plat_shutdown and exit(3); the call sites of 0x136B0 and 0x302C4 call it until those are translated */
+
 #endif

@@ -20,6 +20,7 @@ static int s_pointer_x = -1, s_pointer_y = -1;
 static const char *s_dump_path;
 static uint32_t s_seed;
 static int s_use_seed;
+static int s_dump_early;
 
 /* --click X Y (repeatable, headless): each is a press for one input poll, then a release; after the last one the
    frame is saved once the game has polled input a few more times (its screen is drawn before it waits) */
@@ -82,6 +83,8 @@ int main(int argc, char **argv)
         }
         else if (strcmp(argv[i], "--dump-ds") == 0 && i + 1 < argc)
             s_dump_path = argv[++i];
+        else if (strcmp(argv[i], "--dump-at-1184F") == 0)
+            s_dump_early = 1;                         /* stop before the nation choice (the loading check) */
         else if (strcmp(argv[i], "--click") == 0 && i + 2 < argc && s_nclicks < MAX_CLICKS) {
             s_clicks[s_nclicks][0] = atoi(argv[++i]);
             s_clicks[s_nclicks][1] = atoi(argv[++i]);
@@ -122,11 +125,13 @@ int main(int argc, char **argv)
         if (rc != -0x45)
             break;
         if (title_newgame() != 0) {
-            rc = game_load(s_seed, s_use_seed);       /* main 0x114CF..0x1184A, up to the game loop 0x2EFA0 */
+            rc = game_load(s_seed, s_use_seed);       /* main 0x114CF..0x1184A */
+            if (!s_dump_early)
+                f2EFA0();                             /* 0x1184F: the nation choice; returns to 0x11854 */
             if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
                 fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
-            fprintf(stderr, "advciv: new game loaded (%d), seed %08X; the game itself is not ported yet\n", rc,
-                    (unsigned)D32(0xCAC5Cu));
+            fprintf(stderr, "advciv: stopped at main 0x%X (%d), seed %08X; the game itself is not ported yet\n",
+                    s_dump_early ? 0x1184Fu : 0x11854u, rc, (unsigned)D32(0xCAC5Cu));
             plat_shutdown();
             return 0;
         }
