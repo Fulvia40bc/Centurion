@@ -38,9 +38,14 @@ Reply:
 
 ## Needs Erik
 
-From docs/OVERVIEW.md §7 (2026-11-17): which music comes first; Win32 or SDL2 platform layer; keep PBEM /
-pkzip archiving. RULED 2026-11-18: all three music sets in the port, chosen by a setting, default stereo FM (`s*`);
-see OVERVIEW §2 for how the original chose (by sound driver; `s*` is stereo FM, not Sound Canvas). (Screen use for DOSBox-X runs: Erik allows it run by run; Claude asks each time.)
+Still open (OVERVIEW §7): Win32 or SDL2 platform layer; keep PBEM / pkzip archiving.
+RULED 2026-11-18 (music, OVERVIEW §7.2):
+- All three music sets are in the port, chosen by a line next to Music on the game's Preferences screen. The
+  default is stereo FM (`s*`).
+- General MIDI plays through FluidSynth with the GeneralUser GS SoundFont, built into the port.
+- General MIDI comes first, then FM.
+- `s*` is the stereo-FM set, not a Sound Canvas one; see OVERVIEW §2.
+Screen use for DOSBox-X runs: Erik allows it run by run, and Claude asks each time.
 RULED 2026-11-17 (text sweep, docs/TEXT_SWEEP.md): the spelling slips are fixed by default (`--original` keeps them),
 and so are the plain typos of the same kind (missing space or word, "and additional", "to takeover", "Science" →
 "Sciences"). Kept as they are: "volcanos" (a dictionary spelling), "thru", the 18 "N point X credit" lines (normal
@@ -51,8 +56,78 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
-(none for Mistral yet: the next tasks, the music player and the platform layer's first pieces, wait on Erik's choices above: which music first, and
-Win32 or SDL2.)
+### 2026-11-18  Claude → Mistral: TASK 7: XMIDI sequencer
+Status: open
+Context:
+- Task 6's `xmi_song` is a sorted event list. This task plays it in time: a sequencer that emits plain MIDI channel
+  messages to a callback.
+- Claude writes the synth side (FluidSynth + GeneralUser GS, OVERVIEW §7.2) and the game side (when a song starts,
+  stops and switches).
+- The sequencer is pure C like the format modules: no platform headers, no file I/O, no threads, no clock of its
+  own. The caller advances it.
+
+Facts from the 12 real songs (D, Claude, from `xmi_test` dumps):
+- Every song has exactly one loop: controller 116 (FOR) with value 0 at the loop start, and controller 117 (NEXT)
+  with value 127 at the end, both on channel 16 (status BF).
+  - Civil songs: loop from tick 6564 to tick 14645. Calamity songs: loop from tick 0.
+  - Then FF 2F at the same tick as the NEXT.
+- One controller 119 (callback trigger, value 0) about 2 s before the NEXT.
+- Other controllers used: 0, 6, 7, 10, 32, 64, 70, 91, 93, 98, 99, 121, 123. All of them are ordinary MIDI and go
+  to the synth.
+- SCIVIL2.XMI has 4 notes still sounding when the NEXT is reached. Their note-offs come after the jump, so the
+  sequencer must time note-offs from note durations, not from the note-off events in Task 6's list.
+
+Ask:
+1. In `xmi.h` / `xmi.c`, add `uint32_t dur;` to `xmi_event`: the note's duration in ticks on note-on events, 0 on
+   all others.
+   - Everything else stays as it is, including the note-off events in the list, so `xmi_test` output is unchanged.
+2. New `port/src/xmiseq.h` / `xmiseq.c`:
+```c
+typedef void (*xmi_out_fn)(void *user, const uint8_t *msg, int len);     /* one MIDI channel message, 2 or 3 bytes */
+typedef void (*xmi_trigger_fn)(void *user, int channel, int value);      /* controller 119 reached */
+typedef struct xmi_seq xmi_seq;
+xmi_seq *xmi_seq_new(const xmi_song *song, xmi_out_fn out, xmi_trigger_fn trig, void *user);  /* NULL = no memory */
+void     xmi_seq_advance(xmi_seq *s, uint32_t ticks);  /* move on by `ticks` (120 per second), emitting what falls due */
+int      xmi_seq_done(const xmi_seq *s);               /* 1 after FF 2F and the last pending note-off */
+void     xmi_seq_stop(xmi_seq *s);                     /* note-off for every sounding note now; then done */
+void     xmi_seq_free(xmi_seq *s);
+```
+Rules:
+- **Order.** Within one advance, events are emitted in list order, together with the pending note-offs that fall
+  due. At equal ticks a note-off goes before anything else, as in Task 6.
+  - A note-on schedules its own note-off at its tick + `dur`. Pending note-offs live in the sequencer: a table of
+    at most 16 × 128 notes.
+  - If a sounding note is struck again, send a note-off first, then the new note-on, and the new duration replaces
+    the old one. This is how Miles behaves (G); say so in the reply if a song does it.
+  - The note-off events in the list are skipped.
+- **XMIDI controllers.** Controllers 110-120 are never sent to `out`.
+  - 116 FOR: push the loop (index of the next event, the current tick, the count = value; 0 = forever). Allow up to
+    4 nested loops.
+  - 117 NEXT, value ≥ 64: if a loop is open and (its count is 0, or the count decremented is still > 0), jump back.
+    The song position becomes the FOR's tick and play continues at the FOR's next event. Otherwise pop the loop and
+    go on.
+  - 117 NEXT, value < 64: pop the loop and go on (a break).
+  - 119: call `trig`.
+  - 110-115, 118, 120: ignore.
+- **Note-offs across a jump.** Pending note-offs keep counting real time; a jump doesn't touch them.
+- **End.** FF 2F: no more events. `done` turns 1 once no note is pending.
+- **No allocation after `xmi_seq_new`.** The song stays owned by the caller.
+3. `port/test/xmiseq_test.c GAMEDIR NAME SECONDS OUT.mid`:
+   - Run the sequencer for SECONDS in steps of 1 tick, then call `xmi_seq_stop`.
+   - Write everything `out` received as a standard MIDI file, type 0, division 120, one tempo event 1,000,000
+     µs/quarter at tick 0 (so 1 MIDI tick = 1/120 s), events at their sequencer time, end of track.
+   - Print `name notes_on notes_off loops triggers`.
+   - Fail if notes_on ≠ notes_off.
+
+Done:
+- Strict build clean, with your own synthetic checks.
+- On a synthetic song with a note held across its NEXT, the note-off comes at the right time after the jump.
+- A FOR count of 2 plays the loop twice.
+- A NEXT < 64 breaks out of the loop.
+
+Claude then checks all 12 real songs for 300 s against an independent sequencer (same .mid bytes), and listens to
+one through the synth.
+Reply:
 
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade

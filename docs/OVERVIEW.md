@@ -236,7 +236,25 @@ Centurion `docs/HANDOFF.md` protocol, with a `docs/HANDOFF.md` here).
    - Default: stereo FM, the set Erik's setup played.
    - The choice is saved in the port's own settings file, not in `aciv.cfg`, so `aciv.cfg` stays as the original
      writes it.
-   - Order: still to confirm.
+   - The setting appears as one extra line next to Music on the game's own Preferences screen (Erik's "little
+     setsound layer"), plus a command-line switch.
+   - General MIDI plays through a synth built into the port, not Windows' own; the player never has to set up a synth.
+     - Synth: **FluidSynth** (LGPL-2.1; linked as a DLL to keep within the LGPL).
+       - It has reverb and chorus: the `g*` songs set both sends (controllers 91, 93). They also use GS bank select
+         (0/32), NRPN (98/99/6) and controller 70 (D, the event dumps).
+       - 2.5.0 drops GLib (needs C++17); llvm-mingw has clang++ for ARM64 and x64. CMake isn't installed yet (pip).
+     - SoundFont: **GeneralUser GS** 2.0.x (S. Christian Collins). Its license allows use in software projects,
+       private or commercial, and modifying the bank or its packaging. It needs a synth with full SoundFont 2.01
+       modulators; FluidSynth has them, TinySoundFont doesn't fully.
+       - Not in git: a fetch script with a hash, like the toolchain.
+       - A player's own `.sf2` in the game folder takes precedence.
+   - Order: General MIDI first (sequencer = Mistral Task 7, FluidSynth glue = Claude), then FM. The FM part is one
+     driver logic for `f*` (OPL2) and `s*` (OPL3 stereo).
+   - (D) Every song has one infinite loop:
+     - FOR (controller 116, count 0 = forever) → NEXT (117, value 127).
+     - Civil: intro 0-6564 ticks (55 s), loop 6564-14645 (67 s). Calamity: loops from tick 0.
+     - One callback trigger (119) just before the NEXT; what the game does with it: G, to decode.
+     - SCIVIL2 has 4 notes still sounding at the NEXT. A sequencer must keep their note-offs across the jump.
 3. **Platform layer**: plain **Win32** (no SDL; builds natively for ARM64 today), or SDL2 as Centurion (needs
    SDL2 built from source for ARM64)? I propose Win32.
 4. **Running the original**: verification needs DOSBox-X runs of the game in a window. May I use the screen for
