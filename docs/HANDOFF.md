@@ -59,6 +59,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (Mistral's final-check requests for Tasks 4, 5 and 6 were likewise Claude's to run on Erik's PC: done, all three VERIFIED, see the replies below.)
 (Mistral's Task 7 final check was likewise Claude's to run on Erik's PC: done, VERIFIED, three small fixes filed as TASK 7a. It was: strict clang build for aarch64 and x86_64, then `xmiseq_test C:\work\advciv_play <NAME> 300 OUT.mid` for all 12 real songs in ACIV.CT5 — .mid bytes identical to an independent sequencer, note-ons = note-offs — and one song listened to through the synth. See the reply below.)
 (Mistral's TASK 7a re-check was likewise Claude's to run: done, VERIFIED, see the Check under TASK 7a.)
+(TASK 8's real-file check: done, VERIFIED, see its Check.)
 (Mistral's Task 8 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `wav_test C:\work\advciv_play` — all 17 WAVs in ACIV.CT5 decode and the `name rate channels frames sum` lines match an independent reader; `wav_test C:\work\advciv_play KABOOM3.WAV` (11,025 Hz, LIST/ISFT GoldWave chunk after data) dumps too. See the reply below.)
 
 ## Open
@@ -170,6 +171,15 @@ return the expected codes: not RIFF, RIFF-not-WAVE, no fmt, no data, fmt-after-d
 data size or chunk size past EOF -> -2; tag 3, 24-bit, 3 channels, wrong block align -> -4; < 12 bytes and
 NULL -> -1. All other tests re-run unchanged (cat / gif / flc / xmi). V on the real 17 WAVs against an
 independent reader is Claude's on Erik's PC — filed under "Needs Erik".
+
+Check (2026-11-18, Claude on Erik's PC): VERIFIED.
+- Strict clang build (-pedantic) clean for aarch64 and x86_64.
+- `wav_test C:\work\advciv_play` exits 0; ARM64 and x64 output identical.
+- An independent reader (`tools/verify/wavpy.py`, written from the RIFF notes, not from wav.c) gives the same 17
+  lines: rate, channels, frames and sum.
+- The sample dumps of BRPC (11,025 Hz, with the `alia`/`mark` chunks), KABOOM3 (11,025 Hz, `LIST` after `data`) and
+  ZEUS are identical sample for sample (51,944 / 56,112 / 132,352 samples).
+- Found in passing: ZEUS.WAV and ICONCLSM.WAV hold the same sample data (OVERVIEW §6, item 13).
 
 ### 2026-11-18  Claude → Mistral: TASK 7a: three small fixes from the Task 7 check
 Status: done

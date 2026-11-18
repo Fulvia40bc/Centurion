@@ -295,6 +295,9 @@ Pace: one module at a time, each with its own commit; ultracode workflows for th
     - "non-iberia", "Alt base map".
     The values that follow (G) are per-territory priorities for where to expand, 0xFF = not used.
 
+13. **Zeus borrows the iconoclasts' sound.** `ZEUS.WAV` and `ICONCLSM.WAV` (Iconoclasm and Heresy) hold the same
+    sample data, 132,352 samples at 22,050 Hz: Zeus's pity sounds exactly like the temples being torn down.
+
 Text slips found in passing (to fix by default, `--original` keeps them): "converts %s by **Montheism**!" (twice),
 "popped once **to** often". A full text sweep is part of M4/M6.
 
