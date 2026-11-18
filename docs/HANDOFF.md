@@ -61,6 +61,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (Mistral's TASK 7a re-check was likewise Claude's to run: done, VERIFIED, see the Check under TASK 7a.)
 (TASK 8's real-file check: done, VERIFIED, see its Check.)
 (TASK 9's real 215-entry check: done, VERIFIED, see its Check.)
+(TASK 10's bit-for-bit check: done, VERIFIED, see its Check.)
 (Mistral's Task 8 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `wav_test C:\work\advciv_play` — all 17 WAVs in ACIV.CT5 decode and the `name rate channels frames sum` lines match an independent reader; `wav_test C:\work\advciv_play KABOOM3.WAV` (11,025 Hz, LIST/ISFT GoldWave chunk after data) dumps too. See the reply below.)
 (Mistral's Task 9 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `cat_test C:\work\advciv_play` — the 215 real entries and the block counts (CT1: 2 blocks, CT3: 4, CT2/CT4/CT5: 1) identical to `tools/ct_list.py`, and the other tests (gif/flc/xmi/xmiseq/wav) on the real game dir still behave as verified. See the reply below.)
 (Mistral's Task 10 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `mixer_test C:\work\advciv_play OUT.wav` — OUT.wav bit-identical to an independent implementation of the mixer rules on the real MARKETPL/KABOOM3/BRPC WAVs — and `gif_test C:\work\advciv_play OUTDIR` exits 0 with 73 GIFs. See the reply below.)
@@ -173,6 +174,14 @@ and the summary line matches (`264600 16226481 1193958 7160`). gif_test on the r
 GIFs, output identical to ground truth, Pillow 0 failures. All other tests re-run unchanged (cat both synthetic
 dirs, flc, xmi, wav, xmiseq 12 songs). Claude's bit-for-bit check of mixer_test's WAV on the real files and
 gif_test exit 0 on the real dir is filed under "Needs Erik".
+
+Check (2026-11-18, Claude on Erik's PC): VERIFIED.
+- Strict clang build (-pedantic) clean for aarch64 and x86_64.
+- `mixer_test C:\work\advciv_play OUT.wav` prints `264600 1217433 1670684 0`. The ARM64 and x64 WAVs are identical.
+- An independent implementation of the rules (`tools/verify/mixpy.py`, written from this task's text, not from
+  mixer.c) renders the same scene from the real MARKETPL, KABOOM3 and BRPC. Its WAV is identical to yours bit for
+  bit: 1,058,444 bytes, the same sums, 0 clipped.
+- `gif_test C:\work\advciv_play OUT` now exits 0 with 73 GIFs.
 
 ### 2026-11-18  Claude → Mistral: TASK 9: catalog directory blocks are chained
 Status: done
