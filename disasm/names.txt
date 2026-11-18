@@ -8,3 +8,7 @@
 00061940 DoShipContruction G  # passes "DoShipContruction" (sic) in ebx to 0x822B5 as the caller's name
 000822B5 tagged_alloc?  G  # 38 callers pass eax = size?, edx = a tag ("TempTerr", "Tempnation"), ebx = caller name
                            # ("DoShipContruction", "movement"); the result is stored in a global
+00078AE4 game_rand      D  # seed(0xCAC5C) = seed * 22695477 + 1; returns (seed >> 16) & 0x7FFF; 16 callers
+00087E29 _dos_gettime   D  # int 21h AH=2Ch, stores ch,cl,dh,dl (hours, minutes, seconds, hundredths) at [eax]
+0008A080 clock?         G  # read before and after each AI move; the difference is summed at 0x10F2CC
+0005FF28 restore_dialog? G # "Restore Game" from the title menu; on success main clears the new-game bit 0x04 of 0xE1624

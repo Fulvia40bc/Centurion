@@ -140,9 +140,32 @@ verify against the original in DOSBox-X. Each module lands with its checks; 1990
 | M9 | Hot-seat and PBEM (`*.hst` files; the pkzip archive replaced or dropped, question 5) | a PBEM round trip between two port instances, and port ↔ DOSBox-X files |
 | M10 | Window polish as Centurion: resizable 4:3, Alt+Enter / F11, no console | Erik |
 
-Key risk for M6/M7: the random-number generator. Watcom's `rand()` is seeded at start (G: from the clock);
-M0 finds the seed and where it is stored, so DOSBox-X runs can be reproduced (set the seed in the debugger) and
-the save can carry it.
+**The random-number generator (M0, settled 2026-11-17).** The game's own `rand` at 0x78AE4 (D):
+`seed = seed * 22695477 + 1` (0x015A4E35), returns `(seed >> 16) & 0x7FFF`; the seed is the dword at 0xCAC5C
+(1 at start-up, V). Only five places touch it (D):
+- a **new game** seeds it from the clock (0x117DA): `_dos_gettime` (0x87E29, int 21h AH=2Ch) into 0xF422C, then
+  seed = hundredths << 24 | hours << 16 | seconds << 8 | minutes; this runs only when bit 0x04 of the flags at
+  0xE1624 ("new game") is set, and the restore dialog (0x5FF28) clears that bit when a game is loaded;
+- **save** writes it (0x5EB7B, 4 bytes) and **load** reads it back (0x5F27C): it is in the save file, at offset
+  **0x3D0C** of `SAVGAMEA.DAT` (V: 0xDE9B76A2 in Erik's R4 autosave = the seed in memory right after loading);
+- 0x55963 / 0x55B28 save it and put it back around a block in the movement code (G: a trial run that must not
+  use up random numbers); 0x4FE86 copies it to 0xF40F4 (G: the seed a game or PBEM round started with).
+
+**Reproducible (V, DOSBox-X 2026-11-17):** Erik's R4 autosave loaded in two fresh DOSBox-X sessions and left to
+run to the same point (the AI players' ship construction, then Africa, a human player, is asked to choose):
+seed 0xA7BB1DC8 in both, and the whole data object identical except 228 bytes of timers, mouse and sound-driver
+state and the AI think-time counters (0x10F2C0..: `clock()` before and after each AI move, G). So M6/M7 can run
+the original and the port from the same autosave with the same input and compare autosaves byte for byte.
+
+**DOSBox-X (M0, 2026-11-17):** profile `tools/dosbox/advciv.conf` (S3 SVGA, 32 MB, SB16 at 220h with OPL3,
+normal core so breakpoints fire) runs the run copy `C:\work\advciv_run`; `tools/dosbox/drive.ps1` drives the
+debugger console without focus and the game window (screenshots, clicks, keys) with it. DOS/4GW loads the code
+object at **0x212000** (link 0x10000, delta +0x202000) and the data object at **0x2A9000** (link 0xB0000, delta
++0x1F9000), selectors 0180 (code) and 0188 (data, flat). So a link address A in the code is `BP 0180:A+202000`,
+and the data object is `MEMDUMPBIN 0188:2A9000 72C00 file`. `tools/dosbox/find_objects.py` finds both
+objects in a flat dump and compares them with `le_unbind`'s images (V, at the first DOS time call in start-up):
+code identical except 2 bytes in `_cstart_`, the 84,936 relocated bytes identical after rebasing; data identical
+except 200 bytes the C start-up has already set (stack limits, the debugger flag).
 
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
@@ -167,6 +190,11 @@ Pace: one module at a time, each with its own commit; ultracode workflows for th
    .map analysis"), "junk" / "junk2" placeholders, "Move Stack has popped once to often."
 8. README humour (not in the game): the "lucky ones whose machine confounds the detection code", and the PBEM
    rename error that says *"refer to the manual"* while "of course there is no such reference in the manual".
+9. **The credits** (after the intro): Don Greenwood, the board game's developer and the game's producer, is
+   credited for **"AI Design Nemesis"**, right after Jim Synoski's "Program and AI Design"; and the last card
+   reads **"Original Boardgame Design (Thank You!)"** for Francis Tresham and Bruce Harper.
+10. A developer's typo kept as an internal name: the ship-building routine tags its memory "DoShipContruction"
+    (never shown to the player).
 
 Text slips found in passing (to fix by default, `--original` keeps them): "converts %s by **Montheism**!" (twice),
 "popped once **to** often". A full text sweep is part of M4/M6.

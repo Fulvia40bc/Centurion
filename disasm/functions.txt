@@ -425,7 +425,7 @@
 0005E8EC    196     60      1  c      -                               savgamea.dat | AutoSaved after %s - R%d
 0005E9B0   1708    390      6  c      -                               Advanced Civilization | 1.11B1
 0005F05C   3788   1045      6  c      -                               savegame
-0005FF28    580    166      2  c      -                               savgame%x.dat | Save game has been corrupted and is no l | copy %s savgamea.dat >NUL 
+0005FF28    580    166      2  c      restore_dialog? (G)             savgame%x.dat | Save game has been corrupted and is no l | copy %s savgamea.dat >NUL 
 0006016C    108     30      4  c      -                               That save game is an earlier format that
 000601D8   1212    379      2  c      -                               savgame%x.dat | Empty | Save Game
 00060694   1004    323      3  c      -                               
@@ -581,7 +581,7 @@
 000789EC     52     20      1  c      -                               
 00078A20     80     29     48  c      -                               
 00078A70    116     33      0  u      -                               
-00078AE4     40     11     16  c      -                               
+00078AE4     40     11     16  c      game_rand (D)                   
 00078B0C     24      9     16  c      -                               
 00078B24     32     11      4  c      -                               
 00078B44     96     30      1  c      -                               
@@ -950,7 +950,7 @@
 00087D73    132     32    130  c      -                               
 00087DF7     23      9     37  c      -                               
 00087E0E     27     15      0  u      -                               
-00087E29     26     15      1  c      -                               
+00087E29     26     15      1  c      _dos_gettime (D)                
 00087E43     57     23      2  c      -                               
 00087E7C     43     25      6  c      -                               
 00087EA7     82     37      1  c      -                               
@@ -999,7 +999,7 @@
 00089F5C     81     24      1  c      -                               
 00089FAD    119     42      1  c      -                               
 0008A024     92     35      1  c      -                               
-0008A080      5      1     15  c      -                               
+0008A080      5      1     15  c      clock? (G)                      
 0008A085    628     92     36  c      -                               
 0008A2F9    711     11      0  p      -                               
 0008A5C0    391     77      0  p      -                               
