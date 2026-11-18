@@ -161,6 +161,8 @@ int title_menu(void);                  /* 0x4F184: runs f4F184 and returns the c
 #define UI_SPR_CHECK_ON  0xF51CCu
 #define UI_SPR_CHECK_OFF 0xF51D4u
 
+void f3AE90(uint32_t spr, int x, int y, int w, int h);   /* D: cut sprite spr (w x h, top-left at x,y) from the active surface: block via ui_sprite_put, [spr+4]=w, [spr+6]=h, fg_getimage (fg_unpack is a copy in mode 25) */
+void f118F8(void);                     /* D: start-up 0x10B3E: maped.gif (CT2) into Page1, cut into the 12 sprites 0xF51AC..0xF5204 */
 void f3AF8C(uint32_t spr, int x, int y);   /* D: draw sprite spr with its top-left at (x, y): fg_move(x, y + h - 1), fg_clpimage(data, w, h) (colour 0 transparent), on the active surface. Void: eax is fg_clpimage's result and no caller reads it (all 233 call sites scanned; a few are tail calls in small wrappers such as the one ending at 0x3E9DB, whose own callers were not checked, G) */
 
 /* ---- Dialog helpers by button id (the search of f3C314: 16-bit compare of the id, the first match wins) -------- */

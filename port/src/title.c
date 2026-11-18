@@ -222,8 +222,7 @@ static void boot_vbuffer(uint8_t **heap, uint32_t size, int w, int h, uint32_t h
    starts as with /NT, see below), the CD check (0x10572..0x1061A), "volcano.wav" (0x10752), 0x4FADC ([0xBB3EE]), the
    banner delay 0x78A20 (0x1078D), the debug log 0x78B0C/0x78B24 (no-ops), reading aciv.cfg (0x107A4..0x10826), clearing
    0xF5240/0xF5268/0xF5290 (0x10826), 0x7DD37, the DOS video mode (0x7E044 -> [0xF6058]) and the chipset (0x7E121),
-   fg_testmode (0x109BC), the 1.6 MB intro trans_buffer (0x10AAB..0x10B0A, freed again at 0x10F98), the opening sprites
-   (0x118F8 at 0x10B3E: maped.gif cut into sprites; the menu overwrites Page1), all of the sound (0x10B4D..0x10E7F; the
+   fg_testmode (0x109BC), the 1.6 MB intro trans_buffer (0x10AAB..0x10B0A, freed again at 0x10F98), all of the sound (0x10B4D..0x10E7F; the
    port has its own), the intro (0x12DF4 at 0x10EA8, 0x1330C and the fade to black 0x3CEB8 at 0x1101D..0x11022), the
    setjmp at 0x11031 and the continuous-test set-up (0x1103B..0x11150).
    File names: the original opens everything relative to its working directory; title_boot puts gamedir in front of the
@@ -305,6 +304,7 @@ int title_boot(const char *gamedir)
     f39E50(1);                                        /* 0x10B1B: cognac10.fgf */
     f39E50(2);                                        /* 0x10B2A: cognac19.fgf */
     f39F90(1);                                        /* 0x10B39 */
+    f118F8();                                         /* 0x10B3E: the sprites from maped.gif */
 
     /* 0x10EAD..0x10F02: the map buffer, 1716x568 -> [0xF52C4]; the menu does not use it, but defining it here keeps
        the handles as in the original (Page2 = handle 2, G: fg_vbdefine takes the first free slot, 0x823A8) */
@@ -440,4 +440,32 @@ int title_newgame(void)
         f4EAE0();                                     /* 0x113F7: VARIANTS */
     }                                                 /* 0x113FC jmp 0x113CD */
     return 1;                                         /* 0x113FE: on into the game (not ported yet) */
+}
+
+/* 0x118F8: draw maped.gif from CT2 into Page1 and cut the 12 sprites the UI uses out of it (f3AE90: record, x, y, w,
+   h). 0xF51CC / 0xF51D4 are the variants' tick boxes (set / clear). */
+void f118F8(void)
+{
+    static const struct { uint32_t spr; int x, y, w, h; } cuts[12] = {
+        { 0xF51ACu, 0xE6, 0x36, 0xD, 0x13 },   /* 0x1194F */
+        { 0xF51B4u, 0xE6, 0x1D, 0xD, 0x13 },   /* 0x1196A */
+        { 0xF51D4u, 0x40, 0x4C, 0xE, 0xE },    /* 0x11985 */
+        { 0xF51CCu, 0x40, 0x3A, 0xE, 0xE },    /* 0x119A0 */
+        { 0xF51E4u, 0xCE, 0x2D, 0x9, 0x9 },    /* 0x119BB */
+        { 0xF51DCu, 0xCE, 0x3B, 0x9, 0x9 },    /* 0x119D6 */
+        { 0xF51ECu, 0x61, 0x3A, 0xB, 0xB },    /* 0x119F1 */
+        { 0xF51F4u, 0x61, 0x4D, 0xB, 0xB },    /* 0x11A0C */
+        { 0xF51FCu, 0x61, 0x65, 0xB, 0xB },    /* 0x11A27 */
+        { 0xF5204u, 0x61, 0x78, 0xB, 0xB },    /* 0x11A42 */
+        { 0xF51BCu, 0x19, 0x23, 0x5, 0xA },    /* 0x11A5D */
+        { 0xF51C4u, 0x2A, 0x23, 0x5, 0xA },    /* 0x11A78 */
+    };
+    int i;
+
+    fg_vbopen((int)D32(0xF52C8u));               /* 0x1190F Page1 */
+    fg_move(0, 0);                               /* 0x1191B */
+    cat_show(DSTR(0xB0D69u), 3, (int)D32(0xF40D8u));   /* 0x11931 "maped.gif", flags 3, CT2 */
+    for (i = 0; i < 12; i++)
+        f3AE90(cuts[i].spr, cuts[i].x, cuts[i].y, cuts[i].w, cuts[i].h);
+    fg_vbclose();                                /* 0x11A7D */
 }

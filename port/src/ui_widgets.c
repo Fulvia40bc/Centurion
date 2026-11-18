@@ -3,6 +3,7 @@
    D = read in the code, G = inference. Prototypes and the shared layouts: ui.h. */
 
 #include <stddef.h>
+#include <stdlib.h>
 #include "ui.h"
 #include "fg.h"
 
@@ -90,4 +91,28 @@ void f3BFBC(uint32_t dlg, int id, int enabled)
         return;
     }
     setD8(dlg + DLG_REC(found) + BTN_ENABLED, (uint8_t)enabled);                /* 0x3C043 byte [dlg+20*i+0x12] = bl */
+}
+
+/* 0x3AE90: cut sprite record spr from the active surface: w x h pixels with the top-left at (x, y). The pixel block
+   is fg_getimage's (lower-left at the cursor, bottom row first) passed through fg_unpack, which in mode 25 and for a
+   virtual buffer is a plain copy (docs/LIBRARY_CALLS.md 0x8EB0E), so the port reads straight into the block.
+   Arguments: eax spr, edx x, ebx y, ecx w, stack h (ret 4). */
+void f3AE90(uint32_t spr, int x, int y, int w, int h)
+{
+    uint8_t *data = malloc((size_t)(w * h > 0 ? w * h : 1));   /* 0x3AEAC..0x3AEBB malloc(w*h) -> [spr] */
+    unsigned char key, aux;
+
+    if (data == NULL || ui_sprite_put(spr, data) != 0) {       /* 0x3AECF..0x3AED8 (the second block is the port's) */
+        f3A7B0(0xB3BE4u);                                      /* 0x3AEDF "Insufficient memory for sprite.  Press any key." */
+        do {                                                   /* 0x3AEE4 getch */
+            fg_waitfor(1);
+            fg_intkey(&key, &aux);
+        } while (key == 0 && aux == 0);
+        free(data);
+        return;   /* port: the original would go on and write through a null pointer */
+    }
+    setD16(spr + 4, (uint16_t)w);                              /* 0x3AEEF word [spr+4] = w */
+    setD16(spr + 6, (uint16_t)h);                              /* 0x3AEF9 word [spr+6] = h */
+    fg_move(x, y + h - 1);                                     /* 0x3AEFD..0x3AF09 */
+    fg_getimage(data, w, h);                                   /* 0x3AF1D, then fg_unpack = copy (0x3AF37) */
 }

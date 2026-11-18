@@ -280,6 +280,24 @@ except 200 bytes the C start-up has already set (stack limits, the debugger flag
 - Not yet translated: restore (main 0x11557 → the restore dialog 0x5FF28), quit's clean-up beyond the exit, the
   font release 0x8E0F8.
 
+**M4, the new-game screens (2026-11-18).**
+- Translated and reviewed in a second workflow:
+  - "New Game Options" (`setup.c`: 0x4DD50, 0x4E2D8) and "Variants" (`variants.c`: 0x4EAE0, 0x4EEC8);
+  - the button helpers (`ui_widgets.c`);
+  - main's new-game loop (`title.c`: 0x111DC..0x113FE, and 0x11168 for going back to the menu).
+- The sprites: start-up 0x118F8 cuts 12 sprites out of `maped.gif` (0x3AE90, `fg_getimage`; `fg_unpack` is a copy in
+  mode 25). They include the two tick boxes.
+- **Check (V, DOSBox-X raw captures on the run copy, after clicking START A NEW GAME and then VARIANTS):**
+  - The setup screen equals the capture except the play-by-email row: its label and box, 551 pixels, left out by
+    Erik's ruling. Fastgraph's pointer at (321,151) matches too.
+  - The Variants screen equals the capture in all 307,200 pixels, pointer at (521,429) included.
+  - Same on ARM64 and x64. The defaults agree with the original: 3 humans, 0 computers, 2 trading sessions, minimum
+    goods 6, Normal AI (greyed with no computer players).
+- `advciv.exe … --headless-frame OUT.png --click X Y …` scripts clicks without a window.
+  - Each click is 2 input polls released, 2 pressed, then released (the game waits for a release before each click).
+  - The frame is saved 4 polls after the last click.
+- Note: in DOSBox-X, `drive.ps1 click X Y` lands the emulated mouse at about (X+1, Y+1).
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 
