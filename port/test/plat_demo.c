@@ -10,6 +10,7 @@
 #include "../src/catalog.h"
 #include "../src/gif.h"
 #include "../src/gm_synth.h"
+#include "../src/palette.h"
 #include "../src/platform.h"
 #include "../src/xmi.h"
 #include "../src/xmiseq.h"
@@ -60,8 +61,11 @@ static int show_gif(const char *dir, const char *name)
         return -1;
     }
     memset(fb, 0, sizeof fb);
-    memset(pal, 0, sizeof pal);
-    memcpy(pal, img.pal, (size_t)img.ncolors * 3);
+    {   /* through the 6-bit DAC, as the original shows it (palette.h) */
+        uint8_t dac[256][3];
+        pal_gif_to_dac((const uint8_t (*)[3])img.pal, img.ncolors, dac);
+        pal_dac_to_rgb((const uint8_t (*)[3])dac, pal);
+    }
     for (y = 0; y < img.h && img.top + y < SCREEN_H; y++)
         for (x = 0; x < img.w && img.left + x < SCREEN_W; x++)
             fb[(img.top + y) * SCREEN_W + img.left + x] = img.pixels[(size_t)y * img.w + x];

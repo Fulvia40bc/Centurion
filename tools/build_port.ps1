@@ -22,7 +22,7 @@ foreach ($arch in 'aarch64', 'x86_64') {
   New-Item -ItemType Directory -Force $o | Out-Null
   $fmt = @('catalog.c', 'xmi.c', 'xmiseq.c', 'gif.c') | ForEach-Object { Join-Path $src $_ }
   & $cc @warn "-I$sdl\include" "-I$fs\include" (Join-Path $test 'plat_demo.c') (Join-Path $src 'plat_sdl3.c') `
-        (Join-Path $src 'png_write.c') (Join-Path $src 'gm_synth.c') @fmt "$sdl\lib\libSDL3.dll.a" `
+        (Join-Path $src 'png_write.c') (Join-Path $src 'gm_synth.c') (Join-Path $src 'palette.c') @fmt "$sdl\lib\libSDL3.dll.a" `
         "$fs\lib\libfluidsynth-3.dll.a" @gui -o (Join-Path $o 'plat_demo.exe')
   if ($LASTEXITCODE) { throw "plat_demo ${arch}: build failed" }
   & $cc @warn "-I$fs\include" (Join-Path $test 'gm_render.c') (Join-Path $src 'gm_synth.c') @fmt `

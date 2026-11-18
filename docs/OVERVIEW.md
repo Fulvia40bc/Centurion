@@ -155,6 +155,19 @@ Print (0x8E253):
 - 0x7F + colour changes the colour mid-string. 0x7F + `_` starts and ends an underline 2 rows below the baseline.
 - Horizontal and vertical justification exist but stay at "none" (no writes to 0xE0A80/81).
 
+**Palette (D, V, 2026-11-18).** The game's palette is `PAL.PAL`'s global colour table, each byte shifted right by 2
+into the VGA DAC's 6 bits.
+- Fastgraph/Image's `fg_gifpal` (0x878F7: `lodsw; shr ax,2; and al,3Fh`) is called at start-up (0x11177), then
+  `fg_setdacs(0, 256, …)`.
+- The game's fade-in (0x3CFE4) does the same from black in 64 steps. Each step: `acc += target+1` while
+  `acc < 64·target`, DAC = `acc/64 − 1`, floored at 0. At the end it writes the exact target.
+- V: the fade's working buffer at 0xF5D58 in the DOSBox-X dumps equals `max(0, (x>>2)−1)` for all 768 bytes, the
+  last fade step; the final palette is written from 0xF8B40.
+- PAL.PAL's 1716x568 picture is never displayed for the palette (only `fg_gifpal` reads it). Whether another
+  screen uses the picture: G, to check.
+- Port: `port/src/palette.c`, GIF → DAC (>>2) → screen RGB (`v<<2 | v>>4`, as DOSBox-X). `plat_demo` now shows
+  P2-P4 through it: 245 of P2's 256 colours change slightly, as on the real VGA.
+
 Ported: `port/src/fgfont.c`. `port/test/font_test.c` renders every glyph upright, with descenders below the
 baseline. A pixel check against a DOSBox-X capture follows with the first screen that has text.
 
