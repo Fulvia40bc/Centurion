@@ -1,6 +1,6 @@
 # Advanced Civilization: program map and porting plan
 
-Stage 1 report (2026-11-17). Claims are marked **D** decoded from the bytes, **V** verified by a run of the
+Stage 1 report (2026-11-17). Claims are marked **D** decoded from the bytes, **V** verified by a run of 
 original, **G** a guess still to be checked. Nothing here is V yet: the original has not been run.
 
 ## 1. The files
@@ -74,7 +74,7 @@ Code regions, by the strings each region references (G for the boundaries, refin
 So about **440 KB of game code (≈620 functions)** to translate, roughly three times Centurion. The ≈170 KB of
 libraries are not translated but replaced (C library, a small 8-bit rasterizer, our own GIF/FLC/XMI code).
 
-**Recursive disassembly (M0, done 2026-11-17).** `tools/rdisasm.py` (run by `tools/disasm.ps1`) follows the
+**Recursive disassembly (M0, done 2026-11-17).** `tools/rdisasm.py` (run by `tools/disasm.ps1`) follows 
 code from the entry point, every direct call and jump, address-taken code (fixups) and the jump tables, and
 writes `disasm/AC_MAIN.asm` (labelled listing, not committed), `disasm/functions.txt` and `disasm/coverage.txt`:
 - **1,485 functions**, 179,447 instructions; 95.5 % of the code object decoded, 1,761 jump-table entries;
@@ -161,7 +161,7 @@ into the VGA DAC's 6 bits.
   `fg_setdacs(0, 256, …)`.
 - The game's fade-in (0x3CFE4) does the same from black in 64 steps. Each step: `acc += target+1` while
   `acc < 64·target`, DAC = `acc/64 − 1`, floored at 0. At the end it writes the exact target.
-- V: the fade's working buffer at 0xF5D58 in the DOSBox-X dumps equals `max(0, (x>>2)−1)` for all 768 bytes, the
+- V: the fade's working buffer at 0xF5D58 in the DOSBox-X dumps equals `max(0, (x>>2)−1)` for all 768 bytes, 
   last fade step; the final palette is written from 0xF8B40.
 - PAL.PAL's 1716x568 picture is never displayed for the palette (only `fg_gifpal` reads it). Whether another
   screen uses the picture: G, to check.
@@ -184,7 +184,7 @@ into the VGA DAC's 6 bits.
     2 pixels before the text to 1 past its end (row 197, x 288-349 under "Music").
 - BLOCK05 has not appeared on these screens yet.
 
-Ported: `port/src/fgfont.c`. `port/test/font_test.c` renders every glyph upright, with descenders below the
+Ported: `port/src/fgfont.c`. `port/test/font_test.c` renders every glyph upright, with descenders below 
 baseline. A pixel check against a DOSBox-X capture follows with the first screen that has text.
 
 ## 5. Porting plan
@@ -225,7 +225,7 @@ state and the AI think-time counters (0x10F2C0..: `clock()` before and after eac
 the original and the port from the same autosave with the same input and compare autosaves byte for byte.
 
 **DOSBox-X (M0, 2026-11-17):** profile `tools/dosbox/advciv.conf` (S3 SVGA, 32 MB, SB16 at 220h with OPL3,
-normal core so breakpoints fire) runs the run copy `C:\work\advciv_run`; `tools/dosbox/drive.ps1` drives the
+normal core so breakpoints fire) runs the run copy `C:\work\advciv_run`; `tools/dosbox/drive.ps1` drives 
 debugger console without focus and the game window (screenshots, clicks, keys) with it. DOS/4GW loads the code
 object at **0x212000** (link 0x10000, delta +0x202000) and the data object at **0x2A9000** (link 0xB0000, delta
 +0x1F9000), selectors 0180 (code) and 0188 (data, flat). So a link address A in the code is `BP 0180:A+202000`,
@@ -268,7 +268,7 @@ except 200 bytes the C start-up has already set (stack limits, the debugger flag
   - screen, mouse and palette fade (`ui_screen.c`);
   - the start-up steps the menu needs and the menu itself (`title.c`, 0x10010.. and 0x4F184).
   The play-by-email branches are left out (Erik's ruling).
-- Each file had a translator and an independent reviewer. The reviewers fixed three details in `fg.c` (the
+- Each file had a translator and an independent reviewer. The reviewers fixed three details in `fg.c` (
   mouse-visibility byte, `cat_show`'s type byte and flags mask) and found no errors in the game code.
 - **Check (V):** `advciv.exe GAMEDIR --headless-frame OUT.png --pointer 320 240` renders the main menu identical to
   the DOSBox-X capture: **0 of 307,200 pixels differ**, Fastgraph's own pointer included, on ARM64 and x64. Palette
@@ -277,8 +277,8 @@ except 200 bytes the C start-up has already set (stack limits, the debugger flag
     the current folder. The port now changes into the game folder, as the original runs there.
 - **BUG(1995), fixed by default:** the word-wrap routine 0x3A42C drops the first letter of a word that has to be
   broken at the box edge (e.g. "Mediterranean-" in a narrow box prints "iterranean-"). `--original` keeps it.
-- Not yet translated: restore (main 0x11557 → the restore dialog 0x5FF28), quit's clean-up beyond the exit, the
-  font release 0xE0F8.
+- Not yet translated: restore (main 0x11557 → the restore dialog 0x5FF28), quit's clean-up beyond the exit, 
+  font release 0x8E0F8.
 
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
@@ -329,7 +329,7 @@ Text slips found in passing (to fix by default, `--original` keeps them): "conve
 ### Lanes (proposal, if Mistral joins)
 
 Mistral gets self-contained tasks with a written spec and a check that runs without DOSBox; Claude keeps
-everything that needs the disassembly or DOSBox-X runs, and verifies Mistral's work before it lands (the
+everything that needs the disassembly or DOSBox-X runs, and verifies Mistral's work before it lands (
 Centurion `docs/HANDOFF.md` protocol, with a `docs/HANDOFF.md` here).
 
 | Mistral (spec'd, standard formats, no EXE knowledge needed) | Claude |
