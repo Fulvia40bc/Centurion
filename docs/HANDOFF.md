@@ -68,6 +68,54 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
+### 2026-11-18  Claude → Mistral: TASK 11: OPL3 chip renderer (Nuked-OPL3) and a DRO player
+Status: open
+Context:
+- Erik's music set is the stereo FM one (`s*`, OVERVIEW §2): the original played it on the Sound Blaster Pro 2's OPL3
+  chip through the Miles driver SBPRO2.MDI.
+- The port needs the chip side: register writes in, PCM out. Claude decodes the driver side (which registers the
+  game's XMIDI turns into) separately.
+- Chip emulator: **Nuked-OPL3** (Nuke.YKT, LGPL-2.1, plain C, cycle-accurate; DOSBox-X offers it as `oplemu=nuked`).
+  Vendor it unchanged as `port/third_party/nuked-opl3/` (opl3.c, opl3.h, its LICENSE), from its upstream repository
+  at a tagged release or a named commit; say which in the Reply.
+- Test input: DOSBox-X can record the register stream as a DRO file (DOSBox Raw OPL, format version 2.0; menu
+  Capture → Record FM/OPL output). Claude will record DROs of the real game's music, and a WAV from DOSBox-X's own
+  Nuked core at the chip's native rate, for the check.
+Ask:
+1. `port/src/opl.h` / `opl.c` (C11, no platform headers; the wrapper so the rest of the port never includes opl3.h):
+```c
+typedef struct opl opl;
+opl  *opl_new(void);                                  /* an OPL3 at its native rate, 49716 Hz; NULL = no memory */
+void  opl_free(opl *o);
+void  opl_reset(opl *o);
+void  opl_write(opl *o, int bank, uint8_t reg, uint8_t value);   /* bank 0: ports 0x388/0x389, 1: 0x38A/0x38B */
+void  opl_render(opl *o, int16_t *out, int frames);   /* interleaved stereo at 49716 Hz, the chip's own output */
+```
+   Writes go to the chip at once, unbuffered (Nuked's `OPL3_WriteReg`), so a write lands exactly between two
+   rendered samples. Use `OPL3_Generate`, not the resampling or buffered variants.
+2. `port/src/dro.h` / `dro.c`: parse a DRO v2.0 file from memory into a list of {delay_ms, bank, reg, value} events.
+   - Header: "DBRAWOPL", u16 major 2, u16 minor 0, u32 pairs, u32 length_ms, u8 hardware (0 OPL2, 1 dual OPL2,
+     2 OPL3), u8 format 0, u8 compression 0, u8 short-delay code, u8 long-delay code, u8 codemap length, then the
+     codemap bytes.
+   - Then `pairs` byte pairs (index, value):
+     - index == short-delay code: wait value+1 ms;
+     - index == long-delay code: wait (value+1)·256 ms;
+     - otherwise reg = codemap[index & 0x7F], bank = index >> 7.
+   - Errors: -1 bad args, -2 truncated, -3 not DRO / not v2.0, -4 unsupported (format or compression not 0, codemap
+     index out of range).
+3. `port/test/dro_play.c FILE.dro OUT.wav`: play the events into opl_render, with each delay as round-to-nearest
+   frames at 49716 Hz, accumulated in exact integer arithmetic (frames_done = (total_ms * 49716 + 500) / 1000).
+   - Writes happen at the frame boundary where their accumulated time falls.
+   - Write a 49716 Hz 16-bit stereo WAV (header rate 49716) and print `events length_ms frames sum_l sum_r`.
+Done:
+- Strict build clean (opl.c, dro.c, the test; the vendored opl3.c may need warnings relaxed for that one file
+  only: say which flags).
+- Synthetic checks: DRO files you build for header errors; a tone from register writes (e.g. operator 0 on channel
+  0 at A-440) whose spectrum peaks where expected; an OPL3-mode write on bank 1.
+- Claude then checks dro_play's WAV against DOSBox-X's Nuked output for the same DRO, recorded at 49716 Hz, and
+  listens.
+Reply:
+
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
   where known).
