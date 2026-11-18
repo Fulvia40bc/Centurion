@@ -1,0 +1,1154 @@
+{
+ "0x3c940": {
+  "addr": "0x3C940",
+  "bytes": 144,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Saves and clears the pressed state of every button. Argument eax = dialog (link address). With the mouse hidden, for i < count (int16 [dlg]), it copies rec_i+0x12 (pressed) to 0xF8E44[i], sets rec_i+0x12 = 0 and redraws the button (f3B4E0(dlg+2+20*i)). It counterpart to 0x3C8C4, which restores them.",
+  "globals": "writes int8[50] 0xF8E44 (saved pressed states, ui.h UI_SAVED_PRESSED); reads the dialog record +0x12",
+  "calls": "f78884 (hide mouse), f3B4E0 (draw button), f788AC (restore mouse)",
+  "indirect": ""
+ },
+ "0x3cbbc": {
+  "addr": "0x3CBBC",
+  "bytes": 88,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Copies the lower panel of the back buffer to the screen. Mouse hidden first, then fg_vbopen([0xF52C8]), fg_vbpaste(0, 639, 0x145, 0x1DF, 0, 0x1DF), i.e. rows 325..479 under the map window, then fg_vbclose and mouse restored. The order is mouse-hide first, the reverse of f3CC14.",
+  "globals": "reads [0xF52C8] back-buffer vb handle",
+  "calls": "f78884, fg_vbopen, fg_vbpaste, fg_vbclose, f788AC",
+  "indirect": ""
+ },
+ "0x3cc68": {
+  "addr": "0x3CC68",
+  "bytes": 84,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Copies the whole background-picture buffer to the screen. It is f3CC14 with buffer [0xF52CC] instead of [0xF52C8]: fg_vbopen([0xF52CC]), mouse hidden, fg_vbpaste(0, 639, 0, 479, 0, 479), mouse restored, fg_vbclose.",
+  "globals": "reads [0xF52CC] background vb handle",
+  "calls": "fg_vbopen, f78884, fg_vbpaste, f788AC, fg_vbclose",
+  "indirect": ""
+ },
+ "0x3ccbc": {
+  "addr": "0x3CCBC",
+  "bytes": 84,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Grabs the screen into the back buffer. Mouse hidden, fg_vbopen([0xF52C8]), fg_vbcut(0, 639, 0, 479, 0, 479), fg_vbclose, mouse restored. The game uses it before a sub-screen that draws over everything, such as help or the dialogs called from 0x3FB94.",
+  "globals": "reads [0xF52C8]",
+  "calls": "f78884, fg_vbopen, fg_vbcut, fg_vbclose, f788AC",
+  "indirect": ""
+ },
+ "0x3cd10": {
+  "addr": "0x3CD10",
+  "bytes": 92,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Grabs the screen into the background buffer [0xF52CC], as 0x3CCBC does. Then it sets int8 [0xF52D0] = 0 so that f3CD6C reloads the background picture next time.",
+  "globals": "reads [0xF52CC]; writes int8 [0xF52D0] = 0 (background now in the buffer)",
+  "calls": "f78884, fg_vbopen, fg_vbcut, fg_vbclose, f788AC",
+  "indirect": ""
+ },
+ "0x3d18c": {
+  "addr": "0x3D18C",
+  "bytes": 280,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Draws the border of territory t (eax) in colour c (edx) with fg_point on the active surface. Ids 0x9D/0x9E/0x9F are first mapped to 0x39/0x0D/0x87. The border record [0xFF8D4+4t] holds int16 n, int16 y, then n int16 x values. For a value >= 0, y is incremented first and (x, y) is plotted. A negative value plots (-x) on the same row. The point is moved by the map scroll (f449B8, f449E0) and plotted only when x-sx is in 8..0x277 and y-sy is in 6..0x144 (the map window).",
+  "globals": "reads [0xFF8D4 + 4*t] border record pointers (borders1/2.dat, f3EC20)",
+  "calls": "f449B8 (scroll x in pixels = col*78), f449E0 (scroll y = (row/2)*71 + (row%2)*35), fg_setcolor, fg_point",
+  "indirect": ""
+ },
+ "0x3d2a4": {
+  "addr": "0x3D2A4",
+  "bytes": 400,
+  "grade": "D",
+  "category": "map interaction",
+  "purpose": "Map hit test: which territory is under screen point (x = eax, y = edx). It computes map coordinates mx = x + scrollx - 8 and my = y + scrolly - 6. For t < 160 that are in play (0xEE16C[t]), it takes the mapdataz record [0xFF64C+4t]: int16 n, ytop, ybottom, then n span pairs (x1, x2). The record is skipped unless ytop <= my <= ybottom. The row starts at ytop-1 and a span with x1 >= 0 starts a new row (otherwise x1 = -x1). A hit needs row == my and x1 <= mx <= x2. On a hit it returns t unchanged if int8 [0x108804] == 2 or byte [0xF4102] == 4; otherwise it maps 0x9D->0x39, 0x9E->0x0D, 0x9F->0x87. With no hit it returns -100.",
+  "globals": "reads 0xEE16C[160] (territory in play), [0xFF64C+4t] mapdataz span records, int8 [0x108804] (land/sea mode: 1 tokens, 2 ships; set by buttons 0x26/0x27 in 0x3FB94), byte [0xF4102] (phase, G)",
+  "calls": "f449B8, f449E0",
+  "indirect": ""
+ },
+ "0x3d52c": {
+  "addr": "0x3D52C",
+  "bytes": 1232,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Scrolls the main map by (dx = eax, dy = edx) and redraws the map window and the mini-map frame. The column [0xF4884] += dx is clamped to int16 [0xF6110] .. int16 [0xF6112]; the row [0xF4888] += dy is clamped to 0..7. Steps: fg_vbcopy copies the map picture [0xF52C4] at the scroll offset (624 x 319) to the back buffer [0xF52C8] at (8, 0x144). With the clip set to (8..0x277, 6..0x144) it then draws: the highlighted borders (f3D18C for every t with 0xFFB60[t] != 0, colour 0xFFB60[t]); for t < 157 in play with x3 < 5000, a marker sprite 0xF4D2C + 8*idx at point 3 (+0x0F/+0x11); if int8 [0xC1A34] >= 1, a city sprite 0xF497C + 8*owner at point 2 (+0x0B/+0x0D) for each city (0xE2C1A[3t] bit 0, owner 0xE2C18[3t]). The marker index comes from bits 3..5 of terr byte +1, plus 1 when exactly one active nation is present (area rec +1 == 1) or an active nation's city stands there, minus 1, never below 0. Then it draws the tokens (f3DAD8) and the ships (f3DE40), with ships first when phase 5 and sea mode. It pastes rows 0..0x144 to the screen, draws the mini-map sprite 0xF520C at (0x1E1, 0x170) with a colour-15 fg_box viewport (x 0x1E1+7*col .. 0x218+7*col, y 0x170+7*row/2 .. 0x18A+7*row/2), and pastes (0x1E0..0x27B, 0x16F..0x1A3).",
+  "globals": "rw [0xF4884] scroll column, [0xF4888] scroll row; reads int16 [0xF6110]/[0xF6112] (column limits per map variant, so the meaning in game.h is now D), [0xF52C4] map vb, [0xF52C8] back buffer, 0xFFB60[160] border colours, 0xEE16C, terr records 0xE1638 (35 B), area 0xE31B8 (69 B), 0xE2C18 (3 B), nation byte +0x27 at 0xF14F3+199n (active, G), int8 [0xC1A34] map detail level (default 3), byte [0xF4102], int8 [0x108804]; sprite tables 0xF4D2C, 0xF497C, 0xF520C",
+  "calls": "f449B8, f449E0, fg_vbcopy, fg_vbopen, fg_setclip, f3D18C, f3AF8C, f3DAD8, f3DE40, f78884, fg_vbpaste, f788AC, fg_vbclose, fg_setcolor, fg_boxdepth, fg_box",
+  "indirect": ""
+ },
+ "0x3d9fc": {
+  "addr": "0x3D9FC",
+  "bytes": 100,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Scrolls the map to the home view of nation n (eax). It sets [0xF4884] = 0xC19E4[n] and [0xF4888] = 0xC1A0C[n]. When flag 0x02 of 0xE1624 is set and n == 2, it uses entry 0 instead (G: the map extension variant moves nation 2's view). Then it redraws with f3D52C(0, 0). Called from 0x3FB94's player buttons 9..0x10 with the nation from int16 table 0xF06B0.",
+  "globals": "reads 0xC19E4 int32[10] {0,4,4,4,8,10,12,14,14,11} columns, 0xC1A0C int32[10] {2,8,0,0,0,4,0,0,2,8} rows, flags byte 0xE1624; writes [0xF4884], [0xF4888]",
+  "calls": "f3D52C",
+  "indirect": ""
+ },
+ "0x3da60": {
+  "addr": "0x3DA60",
+  "bytes": 120,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Centres the map on territory t (eax). It looks up c = 0xC803C[t] (identity table, except 157->57, 158->13, 159->135), then sets the column to int8 terr[c]+0x13 and the row to int8 terr[c]+0x14. It prints t's name in the panel box (f787F8: fg_rect colour 0x3C at (0x1F9..0x264, 0x1AE..0x1BE), name 0xC77D8[t] centred in colour 5) and redraws with f3D52C(0, 0). It has 35 callers, many in the calamity code.",
+  "globals": "reads 0xC803C uint8[] (canonical territory), terrflag record +0x13/+0x14 (int8 scroll column/row: game.h lists them as untouched bytes); writes [0xF4884], [0xF4888]",
+  "calls": "f787F8 (territory name label), f3D52C",
+  "indirect": ""
+ },
+ "0x3dad8": {
+  "addr": "0x3DAD8",
+  "bytes": 872,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Draws the land tokens on the map window (args: scroll x eax, scroll y edx). Runs only if int8 [0xC1A34] >= 2. For t < 157 and nations k 0..12 except the current one (k == [0xF40F8]-1): count = area rec t+1 byte +0x0F+k. If 1 <= count <= 29 it draws sprite 0xF489C+8*(k+1) at point 0 (+0x03/+0x05) minus the scroll, plus 7*i for the i-th stack, then the count with f3E98C. The current player's stack is drawn last, on top, with a box of colour 0xFFC00[t] around the 18x18 token (2-pixel fg_box when sea mode... no: when int8 [0x108804] == 1 and the colour is non-zero; boxdepth 2 then back to 1). In phase 5 (byte [0xF4102] == 5) it also draws a second number from area byte +0x24+P (1..29) with f3E9DC at (x+18, y).",
+  "globals": "reads area records 0xE31B8 (+0x0F+k token counts per nation, +0x24+P), terrflag point 0 (+3/+5), [0xF40F8] current player (1-based, G), 0xFFC00[160] token box colours, int8 [0x108804], byte [0xF4102], int8 [0xC1A34]",
+  "calls": "f3AF8C (sprites 0xF489C+8n), f3E98C, fg_setcolor, fg_boxdepth, fg_box, f3E9DC",
+  "indirect": ""
+ },
+ "0x3de40": {
+  "addr": "0x3DE40",
+  "bytes": 1332,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Draws the ships on the map window (args: scroll x, y). Runs only if int8 [0xC1A34] >= 3. For t < 160 and nations k 0..8 except the current one: count = area byte +0x1C+k. If 1..4 it draws ship sprite 0xF490C+8*(k+1) at point 1 (+0x07/+0x09) plus 7*i, then the count (f3E98C). The current player's ships are drawn last with a 28x18 box in colour 0xFFCA0[t] (2-pixel box when int8 [0x108804] == 2). In phase 5 it reads the ship index s = area byte +0x2D+P. If the nation's int8 +0x4D+s (record 0xF14CC + 199*P) > 0, it draws a marker sprite (0xF517C in sea mode, else 0xF5184), then sprite 0xF4E3C+8P at (x+8, y+4) and that value with sprintf \"%d\" (0xB3F08) printed in font 0: colour 5 at (x+9, y+6), plus (x+9, y+5) for player 2, then colour 15 at (x+8, y+5). Finally it draws uint8 +0x41+s (0..5) with f3EA2C at (x+28, y).",
+  "globals": "reads area 0xE31B8 (+0x1C+k ship counts, +0x2D+P selected ship), nation records 0xF14CC (+0x41+s, +0x4D+s per-ship bytes: G cargo / moves), 0xFFCA0[160] ship box colours, [0xF40F8], [0x108804], [0xF4102], [0xC1A34]; writes the text buffer 0xF5500",
+  "calls": "f3AF8C, f3E98C, fg_setcolor, fg_boxdepth, fg_box, f39F90 (font 0 then 1), 0x7DB3D (sprintf, G), f3A0B0 (centred text, w 11), f3EA2C",
+  "indirect": ""
+ },
+ "0x3e374": {
+  "addr": "0x3E374",
+  "bytes": 1320,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Draws the whole-board overview (the ZOOM view) for player P (eax) into the back buffer, then shows it (f3CC14). At (8, 6) it shows the picture 0xC1A38[[0xF40F0]] (zoom3.gif .. zoom6.gif, zoom78.gif; by player count) from catalog [0xF40D4]. If int8 [0xC1A34] > 1 it then draws, in font 0: cities (sprite 0xF4DCC+8*owner at overview point 2, 0xEE4F0/0xEE630 +8/+6); ships of nations 1..10 except n == P-1, then the n == P-1 ones (that loop runs only to 8), sprite 0xF4D5C+8n at overview point 1 (0xEE770/0xEE8B0) offset 2 px per ship already there. The ship territory is the low byte of nation word +0x45+2s, minus 1 (s 0..3), and the record is used only if nation byte +0x9A != 0. Last come the token stacks for t 1..157 (area rec t = territory t-1) and nations 0..12, own last: sprite 0xF4E3C+8(k+1) at overview point 0 (0xEE270/0xEE3B0) +2 px per stack, with the count printed (\"%d\" 0xB3F0B/0xB3F0E): colour 5 at (+1, +2), and (+1, +1) for k == 2, then colour 15 at (0, +1). Font 1 at the end.",
+  "globals": "reads [0xF40F0] player count, 0xC1A38 char*[] zoom picture names, [0xF40D4] CT1 catalog, overview coordinate arrays 0xEE270..0xEE8B0, 0xE2C18 (city flag/owner), nation records 0xF14CC (+0x45 word[4] ship territory+1, +0x9A), area 0xE31B8 (+0x0F+k), int8 [0xC1A34]; writes 0xF5500; local uint8[160] ship counter (memset 0x7D5D0)",
+  "calls": "fg_vbopen, fg_move, cat_show, f39F90, f3AF8C, 0x7D5D0 (memset, eax dst, edx val, ebx n; G), 0x7DB3D (sprintf, G), fg_setcolor, f3A0B0, fg_vbclose, f3CC14",
+  "indirect": ""
+ },
+ "0x3e89c": {
+  "addr": "0x3E89C",
+  "bytes": 96,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Maps a territory to its alias id: 0x39->0x9D, 0x0D->0x9E, 0x87->0x9F; any other value is returned unchanged. It is the inverse of the remap in f3D18C/f3D2A4 and of table 0xC803C. Territories 157..159 are second map entries for territories 57, 13 and 135 (G: territories drawn in two places).",
+  "globals": "none",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x3e8fc": {
+  "addr": "0x3E8FC",
+  "bytes": 144,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "If int16 [0x109E14] == 1 and the canonical territory 0xC803C[t] is 0x39/0x0D/0x87, it returns the alias 0x9D/0x9E/0x9F. Otherwise it returns its argument t, not the canonical value. Since 0xC803C is the identity below 157, this matters only for t 157..159, which stay unchanged.",
+  "globals": "reads 0xC803C uint8[] canonical territory, int16 [0x109E14] (read as dword [0x109E12] sar 16; G: the alias part of the map was chosen)",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x3e98c": {
+  "addr": "0x3E98C",
+  "bytes": 80,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Draws number n (eax) as sprite 0xF4EAC + 8n with its top-left at (x - 0xC2820[n/10], y - 4), x = edx and y = ebx. Table 0xC2820 = {4, 5, 6} shifts numbers with more digits to the left. Used for the token and ship counts.",
+  "globals": "reads 0xC2820 int32[] x offsets by tens digit; sprite table 0xF4EAC",
+  "calls": "f3AF8C",
+  "indirect": ""
+ },
+ "0x3e9dc": {
+  "addr": "0x3E9DC",
+  "bytes": 80,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Same as f3E98C with the second number sprite set 0xF4F9C (offsets 0xC2820). Used by f3DAD8 for the second count in phase 5.",
+  "globals": "reads 0xC2820, sprite table 0xF4F9C",
+  "calls": "f3AF8C",
+  "indirect": ""
+ },
+ "0x3ea2c": {
+  "addr": "0x3EA2C",
+  "bytes": 80,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Same as f3E98C with sprite set 0xF508C and offsets 0xC282C ({5, 6, 7, ...}). Used by f3DE40 for a per-ship value 0..5.",
+  "globals": "reads 0xC282C, sprite table 0xF508C",
+  "calls": "f3AF8C",
+  "indirect": ""
+ },
+ "0x3f558": {
+  "addr": "0x3F558",
+  "bytes": 204,
+  "grade": "D",
+  "category": "other",
+  "purpose": "Frees the map heap blocks, each only if non-NULL, and zeroes the pointer: [0xFFB54], [0xFFB58], [0xFFB5C] (G: the land/coast/sea adjacency lists of f3EED8), [0x10740C] (the N.RL block), [0xFF648] (mapdataz), [0xFF8CC]/[0xFF8D0] (borders1/2). Called by 0x3FB94 case 0x51 before the longjmp back to start-up. BUG(1995): after freeing [0x10740C] it zeroes [0xFFB5C] instead (0x3F5C7), so [0x10740C] keeps a dangling pointer.",
+  "globals": "rw [0xFFB54], [0xFFB58], [0xFFB5C], [0x10740C], [0xFF648], [0xFF8CC], [0xFF8D0]",
+  "calls": "free (0x877E6)",
+  "indirect": ""
+ },
+ "0x3f624": {
+  "addr": "0x3F624",
+  "bytes": 40,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Sets the border highlight colour of territory t: 0xFFB60[t] = c (eax = t, edx = c). f3D52C draws the borders with a non-zero colour.",
+  "globals": "writes uint8[160] 0xFFB60",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x3f670": {
+  "addr": "0x3F670",
+  "bytes": 40,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Clears all border highlights: memset(0xFFB60, 0, 160).",
+  "globals": "writes 0xFFB60[160]",
+  "calls": "0x7D5D0 (memset, G)",
+  "indirect": ""
+ },
+ "0x3f698": {
+  "addr": "0x3F698",
+  "bytes": 40,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Sets the token box colour of territory t: 0xFFC00[t] = c. f3DAD8 draws it around the current player's stack. 0x3FB94 case 0x28 uses 14 for the source and 5 or 15 for the destination.",
+  "globals": "writes uint8[160] 0xFFC00",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x3f70c": {
+  "addr": "0x3F70C",
+  "bytes": 40,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Sets the ship box colour of territory t: 0xFFCA0[t] = c. f3DE40 draws it.",
+  "globals": "writes uint8[160] 0xFFCA0",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x3fb94": {
+  "addr": "0x3FB94",
+  "bytes": 11068,
+  "grade": "D",
+  "category": "map interaction",
+  "purpose": "The map screen's button handler. It is called by 0x3D434 (the click on a button of dialog 0xF596C, after f3C5D4) with the button id. The switch maps the id to an action and/or a return code, -100 = nothing. Main groups:\n- 3: grab screen, 0x136B0(2), show. 4: 0x13E50 (G: help screens). 5: 0x42754. 6: 0x19C10. 7: 0x76A9C. 8: 0x44A34.\n- 9..0x10: player buttons. Nation = int16 0xF06B0[id-9]; normal view 0x459E4(n) (\"IN STOCK | ON MAP | TREASURY\" panel) + f3D9FC + f3CBBC; overview (int16 [0x107690] != 0): f3E374(n).\n- 0x12..0x19: return -0x36..-0x3D.\n- 0x1B..0x22: scroll by (-1,-1), (0,-1), (1,-1), (-1,0), (1,0), (-1,1), (0,1), (1,1).\n- 0x23: mini-map click: col = (mx-0x1E1)/7 - 3, row = 2(my-0x170)/7 - 4, redraw.\n- 0x24: toggle detail level int8 [0xC1A34] between 3 and 0.\n- 0x25: ZOOM/UN-ZOOM. Grab the background, label \"UN-ZOOM\", f3E374([0xF40F8]), modal loop 0x78BA4(dlg) until -1, then label \"ZOOM\" back.\n- 0x101: replay. Only if [0xEDF58] != 0. Saves the message area to the disk file \"junk\" with fg_makegif, then \"Map shows Round %d post movement state.\", 0x7A940 (G: save current state), copies the snapshots 0xE5D20->0xE31B8 (0x2B20 bytes), 0xE2DF8->0xE2C18 (0x1E0), 0xF1FB0->0xF14CC (0x88D), redraws, modal loop, 0x7AC60 (G: restore), and shows \"junk\" back.\n- 0x103: whole screen to \"junk\", 0x763FC, then \"junk\" back into [0xF52CC].\n- 0x26/0x27: land/sea mode int8 [0x108804] = 1/2 (radio buttons; sea disables 0xC4..0xC8).\n- 0xC4..0xC8: radio, int16 [0xF09E0] = 1..5.\n- 0x28: perform the selected move ([0x108808..0x10881C]) via 0x57CE8/0x57E28 or 0x580CC/0x576F8, box colours via f3F698/f3F70C.\n- 0x2B..0x32: ship load/unload/select (0x57CE8, 0x57E28, 0x576F8, 0x576A8, f3E89C/f3E8FC, 0x426D0).\n- 0x4F/0x52/0x53/0xE2/0x56/0x107: grab screens then 0x5E7D0/0x436FC/0x4290C/0x43E88/0x44D5C/0x545AC, return -1.\n- 0x57: quit (f44CAC with [0xF5500] = \"\").\n- 0x51: new game. 0x121A0, 0x7ABD0, f3F558, frees 0xF0984[1..11] and [0xEED74/78/7C/80], f3C7A0, longjmp(0xF58D4).\n- 0x50: restore. restore_dialog 0x5FF28 (CANCEL -15 returns -1), clears bit 0x04 of 0xE1624, the same frees, longjmp(0xF58A0).\n- 0x42..0x4D: return 0..11.\n- 0x8E..0xA5: [0xF6758] = 0..23 and return -0x3E.\n- The remaining ids (0x29, 0x2A, 0x33..0x41, 0x4E, 0x58, 0x69..0x8D, 0xA6..0xC3, 0xC9..0xE9, 0xEA, 0xEC..0x100) each return a fixed negative code (e.g. 0x2A -> -1, 0x33 -> -8, 0x3F -> -0x65, 0x100 -> -0xAB).",
+  "globals": "rw [0xF4884]/[0xF4888] scroll, int8 [0xC1A34] detail, int16 [0x107690] overview flag, int16 [0x107692] replay flag, int8 [0x108804] land/sea mode, int16 [0xF09E0] amount radio, [0xF06CC], [0xF6758] (cases 0x8E..0xA5), move-selection block [0x108808..0x10881C]; reads [0xE1628]/[0xE162C] mouse x/y, int16 table 0xF06B0 (nation per player button), [0xF40F8] current player, [0xF40EC] players, [0xEDF58]/[0xEDF5C] (replay available / round), [0xF5240], message-box area 0xBB3F8..0xBB400 (saved and restored); writes 0xF5500, 0x109E7C (button label text); frees 0xF0984[12], [0xEED74..0xEED80]",
+  "calls": "f3CCBC, f3CC14, f3CC68, f3CD10, f3CBBC, f3D52C, f3D9FC, f3DA60, f3E374, f3E89C, f3E8FC, f3F558, f3F624, f3F670, f3F698, f3F70C, 0x426D0, 0x459E4, 0x136B0, 0x13E50, 0x42754, 0x19C10, 0x76A9C, 0x44A34, 0x763FC, 0x545AC, 0x44D5C, 0x436FC, 0x43E88, 0x4290C, 0x5E7D0, 0x121A0, 0x7ABD0, 0x7A8D0, 0x7A940, 0x7AC60, 0x57CE8, 0x57E28, 0x580CC, 0x576F8, 0x576A8, 0x572CC, 0x78BA4 (modal dialog loop, G), button kit f3B9A4/f3B7CC/f3B870/f3BFBC/f3C284/f3C314/f3C3D0/f3C7A0/f3C828, f3A990, f3AB7C, f44CAC (quit), restore_dialog 0x5FF28, free, 0x7DB3D sprintf, fg_makegif/fg_showgif with the disk file \"junk\" (0xB400C etc.), fg_vbopen/vbclose/move, longjmp (jmp 0x87879) to 0xF58D4 or 0xF58A0",
+  "indirect": "jmp dword ptr cs:[4*(id-3) + 0x3F780]: a jump table in the code object at 0x3F780 (fixup 0x3FBCC -> 0x3F780), 0x105 = 261 entries for ids 3..0x107; ids > 0x107 or < 3 (16-bit unsigned compare) go to 0x426C1 (return -100). Entries (id -> target): 3->0x3FBD0, 4->0x3FBF1, 5->0x3FC0D, 6->0x3FC27, 7->0x3FC39, 8->0x3FC4B, 9..0x10->0x3FF87,0x3FFD7,0x40027,0x40077,0x400C7,0x40117,0x40167,0x401B7, 0x12..0x19->0x40207..0x40293 (step 0x14), 0x1B..0x23->0x402A7,0x402C0,0x402D9,0x402F5,0x4030E,0x40327,0x40343,0x4035C,0x40375, 0x24->0x403C8, 0x25->0x406E0, 0x26->0x407DC, 0x27->0x40B38, 0x28->0x40C4A, 0x29->0x40E1D, 0x2A->0x3FD35, 0x2B->0x40F80, 0x2C->0x41223, 0x2D->0x4152E, 0x2E->0x417A5, 0x2F->0x40E45, 0x30->0x410AE, 0x31->0x41380, 0x32->0x416C6, 0x33->0x418A7, 0x34/0x36->0x418BB, 0x35/0x37->0x418CF, 0x38..0x41->0x418E3..0x41997 (step 0x14), 0x42..0x4D->0x4202C..0x42106, 0x4E->0x40E31, 0x4F->0x3FDAB, 0x50->0x3FEA0, 0x51->0x3FDCF, 0x52->0x3FD26, 0x53->0x3FD6D, 0x56->0x3FD07, 0x57->0x3FD91, 0x58->0x419AB, 0x69..0x8D->0x419D3..0x41CB7 (constant-return stubs), 0x8E..0xA5->0x41CD4..0x41F94 (step 0x20), 0xA6..0xAB->0x41FB4..0x42018, 0xB0..0xC3->0x4211A..0x42296, 0xC4..0xC8->0x40858,0x408E9,0x4097C,0x40A10,0x40AA4, 0xC9..0xE1/0xE3..0xEA/0xEC..0x100->0x422AA..0x426BA (constant returns), 0xDA->0x419BF, 0xE2->0x3FD49, 0x101->0x4041D, 0x103->0x3FC5D, 0x107->0x3FCE0. Default 0x426C1 for ids 0x11, 0x1A, 0x54, 0x55, 0x59..0x68, 0xAC..0xAF, 0xEB, 0x102, 0x104..0x106. Also jmp 0x87879 = longjmp (not through a table) in cases 0x50/0x51."
+ },
+ "0x426d0": {
+  "addr": "0x426D0",
+  "bytes": 132,
+  "grade": "D",
+  "category": "map interaction",
+  "purpose": "Refresh one territory after a movement action: t = byte 0xC803C[i] (an identity table 0,1,2,..), sets the territory's label colour byte 0xFFC00[t] (via 0x3F698) to 5 if the current nation [0xF40F8] has no tokens left in area record t+1 field +0x24+n, else 0x0F; then redraws the ship panel 0x5D14C([0xF40F8], i), redraws the map 0x3D52C(0,0) and shows the back buffer (0x3CBBC). Purpose of the +0x24+n field (G: tokens that may still move).",
+  "globals": "reads 0xC803C[i] (uint8 map, identity in the data), [0xF40F8] current nation, area records 0xE31B8+69*(t+1)+0x24+n (read as dword 0xE31D9.. sar 24); writes 0xFFC00[t] through 0x3F698",
+  "calls": "0x3F698 (set 0xFFC00[t]=colour), 0x5D14C (ship panel), 0x3D52C (map redraw at scroll 0,0 args), 0x3CBBC (paste back buffer [0xF52C8] to screen). Callers: 9 cases of the button dispatcher 0x3FB94 (0x40DE5..0x41871, movement buttons) and 0x59E82",
+  "indirect": "",
+  "grade_note": "",
+  "category_note": ""
+ },
+ "0x42754": {
+  "addr": "0x42754",
+  "bytes": 440,
+  "grade": "D",
+  "category": "in-game menu/options",
+  "purpose": "The in-game options menu (button id 5 of the panel): saves the current dialog's pressed states (0x3C940), copies the screen into the background buffer (0x3CD10), draws a 3-D frame (0xBE,0x50,0x104,0x8C) in the back buffer, configures dialog 0xC1A5C (SAVE GAME 0x4F, RESTORE GAME 0x50, START NEW GAME 0x51, SCORING 0x56, AUDIO/VISUALS 0xE2, TOGGLES 0x52, HELP 0x53, QUIT TO DOS 0x57, CANCEL 0x2A, SHOW PBEM 0x107), pastes it and loops on 0x78BA4 until a button handler returns -1; then restores the screen and button states. PBEM (bit 0x80 of 0xE1624): CANCEL moved to x 330, SHOW PBEM enabled with style 1; else CANCEL at x 265, SHOW PBEM disabled, style 2. SAVE/RESTORE are enabled only when not PBEM and button 0x4F of 0xC1A5C is already enabled, else both disabled.",
+  "globals": "0xF8E78 current dialog (saved/restored), 0xF52C8 back buffer, 0xF52D0 background id cleared, 0xE1624 flags (0x80 PBEM), dialog 0xC1A5C (10 records, layout D from obj2), button records via 0x3BB48 (x), 0x3BFBC (enabled), 0x3C0D8 (style byte rec+0x11), 0x3BF30 (read enabled)",
+  "calls": "0x3C940 save pressed, 0x3CD10 screen->[0xF52CC], fg_vbopen/fg_vbclose, 0x3C9D0 frame, 0x3BB48, 0x3BFBC, 0x3C0D8, 0x3BF30, 0x3B05C draw dialog, 0x78884/0x788AC mouse hide/restore, fg_vbpaste(0xBE,0x1C1,0x50,0xDB,0xBE,0xDB), 0x78BA4 dialog poll loop, 0x3CC68 paste [0xF52CC] to screen, 0x3C8C4 restore pressed, 0x3CCBC screen->[0xF52C8]. Caller 0x3FB94 case id 5 (0x3FC12)",
+  "indirect": "No indirect jump in the body. Its loop calls 0x78BA4(dlg,0), which waits for a click on a button of dlg, flashes it (0x3C5D4) and calls the button-id dispatcher 0x3FB94(id), whose jmp cs:[4*(id-3)+0x3F780] (261 entries, ids 3..0x107) runs the handler; the menu's ids go to 0x4F->0x3FDAB, 0x50->0x3FEA0, 0x51->0x3FDCF, 0x56->0x3FD07 (0x44D5C), 0xE2->0x3FD49 (0x43E88), 0x52->0x3FD26 (0x436FC), 0x53->0x3FD6D (0x4290C), 0x57->0x3FD91 (quit), 0x2A->0x3FD35 (returns -1), 0x107->0x3FCE0 (0x545AC). Unlisted ids go to 0x426C1 (default)."
+ },
+ "0x4290c": {
+  "addr": "0x4290C",
+  "bytes": 992,
+  "grade": "D",
+  "category": "in-game menu/options",
+  "purpose": "The HELP screen for the current phase: gets the help file name and title from 0x42CEC, loads the file from ACIV.CT3 ([0xF40DC]) into a malloc'd block (size from cat_size, NUL-terminated) or uses 'Help file %s not found.' when cat_size returns -2. Finds a box width by trial: w = 0x11D, 0x13B, ... (+30) measuring the wrapped text (0x3A42C, width w-20, draw 0) until w > 0x249 or the height+0x41 is <= 2w/3 and <= 0x1CC; centres the box, saves the screen under it to a disk GIF file named 'junk' (fg_makegif), draws frame, title centred at y+10 with an underline, the text at (x+10, y+30), CONTINUE button 0x2A of dialog 0xBBBEC centred at the bottom; loops 0x78BA4 until -1; restores the screen region with fg_showgif('junk') into the back buffer and frees the text.",
+  "globals": "[0xF40DC] ACIV.CT3 handle, [0xF52C8] back buffer, 0xF8E78 dialog saved/restored, dialog 0xBBBEC (1 record, id 0x2A; label set to 'CONTINUE' 0xB407A), strings 0xB405B, 0xB4075/0xB4083 'junk'",
+  "calls": "0x42CEC, cat_size 0xA24A7, 0x7DB3D sprintf, 0x822B5 malloc, cat_load 0xA25B3, 0x3A42C word wrap (measure and draw), fg_makegif 0x8CE50, fg_vbopen/vbclose, 0x3C9D0, fg_setcolor, 0x3A0B0 centred text, fgf_width, fg_move, fg_draw, 0x3BB48, 0x3BC64, 0x3C284 set label, 0x3B05C, fg_vbpaste, 0x78BA4, fg_showgif 0x88F98, 0x3CC14, free 0x877E6. Caller 0x3FB94 case id 0x53 (0x3FD7C)",
+  "indirect": "Button loop via 0x78BA4 -> 0x3FB94 (table 0x3F780); id 0x2A -> 0x3FD35 returns -1."
+ },
+ "0x42cec": {
+  "addr": "0x42CEC",
+  "bytes": 2576,
+  "grade": "D",
+  "category": "in-game menu/options",
+  "purpose": "Picks the help file and title for the current phase: strcpy into the caller's name buffer (eax) and title buffer (edx) by switch on the phase byte [0xF4102] (0..21; the same index names the phases in the table 0xCA9F4: TAXATION .. SELECT START). Phase 0: [0xFFD40]==2 -> taxrevlt.hlp 'Tax Revolt', ==-50 -> taxrate.hlp 'Tax Rate Changes', else nothing; 1 popexpan; 3 shipmain; 4, 10, 17 shipcnst; 5 movement.hlp 'Token Movement' if int8 [0x108804]==1 else moveship.hlp 'Ship Movement'; 6 viewmove; 7 conflict; 8 citycnst; 11 acqrgood; 12 tradwant; 13 tradoffr.hlp if byte [0xEE168]==0x0C else tradresp.hlp; 14 tradacpt; 15 calamity by [0xF783C]; 16 monocnvt; 18 buyciv; 19 excess; 20 showast; 21 start.hlp 'Select Starting Territory'; 2, 9 and > 21: buffers untouched.",
+  "globals": "reads byte [0xF4102] phase, [0xFFD40] tax state, int8 [0x108804] movement mode (1 tokens, else ships, G), byte [0xEE168] (screen/trade mode, 0x0C = counter offers, G), dword [0xF783C] calamity 0..12; strings 0xB4088..0xB442D",
+  "calls": "none (inline strcpy loops). Caller 0x4290C only",
+  "indirect": "jmp cs:[4*phase + 0x42C94], 22 entries (phase 0..0x15): 0->0x42D1C tax, 1->0x42DA7 popexpan, 2->0x436F3 (none), 3->0x42DF2 shipmain, 4->0x42E3D shipcnst, 5->0x42E88 movement/moveship, 6->0x42F0D viewmove, 7->0x42F58 conflict, 8->0x42FA3 citycnst, 9->0x436F3 (none), 10->0x42FEE shipcnst, 11->0x43039 acqrgood, 12->0x43084 tradwant, 13->0x430CF tradoffr/tradresp, 14->0x4314F tradacpt, 15->0x4319A calamity, 16->0x43583 monocnvt, 17->0x42FEE shipcnst, 18->0x435CE buyciv, 19->0x43619 excess, 20->0x43664 showast, 21->0x436AF start. Nested jmp cs:[4*[0xF783C] + 0x42C60], 13 entries: 0 0x431B4 earthquk, 1 0x431FF volcano, 2 0x4324A treachry, 3 0x43295 famine, 4 0x432E0 superstn, 5 0x4332B civilwar, 6 0x43376 slavervt, 7 0x433C1 flood, 8 0x4340C barbaran, 9 0x43457 epidemic, 10 0x434A2 civildis, 11 0x434ED iconclsm, 12 0x43538 piracy. Both tables lie in the code object (read from the listing's dd lines, D)."
+ },
+ "0x436fc": {
+  "addr": "0x436FC",
+  "bytes": 1932,
+  "grade": "D",
+  "category": "in-game menu/options",
+  "purpose": "The TOGGLES screen: frame (0xD2,0x50,0xDC,0xF0) with ten labelled tick boxes at x 0xDC (sprite 0xF51DC set, 0xF51E4 clear, the 9x9 boxes cut from maped.gif), dialog 0xC1E48 (ten invisible style-2 rows ids 0x41,0x6D,0x6E,0xE3..0xE9 and CONTINUE 0x2A); each click returns a code from 0x3FB94 that toggles one bit of the aciv.cfg bytes and redraws its box; on exit (-1) writes aciv.cfg (6 bytes from 0xF097C, fopen mode at 0xB453B) if anything changed. Bits: Restart Confirmations 0xF097C&0x08 (code -0x63), Movement Finished Confirmation 0xF097C&0x10 (-0x7F), Show AI Movement 0xF097C&0x40 (-0x80), Speedup AI Movement 0xF097D&0x01 (-0x87), Ship Maintenance AI Pause 0xF097F&0x40 (-0x88), Ship Construction AI Pause 0xF097F&0x80 (-0x89), City Construction AI Pause 0xF0980&0x01 (-0x8A), Calamity AI Pause 0xF0980&0x04 (-0x8B), City Support AI Pause 0xF0980&0x10 (-0x8C), Alternate Tool Acquisition Colors 0xF0981&0x01 (-0xAC).",
+  "globals": "0xF097C..0xF0981 (aciv.cfg image), 0xF8E78 saved/restored, [0xF52C8], dialog 0xC1E48, sprites 0xF51DC/0xF51E4, strings 0xB4447..0xB4519, 'aciv.cfg' 0xB453E",
+  "calls": "fg_vbopen/vbclose, 0x3C9D0, fg_setcolor, 0x3A044 text, 0x3AF8C sprite, 0x3B05C, 0x78884/0x788AC, fg_vbpaste(0xD2,0x1AD,0x50,0x13F,0xD2,0x13F), 0x78BA4, fopen 0x7D8C8, fwrite 0x912D5, fclose 0x7D95E. Caller 0x3FB94 case id 0x52 (0x3FD30)",
+  "indirect": "Button loop via 0x78BA4 -> 0x3FB94 (table 0x3F780): ids 0x41->0x41997, 0x6D->0x41A23, 0x6E->0x41A37, 0xE3..0xE9->0x4248A..0x42502, 0x2A->0x3FD35 (-1); the handlers only return the codes listed, the toggling is done here."
+ },
+ "0x43e88": {
+  "addr": "0x43E88",
+  "bytes": 2424,
+  "grade": "D",
+  "category": "sound/music",
+  "purpose": "The AUDIO/VISUALS (preferences) screen: frame (0xD2,0x50,0xDC,0x64), rows 'Sound effects'/'Volume', 'Music'/'Volume', 'Animations' with tick boxes (0xF51DC/0xF51E4) and volume numbers in sunken boxes (0x3A148), dialog 0xC2234; codes from 0x3FB94: -0x7B sound effects on/off (0xF097C bit 0x01; turning off ends the playing sample), -0x84/-0x83 sound volume -1/+1 (bits 7..13 of word 0xF097E, 0..9; plays the test sample via 0x7B504(1, 0xF549C) at volume v*127/9), -0x7C music on/off (bit 0x02; AIL_stop_sequence / AIL_resume_sequence with loop count 0 if status 8), -0x86/-0x85 (G: music volume -1/+1, bits 0..6 of 0xF097E, AIL_set_sequence_volume v*127/9), -0x7D animations (bit 0x04). The sound toggles need word [0xF40AE]==0. On exit: if digital sound [0xF625C], ends sample [0xF627C], frees the cached sample named at 0xF6158 (0x7CB9D) and clears the name; sets sample [0xF6278]'s volume; writes aciv.cfg (6 bytes) if changed.",
+  "globals": "0xF097C flags, word 0xF097E volumes (music bits 0..6, effects bits 7..13), word 0xF40AE (G: sound disabled from the command line), 0xF625C digital on, 0xF625D music on, 0xF6274/0xF6278/0xF627C sample handles, 0xF6284 sequence, 0xF6158 cached sample name, 0xF6264 its block, 0xF8E78, dialog 0xC2234",
+  "calls": "fg_*, 0x3C9D0, 0x3A044, 0x3A148 (centred number), 0x3AF8C, 0x3B05C, 0x78BA4, 0x7B504 (play sample), AIL_active_sample_count, AIL_end_sample, AIL_set_sample_volume, AIL_start_sample, AIL_stop_sequence, AIL_sequence_status, AIL_resume_sequence, AIL_set_sequence_loop_count, AIL_set_sequence_volume, 0x7D2E8 file size, 0x7CB9D free locked block, fopen/fwrite/fclose. Caller 0x3FB94 case id 0xE2 (0x3FD58)",
+  "indirect": "Button loop via 0x78BA4 -> 0x3FB94 (table 0x3F780); the dialog's own ids were not decoded (dialog 0xC2234), the codes -0x7B..-0x86 are compared here."
+ },
+ "0x449b8": {
+  "addr": "0x449B8",
+  "bytes": 40,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Map scroll x in pixels: returns [0xF4884] * 78 (one map column step = 78 px).",
+  "globals": "reads int32 [0xF4884] (map scroll column)",
+  "calls": "none. Callers 0x3D1D4, 0x3D2BD, 0x3D5BA (map drawing/hit test)",
+  "indirect": ""
+ },
+ "0x449e0": {
+  "addr": "0x449E0",
+  "bytes": 84,
+  "grade": "D",
+  "category": "map rendering",
+  "purpose": "Map scroll y in pixels: v = [0xF4888]; returns (v/2)*71 + (v%2)*35 (signed division; half steps of 35 px).",
+  "globals": "reads int32 [0xF4888] (map scroll row)",
+  "calls": "none. Callers 0x3D1DC, 0x3D2CB, 0x3D5C2",
+  "indirect": ""
+ },
+ "0x44a34": {
+  "addr": "0x44A34",
+  "bytes": 632,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Button id 8 of the panel (G: a full-map view for the current nation): puts background picture 3 (egypt5.gif) in [0xF52CC] and copies it to the back buffer, sets byte [0xEE168]=3, saves the whole screen to the GIF file 'junk', draws the phase title (0x7876C), appends dialog 0xBB800 (CONTINUE 0x2A) to the panel 0xF596C and places it at (265, 425), disables panel buttons 5, 3, 7, 6, 4, 0x101, refreshes the panel (0x783B8 with [0xF5940]), clears 0xFFB60 (0x3F670), draws the nation status panel 0x459E4([0xF40F8]) and centres the map on the nation (0x3D9FC), shows it; loops 0x78BA4 until -1; then removes 0xBB800 from the panel, re-enables the six buttons, restores the screen from 'junk', restores the background picture and [0xEE168].",
+  "globals": "byte [0xEE168] (screen mode, saved/restored), [0xF52C8], [0xF52CC], 0xF8E78, panel dialog 0xF596C (count at 0xF596C, records from 0xF596E), [0xF5940], [0xF40F8] current nation",
+  "calls": "0x3CD6C, fg_vbcopy, fg_makegif, 0x7876C (phase title box: rect colour 0x3C, name 0xCA9F4[[0xF4102]] centred), 0x7853C (append dialog to 0xF596C), 0x3BB48, 0x3BC64, 0x3BFBC, 0x783B8, 0x3B05C, 0x3F670 (memset 0xFFB60), 0x459E4, 0x3D9FC, 0x3CBBC, 0x78BA4, 0x78664 (remove dialog from 0xF596C), fg_showgif, fg_vbpaste. Caller 0x3FB94 case id 8 (0x3FC4B)",
+  "indirect": "Button loop via 0x78BA4 -> 0x3FB94 (table 0x3F780); 0x2A -> -1."
+ },
+ "0x44d5c": {
+  "addr": "0x44D5C",
+  "bytes": 1880,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "The 'Scoring History' graph (button SCORING 0x56): round r = int16 [0xF40FC] (minus 1 in phase 20, SHOW AST); for each nation n 1..9 in play (byte +0x9A of its record) stores score 0x147C4(n) into the history int16 0xEE9F0[n*45 + r] (so opening the screen writes the current round's score), collects (score, n) pairs and the maximum over all rounds; y scale = max rounded up to 100 (* 100/100), x step 530/rounds (rounds capped at 44); sorts the pairs by score (bubble sort, descending); draws title, axes, dashed grid (fg_dash), 'R O U N D S', the round numbers, each nation's line in its colour 0xC2836 and dash pattern 0xC284A with its name 0xC768C[n] and score; in PBEM adds 'Round %d score may not accurately reflect the present situation'; CONTINUE (0xBB800 at 265, 455); loops until -1, restores the screen.",
+  "globals": "int16 [0xF40FC] round, byte [0xF4102] phase, nation records 0xF14CC+199n (+0x9A), int16 0xEE9F0[10][45] score history (written), 0xC768C nation names, 0xC2836/0xC284A colour and dash tables, 0xE1624 bit 0x80",
+  "calls": "0x3CD10, 0x147C4 (score of nation), fg_vbopen/vbclose, fg_setcolor, fg_rect, 0x39F90, 0x3A0B0, fg_move, fg_draw, fg_dash, itoa, 0x3A3A0 (text), sprintf, 0x3BB48, 0x3BC64, 0x3B05C, 0x3CC14, 0x78BA4, 0x3CC68. Caller 0x3FB94 case id 0x56 (0x3FD11)",
+  "indirect": "Button loop via 0x78BA4 -> 0x3FB94 (table 0x3F780)."
+ },
+ "0x459e4": {
+  "addr": "0x459E4",
+  "bytes": 844,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Draws the nation status panel (x 0x3C..0x9A, y 0x162..0x1C5) for nation n: restores the area from the background picture byte [0xEE168] (0x3CD6C + fg_vbcopy), then for n 1..9: name box (colour 0x3C) with 0xC768C[n] centred, labels IN STOCK / ON MAP / TREASURY in font 0, and sprites with numbers: in stock tokens (0xF4ACC[n], byte +0x99), cities 9 - byte +0x51 (0xF4BAC[n]), ships 4 - byte +0x40 (0xF4B3C[n]); on map tokens byte +0x98 (0xF489C[n]), cities byte +0x51 (0xF497C[n]); treasury byte +0x3E (0xF49EC[n]); pastes the panel to the screen. For n outside 1..9 only the cleared panel is shown.",
+  "globals": "byte [0xEE168] (read as dword 0xEE165 sar 24), [0xF52C8], [0xF52CC], nation record 0xF14CC+199n: +0x3E treasury, +0x40 ships built, +0x51 cities on map, +0x98 tokens on map, +0x99 tokens in stock (meanings G from the labels), 0xC768C names, sprite arrays 0xF4ACC/0xF4BAC/0xF4B3C/0xF489C/0xF497C/0xF49EC",
+  "calls": "0x3CD6C, fg_vbcopy, fg_vbopen/vbclose, fg_setcolor, fg_rect, 0x3A0B0, 0x39F90, 0x3AF8C, itoa, 0x3A044, fg_vbpaste. 31 callers (calamities, phases, 0x3FB94 cases, 0x44A34)",
+  "indirect": ""
+ },
+ "0x545ac": {
+  "addr": "0x545AC",
+  "bytes": 632,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "SHOW PBEM (button 0x107): saves the screen to 'junk', shows picture 21 (message.gif) full screen, prints 'The players in this PBEM game are:' (font 2, centred, y 50) and one line '%s - %s' per player p < [0xF40EC] (nation name 0xC768C[byte 0xF4104+32p], player name at 0xF4106+32p) at y 110+30i, CONTINUE (0xBB800) under the list; loops until -1; restores the screen from 'junk' and copies it to the background buffer (0x3CD10).",
+  "globals": "[0xF40EC] players, player records 32 bytes at 0xF4100 (+4 nation, +6 name string), 0xC768C, 0xF8E78, byte [0xEE168] saved (not restored, G)",
+  "calls": "fg_makegif, 0x3CD6C(0x15), fg_vbcopy, fg_vbopen/vbclose, fg_setcolor, 0x39F90, 0x3A0B0, sprintf, 0x3BB48, 0x3BC64, 0x3B05C, 0x3CC14, 0x78BA4, fg_move, fg_showgif, fg_vbpaste, 0x3CD10. Caller 0x3FB94 case id 0x107 (0x3FCE5). PBEM only (dropped from the port by Erik's ruling)",
+  "indirect": "Button loop via 0x78BA4 -> 0x3FB94. (The dd table at 0x547D0 after the body belongs to the next function, used by jmp 0x54916.)"
+ },
+ "0x572cc": {
+  "addr": "0x572CC",
+  "bytes": 484,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Movement: sets int16 [0xF09E0]=1 and enables the panel's count buttons 0xC4..0xC8 (1..5 tokens) when the current nation has at least 1..5 of the counted tokens in area t (area record t+1, byte +0x24+n), disables the rest, then draws 0xC4 pressed and 0xC5..0xC8 up in the back buffer.",
+  "globals": "[0xF40F8] current nation, area records 0xE31B8+69*(t+1)+0x24+n, int16 0xF09E0 (written 1; G: selected count), panel dialog 0xF596C",
+  "calls": "0x3BFBC, fg_vbopen/vbclose, 0x3B7CC (draw button id pressed), 0x3B870 (draw button id up). Callers 0x4082A, 0x40D31, 0x55F73, 0x563D9, 0x56819",
+  "indirect": ""
+ },
+ "0x576a8": {
+  "addr": "0x576A8",
+  "bytes": 80,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "f(t, n, x): returns x if nation n has an active ship at t (0x57A10), else 5. It also calls 0x57B5C(t, n) and compares the result with 1, but both outcomes give 5 (the compare is dead: no branch follows it).",
+  "globals": "none directly",
+  "calls": "0x57A10, 0x57B5C. 9 callers (0x41881, 0x56181..0x56DB1: movement)",
+  "indirect": ""
+ },
+ "0x576f8": {
+  "addr": "0x576F8",
+  "bytes": 184,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Makes the selected-ship index of the current nation in territory t point at one of its ships there: k = byte area[t+1]+0x2D+n; up to 5 times: if ship k's territory (low byte of int16 nation+0x45+2k, minus 1) == t stop, else k = (k+1) % 4 and store it back.",
+  "globals": "[0xF40F8] current nation n, area records +0x2D+n (byte, 0xE31E5+69r+n), nation record +0x45 int16[4] ship positions (low byte = territory+1)",
+  "calls": "none. 11 callers (movement 0x40D9A.., 0x55F51.., 0x59E65.., 0x78E65)",
+  "indirect": ""
+ },
+ "0x57a10": {
+  "addr": "0x57A10",
+  "bytes": 128,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Returns 1 if nation n has a ship k < byte +0x40 (ship count) with position int16 +0x45+2k == t+1 and byte +0x41+k > 0 (G: movement left), else 0.",
+  "globals": "nation record 0xF14CC+199n: +0x40 ship count, +0x41+k, +0x45 int16[k]",
+  "calls": "none. Caller 0x576A8",
+  "indirect": ""
+ },
+ "0x57b5c": {
+  "addr": "0x57B5C",
+  "bytes": 124,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Returns 1 if nation n has a ship k < byte +0x40 at t (int16 +0x45+2k == t+1) carrying tokens (byte +0x4D+k != 0), else 0.",
+  "globals": "nation record +0x40, +0x45 int16[k], +0x4D+k (tokens aboard)",
+  "calls": "none. Caller 0x576A8 (result unused there)",
+  "indirect": ""
+ },
+ "0x57ce8": {
+  "addr": "0x57CE8",
+  "bytes": 120,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Removes k tokens of nation n from territory t: if k > 0, area[t+1] byte +0x0E+n -= k, and if flag == 1 also byte +0x24+n -= k; then 0x581C4(t, n) drops the nation from the territory if none are left.",
+  "globals": "area records 0xE31B8+69r: +0x0E+n tokens, +0x24+n (G: tokens that may still move)",
+  "calls": "0x581C4. 28 callers (calamities 0x1C8C4.., conflict, movement)",
+  "indirect": ""
+ },
+ "0x57e28": {
+  "addr": "0x57E28",
+  "bytes": 300,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Adds k tokens of nation n to territory t: if k > 0: if area[t+1] byte +1+n != n, increments the nation count +1 and writes n to +1+n; tokens +0x0E+n += k; if t+1 is not in nation n's area list (+0x61.., count byte +0x60), appends it and increments +0x60.",
+  "globals": "area records +1 count, +1+n marker, +0x0E+n tokens; nation record +0x60 count, +0x61.. area list (territory+1)",
+  "calls": "none. 23 callers (calamities, movement 0x40CCC.., 0x4ACA5..)",
+  "indirect": ""
+ },
+ "0x580cc": {
+  "addr": "0x580CC",
+  "bytes": 248,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Moves nation n's selected ship from territory a to b: area[a+1] ship count byte +0x1B+n -1, 0x581C4(a, n); k = area[a+1] byte +0x2D+n; ship position int16 +0x45+2k = (old & 0xFF00) | (b+1); area[b+1] +0x2D+n = k; area[b+1] +0x1B+n +1.",
+  "globals": "area records +0x1B+n (ships), +0x2D+n (selected ship index); nation record +0x45 int16[4]",
+  "calls": "0x581C4. Callers 0x40D55, 0x56B44, 0x5A419",
+  "indirect": ""
+ },
+ "0x581c4": {
+  "addr": "0x581C4",
+  "bytes": 264,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Drops nation n from territory t when it has no tokens there: if area[t+1] byte +1+n != 0 and byte +0x0E+n == 0: count +1 -1, marker +1+n = 0, and removes t+1 from nation n's area list (+0x61.. shifted down, +0x60 -1). Ships (+0x1B+n) are not checked.",
+  "globals": "area records +1, +1+n, +0x0E+n; nation record +0x60, +0x61..",
+  "calls": "none. 10 callers (0x57CE8, 0x580CC, calamities, 0x5C56A, 0x60DDF, 0x61EDD..)",
+  "indirect": ""
+ },
+ "0x5d14c": {
+  "addr": "0x5D14C",
+  "bytes": 3240,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Ship panel for nation n at territory index i (t = 0xC803C[i]): counts n's ships at t and at its twin 0x3E89C(t) (0x39->0x9D, 0x0D->0x9E, 0x87->0x9F: territories with two coasts) from nation +0x45 int16[4]. Only in phase 5 (MOVEMENT): with fewer than 2 groups sets int16 [0x109E14], configures panel buttons 0x2B..0x2E (EMBARK, DISEMBARK, DISEMBARK ALL, NEXT SHIP; w 110) and hides 0x2F..0x32; with two groups uses short labels EMBRK/DSMBRK/DSMBRK-A/NXT SHP (w 55) and enables 0x2F..0x32 for the second group; each enabled if: NEXT SHIP when > 1 ship there, EMBARK when the selected ship carries < 5 tokens (byte +0x4D+k), byte +0x41+k > 0 and n has movable tokens there (area +0x24+n), DISEMBARK/ALL when it carries any. In every phase: restores the panel area (278..357, 370..411) from [0xF52CC] and draws the ship sprite (0xF518C with a ship, 0xF5194 without) or two small ones (0xF519C, mirrored by 0x3AFF4), the selected ship's number (k+1) and its tokens (sprites 0xF4E3C[n] at the positions 0xC49B8/0xC49CC, or filled boxes in colour 0xC4A30[n] at 0xC49E0/0xC49F4 and 0xC4A08/0xC4A1C for two groups), and the coast names (WEST/EAST, SOUTH/NORTH, NORTH/SOUTH) by 0x5DDF4.",
+  "globals": "nation records 0xF14CC+199n (+0x41+k, +0x45 int16[k], +0x4D+k), area records +0x24+n, +0x2D+n (via 0xE31DA/0xE31E6 with n-1), byte [0xF4102] phase, int16 0x109E14 (selected group, read as dword 0x109E12 sar 16), panel dialog 0xF596C, [0xF52C8]/[0xF52CC], 0xC803C, tables 0xC49B8..0xC4A30",
+  "calls": "0x3E89C, 0x3BD80 (set width), 0x3BB48, 0x3C284 (set label), 0x3C0D8 (set style), 0x3BFBC, 0x3C314/0x3C3D0 (enable/disable + redraw), fg_vbopen, fg_vbcopy, 0x3AF8C, 0x3AFF4, itoa, fg_setcolor, 0x3A044, 0x39F90, fg_rect, fg_box, 0x5DDF4, fg_vbclose. 18 callers (0x426D0, movement 0x55863.., 0x5948D..)",
+  "indirect": ""
+ },
+ "0x5ddf4": {
+  "addr": "0x5DDF4",
+  "bytes": 104,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Draws two short labels, left and right, in font 0 (BLOCK05), colour 5, each centred in a 33-pixel box at y 398: the left at x 280, the right at x 323. Then it selects font 1 again. Its only caller (0x5DD8A..) passes compass pairs (\"WEST\"/\"EAST\", \"SOUTH\"/\"NORTH\", \"NORTH\"/\"SOUTH\"), chosen by a code 0x39/0x87/0x0D (G: the direction labels of a map or scroll control).",
+  "globals": "none (it uses only its two string arguments, eax = left and edx = right)",
+  "calls": "f39F90 (font 0, then font 1), fg_setcolor(5), f3A0B0 x2 (centred text)",
+  "indirect": ""
+ },
+ "0x5e7d0": {
+  "addr": "0x5E7D0",
+  "bytes": 284,
+  "grade": "D",
+  "category": "save/load",
+  "purpose": "SAVE GAME (from the in-game menu, caller 0x3FDBA). It calls f3CD10, clears [0xF52D0] and opens the slot dialog f601D8(1, desc). Unless the player cancels (-15), it runs system(\"copy savgamea.dat savgame<N>.dat >NUL\"). Then it opens the copy \"r+b\", reads its int16 version, and calls fseek(fp,0,SEEK_CUR). If the version is 0x28 or higher it writes \"ADVANCED CIVILIZATION\\0\" (22 bytes), then the 51-byte description, and closes the file. So a save is a copy of the AUTOSAVE savgamea.dat with a patched header; nothing of the live state is written here (D). The header is 2 + 22 + 51 = 0x4B bytes, or 0x35 before version 0x28. If system() fails it shows \"Save failed. Probably due to insufficient disk space.\" (f3A9F4). It ends with f3CC68 and f3CCBC (G: redraw the screen).",
+  "globals": "[0xF52D0] background-picture cache byte = 0 (forces a reload); the strings \"savgame%d.dat\" 0xB5F70, \"copy savgamea.dat %s >NUL\" 0xB5F7E, \"r+b\" 0xB5FCE, \"ADVANCED CIVILIZATION\" 0xB5FD2",
+  "calls": "f3CD10, f601D8 (slot dialog), sprintf 0x7DB3D, system 0x7D4EC (G: the Watcom system(); it runs the DOS copy), f3A9F4 (message box), fopen 0x7D8C8, fread 0x7DB6D, fseek 0x91D94, fwrite 0x912D5, fclose 0x7D95E, f3CC68, f3CCBC",
+  "indirect": ""
+ },
+ "0x5f05c": {
+  "addr": "0x5F05C",
+  "bytes": 3788,
+  "grade": "D",
+  "category": "save/load",
+  "purpose": "Reads a whole save file (fp in ebx) into the game globals; 12 callers (the restore dialog, PBEM loaders 0x4F2A0.., 0x55346). It first frees the 11 heap lists [0xF0984+4i]. Then, in file order: int16 version -> *eax; 22 bytes tag (read unconditionally into a local); 51-byte description -> edx; seed-of-round 4 -> 0xF40F4; setup 6 -> 0xE1620..0xE1625; nations 14x199 -> 0xF14CC; areas 161x69 -> 0xE31B8 (versions below 0x34: 161x61 -> 0x10A560, converted at the end); stacks 9x25 -> 0xF06D0; territory state 160x3 -> 0xE2C18; phase 1 -> 0xF4102; 2 -> 0xF40FC; 2 -> 0xF0698; 10x2 -> 0xF069A; 2 -> 0xF06AE; 8x2 -> 0xF06B0 (player order); 2 -> 0xF5476; 56x16 -> 0x111118; 2 -> 0x112548; RNG seed 4 -> 0xCAC5C (file offset 0x3D0C, matches OVERVIEW); players 8x32 -> 0xF4104; 2 -> 0xF5474; 20 -> 0x109E84 (PBEM name); 2 -> 0xF5478. If flag 0x01 of 0xE1624 is set: 11 int16 counts -> 0xF09BA, then for i 1..11 a heap block of 10*count bytes [0xF0984+4i] read from the file. Then 1 -> 0xF408C; 12 -> 0xF09D4; 1 -> 0xF40FE; 9x25 -> 0xF07B4; 9x25 -> 0xF0898; 2 -> 0xF4094; 2 -> 0xF4098; 10x2 -> 0xF409A; 450x2 -> 0xEE9F0; 417 -> 0x110F74 (trades); 11 + 2 bytes skipped into locals; 3 x 10x4 -> 0xF590C, 0x1105D4, 0x1105AC; 4 -> 0xF40F0; 1600 -> 0xF0044 and 1600 -> 0xEED84 (versions 0x25..0x2F: byte by byte, transposed [t][n] -> [n][t] as 10x160); 4 -> 0xF4898; 13 -> 0xF5230; 7x20 -> 0x111498; 2 -> 0x112568; 2 -> 0xF4100; 162 -> 0xF47D4; 9 -> 0xF4878; 14x199 -> 0xF2A94 and 0xF1FB0 (two more nation tables); 81 -> 0x109E24; 12 -> 0xF5934; second area table 161x69 -> 0xE5D20 (or 61-byte records -> 0x10CBC0); 160x3 -> 0xE2DF8; 4 -> 0xEDF58; 4 -> 0xEDF5C. Version-dependent tail: 300 int16 -> 0x112A94 (from 0x2F; older: skipped or regenerated by f7BCD4); 130 bytes skipped (version 0x2E only); 1600 -> 0xEFA04 (0x31); 10x2 0xF0684, 10x2 0xF6E76, 50x2 0xF6E12 (0x32, else zeroed for 1..9); 190 -> 0xF6D54 (0x33, else zeroed); 10 -> 0xF488C (0x35); 0x585x2 -> 0xF3580 (0x36); 4 -> 0xF4230 (0x37, else 0); 10x4 -> 0x1106B0 (0x38, else memset 40). Then the debug log \"savegame\" (no-op). For versions below 0x34 it converts the 61-byte area records to 69 bytes (bytes +0,+1, 13 at +2 and +0xF, 9 at +0x1C/+0x26/+0x34/+0x25, words +0x2F/+0x31, byte +0x33). If the high nibble of 0xE1623 is below 3 it is set to 3. [0xF09E4] = 1 if any nation 1..9 has byte +0x28 != 0.",
+  "globals": "reads into all the addresses listed in purpose; writes [0xF0984+4i] (i 1..11, heap list pointers), 0xE1623 (high nibble forced to at least 3), [0xF09E4]",
+  "calls": "free 0x877E6, fread 0x7DB6D (about 90 calls), tagged_alloc? 0x822B5, f7BCD4 (regenerate the random table), memset 0x7D5D0, f78B0C (debug log no-op)",
+  "indirect": ""
+ },
+ "0x5ff28": {
+  "addr": "0x5FF28",
+  "bytes": 580,
+  "grade": "D",
+  "category": "save/load",
+  "purpose": "RESTORE GAME (title menu 0x1159B and in-game 0x3FEAA). f3CD10, [0xF52D0] = 0, slot = f601D8(2, desc); -15 = cancel. It opens savgame%x.dat \"rb\", loads it with f5F05C, closes it, and sets [0xF40EC] = humans + computers (0xE1620 + 0xE1621, now from the file). With PBEM (0xE1624 & 0x80) it copies the name at 0x109E84 to 0xEE20C. If the phase byte [0xF4102] == 14 (ACCEPT TRADES) it calls f726DC. If version >= 0x1E and f7BBF0(name) (CRC-32 of the file after its header) != 0, it shows \"Save game has been corrupted...\", waits for a key and returns -15. If f6016C(version) == 0 it returns -15. Otherwise, unless the slot is 10 ('a', the autosave itself), it runs system(\"copy savgame<x>.dat savgamea.dat >NUL \"). Then the \"Restoring\" screen: background 8 (chariot.gif) copied to the back buffer and shown, colour 5, \"Restoring\" centred at y 205 and the quoted description at y 230 (font 2, or font 1 if 635 px or wider). Returns the slot or -15.",
+  "globals": "[0xF52D0]=0, [0xF40EC] written, 0xE1620/0xE1621/0xE1624 read, 0x109E84 -> 0xEE20C (PBEM), [0xF4102] read, [0xF52C8]/[0xF52CC] back and background buffers",
+  "calls": "f3CD10, f601D8, sprintf, fopen, f5F05C, fclose, f726DC, f7BBF0, f3A7B0 (message box), getch 0x7D5A6, f6016C, system 0x7D4EC, f78884/f788AC (pointer hide and restore), f3CD6C(8), fg_vbcopy, f3CC14, fg_setcolor, fgf_width, f39F90, f3A0B0, f3CC68, f3CCBC (on cancel)",
+  "indirect": ""
+ },
+ "0x6016c": {
+  "addr": "0x6016C",
+  "bytes": 108,
+  "grade": "D",
+  "category": "save/load",
+  "purpose": "Save-version check: with PBEM (0xE1624 & 0x80) or int16 [0xF40C2] != 0, a version below 0x2C is rejected; otherwise a version below 0x35. A rejected save shows \"That save game is an earlier format that is no longer valid.\" (f3A7B0), waits for a key (getch) and returns 0; otherwise it returns 1.",
+  "globals": "0xE1624 bit 0x80 (PBEM), int16 [0xF40C2] (G: PBEM viewer / special mode, also shows every hand face up in f76A9C)",
+  "calls": "f3A7B0, getch 0x7D5A6",
+  "indirect": ""
+ },
+ "0x601d8": {
+  "addr": "0x601D8",
+  "bytes": 1212,
+  "grade": "D",
+  "category": "save/load",
+  "purpose": "The Save Game / Restore Game slot dialog. mode (eax) 1 = save with 10 slots and a box 349 high; mode 2 = restore with 12 slots, including 'a' and 'b' (savgamea/savgameb, the autosaves, placed 10 px lower), box 409 high. The box is at x 145, w 350, vertically centred. It copies the dialog template 0xC6628 (11 records: ids 0x42..0x4B, slots at y 115+25i, CANCEL 0x4E) to 0x10A174. Restore mode appends the records of 0xC6A12 (ids 0x4C, 0x4D, CANCEL), overwriting the old CANCEL. For each slot it opens savgame%x.dat \"rb\". If the file exists: read the int16 version, skip the 22-byte tag if the version is 0x28 or higher, read the 51-byte description into 0x109E98+51i, enable the button. If not: \"Empty\" and enabled (save), or 50 spaces and disabled (restore). Then it sets each button's y and draws a 3-D frame (f3C9D0 flags 3), the title \"Save Game\"/\"Restore Game\" (font 2, colour 5), the buttons, and pastes the box. It loops on f78BA4(dlg,0) until the code is not -100. In save mode, unless the code is -15, it edits the description in place with f60694(0xAF, 0x77+25*slot, 0x122, 50, desc, centred, dlg). It copies the description to edx and restores [0xF8E78]. Returns the slot index (button id 0x42+i maps to i through f3FB94) or -15.",
+  "globals": "0x10A174 dialog working copy (1002 bytes) from template 0xC6628 and 0xC6A12; 0x109E98 char[12][51] slot descriptions; [0xF8E78] current dialog (saved and restored); [0xF52C8] back buffer",
+  "calls": "sprintf, fopen, fread, fclose, f3C314/f3C3D0 (enable/disable), f3BC64 (button y), fg_vbopen, f3C9D0, f39F90, fg_setcolor, f3A0B0, f3B05C, fg_vbclose, f78884, fg_vbpaste, f788AC, f78BA4, f60694",
+  "indirect": "none in this function; the code comes from f78BA4 -> f3FB94, which jumps through the table at 0x3F780 (see notes)"
+ },
+ "0x60694": {
+  "addr": "0x60694",
+  "bytes": 1004,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "One-line text input: f60694(x, y, w, maxlen, char *buf, align, dlg), the last three on the stack, ret 0xC. It hides the pointer and flushes the keyboard (f78508). It starts as if Ctrl-X (0x18) were pressed, which clears buf and the field (fg_rect colour 13, height = font height + 1). Keys: Enter ends; Esc returns -15; Backspace deletes; 0x20..0x7E append while len < maxlen and the text fits w (re-checked after appending). Each pass draws buf + \"_\" in colour 15, aligned left (f3A044), right (f3A3A0 at x+w-1) or centred (f3A0B0) by align 0/1/2, and pastes the line. It polls fg_intkey and the mouse. A click on an enabled button of dlg flashes it (f3C5D4) and maps it with f3FB94; if that gives -15 the edit ends with -15. Returns -100 (or the last non-cancel button code) on Enter.",
+  "globals": "[0xF8AF8] font height, [0xE1628]/[0xE162C]/[0xE1630] mouse, [0xF52C8] back buffer; cursor string \"_\" at 0xB6144",
+  "calls": "f78884, f78508, fg_vbopen, fg_setcolor, fg_rect, f3A044, f3A3A0, f3A0B0, fg_vbclose, fg_vbpaste, f788AC, fg_intkey, fgf_width, f3C5D4, f3FB94",
+  "indirect": "none directly (f3FB94 dispatches through 0x3F780)"
+ },
+ "0x6dd98": {
+  "addr": "0x6DD98",
+  "bytes": 108,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Value of nation n's trade cards: the sum over i = 1..18 of c_i * c_i * ((i+1) >> 1), where c_i = signed byte [nation n + i]. Card ids 2s+1 and 2s+2 belong to stack s, so (i+1)>>1 = s+1 is the face value: the Advanced Civilization set value count squared times face value (G: the rule's name).",
+  "globals": "0xF14CC + 199n + 1..+0x12 (cards held per commodity)",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x71f2c": {
+  "addr": "0x71F2C",
+  "bytes": 132,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Draws nation n's hand face down: k = f76F14(n) cards, spacing [0x11254C] starting at 40 and reduced by 2 until spacing*k <= w. The sprite 0xF4D14 (cardtiny entry 31, G: the card back) is drawn k times at (x + i*spacing, y). Arguments: eax x, edx y, ebx w, ecx n.",
+  "globals": "[0x11254C] card spacing (written), sprite 0xF4D14",
+  "calls": "f76F14, f3AF8C",
+  "indirect": ""
+ },
+ "0x71fb0": {
+  "addr": "0x71FB0",
+  "bytes": 496,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Draws nation n's hand face up: for each commodity i = 1..18 held, count copies of cardtiny sprite i (0xF4C1C+8i) overlapped by the small step, then the big step. Then each calamity card held: count = byte +0x13, ids at +0x14.. (cardtiny 19..30). The steps start at 40 (big, [0x11254C]) and 10 (small, [0x112550]). While the total width exceeds w, big -= 2 and small -= 1 (small not below 3). Arguments: eax x, edx y, ebx w, ecx n.",
+  "globals": "nation record 0xF14CC+199n: +1..+0x12 card counts, +0x13 number of calamity cards, +0x14.. calamity ids; [0x11254C], [0x112550] spacings",
+  "calls": "f3AF8C",
+  "indirect": ""
+ },
+ "0x726dc": {
+  "addr": "0x726DC",
+  "bytes": 588,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Rebuilds the trade-offer table (G: for ACCEPT TRADES; f5FF28 calls it after restoring in phase 14). It memsets 0x110ECC (8 records of 21 bytes, count [0x112560] = 0). For each nation 1..9 with byte +0x9A != 0 and +0x9C != 0, it makes a record: 13 bytes copied from nation +0x9C..+0xA8 to +0, +0x12 = nation, +0x13 = 0, +0x14 = 0xFF. Unless the variant 'Real Goods in trade are known' (0xE1625 & 0x20) is on, the first 5 bytes are shuffled (f76F70 over the non-zero ones). Then for every record the first 5 bytes are copied to +0x0D and shuffled again. It draws random numbers (game_rand through f76F70).",
+  "globals": "0x110ECC trade records [8][21], [0x112560] count; nations' +0x9A, +0x9C..+0xA8; 0xE1625 bit 0x20",
+  "calls": "memset 0x7D5D0, f76F70 (shuffle)",
+  "indirect": ""
+ },
+ "0x763fc": {
+  "addr": "0x763FC",
+  "bytes": 172,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "The Trading Wrapup screen loop: only if the trade count (byte [0x110F74]) != 0. scroll = int16 [0x112544] = 0, then it repeats: draw f764A8. If f7BA64() (an AI-only run going on), it waits 250 (1000 with the continuous test [0xF40BA]) through f78A20 and ends. Otherwise it waits for a click in dialog 0xCA5A8. -0x2C scrolls +6, -0x2B scrolls -6, -1 ends.",
+  "globals": "byte [0x110F74] trade count, int16 [0x112544] scroll row (shared with other trade screens), word [0xF40BA] continuous test",
+  "calls": "f764A8, f7BA64, f78BA4, f78A20",
+  "indirect": ""
+ },
+ "0x764a8": {
+  "addr": "0x764A8",
+  "bytes": 752,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Draws Trading Wrapup: background 16 (tradwrap.gif) into the back buffer ([0xEE168] = 0x10), and the title \"Trading Wrapup\" (f3A18C colour 0xB0). It shows up to 6 trades from the scroll row, 60 px apart from y 50. Each row: \"<-->\" centred in font 2; nation A (byte 0x1110B5+t), with its emblem (tokens.gif 0xF4ACC+8n, centred in 53 px at x 245) and name; up to 3 cards (bytes 0x110F75+5t..) at x 203-39k; nation B (byte 0x1110D5+t), with emblem and name at x 340; up to 5 cards (0x111015+5t..) at x 405+39k. It draws dialog 0xCA5A8 (CONTINUE) and shows the buffer (f3CC14).",
+  "globals": "0x110F74 trades block: count, A cards [32][5] at 0x110F75, B cards [32][5] at 0x111015, A nation [32] 0x1110B5, B nation [32] 0x1110D5; int16 [0x112544] scroll; [0xEE168]; 0xC768C nation names; sprites 0xF4ACC (with w/h at +4/+6), 0xF4C1C",
+  "calls": "f3CD6C(0x10), fg_vbcopy, fg_vbopen, f3A18C, fg_setcolor, f39F90, f3A0B0, f3AF8C, fg_vbclose, f3B05C, f3CC14",
+  "indirect": ""
+ },
+ "0x76798": {
+  "addr": "0x76798",
+  "bytes": 772,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Popup \"Select Nation To Show\": lists the nations 1..9 whose byte +0x9A == 3 (G: human players). The box is max(200, title width + 10) wide, capped at 370, and centred. Before drawing it saves the screen area under the box to a DISK FILE named \"junk\" with fg_makegif. It saves the current dialog's pressed states (f3C940). It draws the 3-D frame and the wrapped title (f3A42C centred), and puts buttons ids 0x12+i of dialog 0xBC3C4 at y positions with the nation names as labels (f3BB48/f3BC64/f3C284; count = number of nations). It waits for a code -0x36..-0x3D. Then it restores [0xF8E78] and the pressed states, puts the screen back with fg_move + fg_showgif(\"junk\"), and returns the chosen nation number.",
+  "globals": "nation byte +0x9A (0xF1566+199n), dialog 0xBC3C4 (count rewritten), [0xF8E78], 0xC768C names; file \"junk\" in the current folder",
+  "calls": "fgf_width, f3A42C, f78884, fg_makegif, f788AC, f3C940, fg_vbopen, f3C9D0, fg_setcolor, f3BB48, f3BC64, f3C284, fg_vbclose, f3B05C, fg_vbpaste, f78BA4, f3C8C4, fg_move, fg_showgif, f3CCBC",
+  "indirect": ""
+ },
+ "0x76a9c": {
+  "addr": "0x76A9C",
+  "bytes": 948,
+  "grade": "D",
+  "category": "in-game menu/options",
+  "purpose": "The \"Goods Held\" screen: background 19 (goodheld.gif) in the background buffer [0xF52CC], title in colour 0x23. Whose hand is face up: with 1 human, the first nation with +0x9A == 3; with PBEM, byte 0xE1622; with more humans, f76798 asks; with none, [0xF40F8]. For each nation 1..9 in play (+0x9A != 0), one row 49 px apart from y 43: emblem and name, then f194E4(n). If [0xF40C2] != 0, or for the chosen nation, the hand face up (f71FB0 at x 55, w 460) with \"POINTS\" and itoa(f195D8(n)) at x 585; for other nations face down (f71F2C). Then button 0x2A of dialog 0xBB800 at (265, 450), the buttons drawn, f3CC68, and it waits for code -1.",
+  "globals": "0xE1620 humans, 0xE1624 & 0x80, 0xE1622, [0xF40F8], int16 [0xF40C2], nation +0x9A, [0xF52CC], [0xF52D0]=0, dialog 0xBB800",
+  "calls": "f3CCBC, f3CD6C(0x13), fg_vbopen, f39F90, fg_setcolor, sprintf, f3A18C, fg_vbclose, f76798, f3AF8C, f3A0B0, f194E4, f71F2C, f71FB0, f195D8, itoa, f3BB48, f3BC64, f3B4E0, f3CC68, f78BA4, f3CC14",
+  "indirect": ""
+ },
+ "0x76f14": {
+  "addr": "0x76F14",
+  "bytes": 92,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Number of cards nation n holds: the sum of bytes +1..+0x12 (commodity counts) plus byte +0x13 (calamity cards).",
+  "globals": "nation record 0xF14CC+199n +0x01..+0x13",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x783b8": {
+  "addr": "0x783B8",
+  "bytes": 148,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "For each player p < [0xF40EC]: n = int16 [0xF06B0+2p]. Record (base+p) of dialog eax gets label = nation name 0xC768C[n] and label colour 0, and byte [0xF06C0+n] = p. Arguments: eax dialog, edx first record index.",
+  "globals": "[0xF40EC] players, int16 0xF06B0[8] nation of player p (G: turn order, saved), byte 0xF06C0[n] player of nation (written), 0xC768C names",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x7853c": {
+  "addr": "0x7853C",
+  "bytes": 152,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Appends all records (20 bytes each) of dialog eax to the end of the dialog at 0xF596C (int16 count, records from 0xF596E) and adds its count.",
+  "globals": "0xF596C dialog (count + records at 0xF596E; G: the map screen's panel buttons)",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x78664": {
+  "addr": "0x78664",
+  "bytes": 240,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Removes a dialog's buttons from the dialog at 0xF596C. It finds the first record whose id equals the id of eax's first record, shifts the following records down over the eax->count records, and subtracts the count. If the id is not found it does nothing.",
+  "globals": "0xF596C dialog",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x7876c": {
+  "addr": "0x7876C",
+  "bytes": 140,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Draws the current phase name in the back buffer: fills x 499..616, y 335..350 with colour 0x3C, then the text centred in colour 5, font 1, at (480, 338) w 155. The text is 0xCA9F4[byte 0xF4102] (TAXATION .. SELECT START, then the calamity names).",
+  "globals": "byte [0xF4102] phase, 0xCA9F4 phase-name table, [0xF52C8]",
+  "calls": "fg_vbopen, f39F90, fg_setcolor, fg_rect, f3A0B0, fg_vbclose",
+  "indirect": ""
+ },
+ "0x787f8": {
+  "addr": "0x787F8",
+  "bytes": 140,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Draws a territory name in the back buffer: fills x 505..612, y 430..446 with colour 0x3C, then 0xC77D8[t] centred in colour 5, font 1, at (505, 433) w 108.",
+  "globals": "0xC77D8 territory names (\"SUDETEN\", \"SCYTHIA\", ...), [0xF52C8]",
+  "calls": "fg_vbopen, f39F90, fg_setcolor, fg_rect, f3A0B0, fg_vbclose",
+  "indirect": ""
+ },
+ "0x78a20": {
+  "addr": "0x78A20",
+  "bytes": 80,
+  "grade": "D",
+  "category": "other",
+  "purpose": "Busy-wait delay: start = clock(); it loops until clock() >= start + (t / [0xBB3F4]) / 10 (unsigned compare). With Watcom's 100 ticks/s this is t milliseconds (G), divided by [0xBB3F4] (1 by default, set at start-up 0x10494; G: a speed setting).",
+  "globals": "[0xBB3F4] delay divisor",
+  "calls": "clock 0x8A080",
+  "indirect": ""
+ },
+ "0x78b0c": {
+  "addr": "0x78B0C",
+  "bytes": 24,
+  "grade": "D",
+  "category": "other",
+  "purpose": "Debug log stub: stores its string argument in a local and returns (no-op).",
+  "globals": "none",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x78b24": {
+  "addr": "0x78B24",
+  "bytes": 32,
+  "grade": "D",
+  "category": "other",
+  "purpose": "Debug trace stub with three arguments (size, \"Fptr\", \"CRC check\"): it stores them in locals and returns (no-op).",
+  "globals": "none",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x78ba4": {
+  "addr": "0x78BA4",
+  "bytes": 356,
+  "grade": "D",
+  "category": "map interaction",
+  "purpose": "The generic click wait (66 callers). It waits for the mouse button to be released (f775F0), then polls fg_mousepos until it is pressed. The first enabled record of dialog eax containing the point is flashed (f3C5D4), and the result is f3FB94(id). Otherwise, if edx == 1 and y <= 325 (the map), t = f3D2A4(x, y) (G: territory under the point) is looked up in the selectable list [0xF7CA0 + 4i], i < [0xF7C9C], and the index is returned. Nothing hit: -100.",
+  "globals": "[0xE1628]/[0xE162C]/[0xE1630] mouse; [0xF7C9C] count and 0xF7CA0 int32[] selectable territories",
+  "calls": "f775F0, fg_mousepos, f3C5D4, f3FB94, f3D2A4",
+  "indirect": "none here; f3FB94 (id -> code) is jmp cs:[4*(id-3) + 0x3F780], 261 entries for ids 3..0x107 (e.g. ids 0x42.. -> 0, 1, ...; some entries also run actions, e.g. 0x3FD26 calls 0x436FC)"
+ },
+ "0x79a9c": {
+  "addr": "0x79A9C",
+  "bytes": 64,
+  "grade": "D",
+  "category": "map interaction",
+  "purpose": "Clamps *p (int32 pointer in eax) to 0 .. [0xF7C9C]-1, the index into the selectable-territory list.",
+  "globals": "[0xF7C9C]",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x7a8d0": {
+  "addr": "0x7A8D0",
+  "bytes": 112,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Allocates the World State Stack once (if [0xF5240] == 0): 10 slots of 0x2B20 bytes (areas 1..160) [0xF5240+4i], 0x88D bytes (nations 1..11) [0xF5268+4i] and 0x1E0 bytes (territory state) [0xF5290+4i].",
+  "globals": "0xF5240[10], 0xF5268[10], 0xF5290[10] heap pointers",
+  "calls": "tagged_alloc? 0x822B5",
+  "indirect": ""
+ },
+ "0x7a940": {
+  "addr": "0x7A940",
+  "bytes": 220,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "World State Stack push: depth [0xCAC54] + 1 (high-water mark [0x112A8C]). It copies areas 0xE31FD (records 1..160, 0x2B20 bytes), territory state 0xE2C18 (0x1E0) and nations 0xF1593 (records 1..11, 0x88D) into that slot. If the depth is already 9 or more: sprintf \"World State Stack has blown its max size. > %d\" (10) into 0xF5500 and quit (f44CAC). G: snapshots for trial moves (AI).",
+  "globals": "[0xCAC54] depth (-1 = empty), [0x112A8C] max depth, 0xE31FD, 0xE2C18, 0xF1593, slot pointers 0xF5240/0xF5268/0xF5290",
+  "calls": "sprintf, f44CAC",
+  "indirect": ""
+ },
+ "0x7abd0": {
+  "addr": "0x7ABD0",
+  "bytes": 144,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Frees the World State Stack's 30 blocks (if allocated), zeroes the pointers and sets the depth [0xCAC54] = -1.",
+  "globals": "0xF5240/0xF5268/0xF5290, [0xCAC54]",
+  "calls": "free 0x877E6",
+  "indirect": ""
+ },
+ "0x7ac60": {
+  "addr": "0x7AC60",
+  "bytes": 196,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "World State Stack pop: copies slot [0xCAC54] back into areas 1..160, territory state and nations 1..11, then depth -1. If the depth is below 0: \"World State Stack has popped once to often.\" into 0xF5500 and quit.",
+  "globals": "[0xCAC54], 0xE31FD, 0xE2C18, 0xF1593, slot pointers",
+  "calls": "f44CAC",
+  "indirect": ""
+ },
+ "0x7b504": {
+  "addr": "0x7B504",
+  "bytes": 848,
+  "grade": "D",
+  "category": "sound/music",
+  "purpose": "Loads a WAV into sample slot s (eax) under name (edx), if sound effects are on ([0xF625C]). If the sample is not done it ends it (AIL_end_sample). If a name is already in the slot, it frees the old block ([0xF6260+4s], 0x7CB9D with its size from the catalog or the file) and clears the name; the same check runs 3 more times when the status is done. It copies the name to 0xF6118+64s. It loads the WAV from ACIV.CT5 (cat_size/tagged_alloc/cat_load), or from the disk file when cat_size gives -2 (0x7D334), locks it (0x7CCFD), and calls AIL_set_sample_file(handle [0xF6278+4s]). On failure: sprintf \"%s\\nEffects file:%s,(%d) \\n\" (AIL error 0x11AF7C, name, slot) and quit. Volume = (byte [0xF097F] & 0x7F) * 127 / 9, loop count 1, then the debug log \"WAV File loaded\". It does not start the sample.",
+  "globals": "[0xF625C] effects on, 0xF6118+64s names (G: slots 0..2; 0xF61D8 is the music's), [0xF6260+4s] data blocks, [0xF6278+4s] AIL sample handles, word [0xF097E] volumes, [0xF40E4] CT5 handle",
+  "calls": "AIL_sample_status, AIL_end_sample, cat_size, cat_load, tagged_alloc?, 0x7D2E8 file size, 0x7CB9D free locked block, 0x7D334 read file, 0x7CCFD lock, AIL_set_sample_file, sprintf, f44CAC, AIL_set_sample_volume, AIL_set_sample_loop_count, f78B0C",
+  "indirect": ""
+ },
+ "0x7ba64": {
+  "addr": "0x7BA64",
+  "bytes": 176,
+  "grade": "D",
+  "category": "other",
+  "purpose": "The AI-only-run check (20 callers). If neither int16 [0xF40B8] (G: /SRD self-running demo) nor [0xF40BA] (continuous test /C) is set, it returns 0. Otherwise it reads a key (fg_intkey): Esc quits to DOS with the continuous test, or else clears [0xF40B8] and returns 0. Any other key is flushed (f78508). Then a pressed mouse button returns 0, none returns 1 (go on unattended).",
+  "globals": "int16 [0xF40B8], [0xF40BA]; key bytes 0xE1634/0xE1635; mouse 0xE1628..0xE1630; [0xF5500] = \"\" before quitting",
+  "calls": "fg_intkey, f44CAC, f78508, fg_mousepos",
+  "indirect": ""
+ },
+ "0x7bb84": {
+  "addr": "0x7BB84",
+  "bytes": 108,
+  "grade": "D",
+  "category": "save/load",
+  "purpose": "CRC-32 update: for n (eax) bytes at buf (ebx), crc (edx) = (crc >> 8) ^ table[(byte ^ crc) & 0xFF]. It returns crc, with no initial or final inversion.",
+  "globals": "0x11260C uint32[256] CRC table (built by f7BB14)",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x7bbf0": {
+  "addr": "0x7BBF0",
+  "bytes": 228,
+  "grade": "D",
+  "category": "save/load",
+  "purpose": "CRC check of a save file: size = 0x7D2E8(name), a heap buffer, fopen \"rb\", fread of the whole file, fclose. It returns f7BB84(size - hdr, 0, buf + hdr) with hdr = 0x4B if the int16 version >= 0x28, else 0x35, and frees the buffer. The caller treats non-zero as corrupt (G: the file ends with a CRC that makes the total zero).",
+  "globals": "none (strings \"CRC check\", \"Fptr\" for the trace stub)",
+  "calls": "0x7D2E8 file size, tagged_alloc?, f78B24 x2, fopen, fread, fclose, f7BB84, free",
+  "indirect": ""
+ },
+ "0x7bcd4": {
+  "addr": "0x7BCD4",
+  "bytes": 136,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Fills int16 [30][10] at 0x112A94 with game_rand() * 30000 >> 15 (0..29999), using 300 random numbers. f5F05C calls it for saves older than this table (G: a pre-rolled random table for the AI).",
+  "globals": "0x112A94 int16[300]; seed [0xCAC5C] advanced through game_rand",
+  "calls": "game_rand 0x78AE4",
+  "indirect": ""
+ },
+ "0x2efa0": {
+  "addr": "0x2EFA0",
+  "bytes": 2648,
+  "grade": "D",
+  "category": "nation-choice screen",
+  "purpose": "The 'Player %s choose your nation' screen. It loads choose.gif (f3CD6C(6)) and copies it to the back buffer. It saves the message-box area (169,340 300x35) of the background as a local sprite, then picks the list of choosable nations for the player count and map variant, loads the map and picture cards (f2FC04, f2F9F8) and draws the map from memory at (8,6). For each human player p = 1..byte[0xE1620] it shows 'Player One/Two.. choose your nation' (f3AB7C) and loops over the candidates: the ch_ card of candidate idx is drawn into the background at the nation's card rectangle and copied transparently to the back buffer, the 35x35 tokens of nations already taken are drawn, and the candidate's name goes in a sunken box (0x109,0x185,0x6E,0x13). It waits for a click, hit-tests the dialog 0xC08D0 by hand and maps the button through f300E0. -9 (left arrow): if idx>0, draw the cv_ card back and idx--. -10 (right arrow): if idx<count-1, cv_ card and idx++. -16 (SELECT): player p's record byte [0xF40E4+32p] = nation, nation+0x9A = 3, the two picture buffers freed, the entry removed from all five parallel arrays, count--, idx clamped (f79A9C), p++. -100 redraws. After the loop (if any humans): the taken tokens, f3CC14, a 750 ms wait (f78A20). Clean-up: imagebuf back to [0xF522C]/0xFF00, the saved sprite freed (f3AF54), the map buffer and all leftover card buffers freed. If byte[0xE1621] (computer players) > 0: f3CC14, disable the dialog (f3C940), f302C4 assigns the computer nations, re-enable (f3C7A0).",
+  "globals": "Message area int16 0xBB3FA=169, 0xBB3FC=340, 0xBB3FE=300, 0xBB400=35 (written). byte 0xEE168 = 6 (current background picture). 0xF52C8 back buffer, 0xF52CC background buffer, byte 0xF52D0 = 0 (background no longer pristine). byte 0xE1620 = human players, byte 0xE1621 = computer players ([0xE161D]/[0xE161E] sar 24). 0xF40F0 = player count. Bit 0x02 of word 0xE1624 = variant. 0xF7C78 int32 = list index v: players-2, then +2 if players>=6 (=9 if 6 and bit set), else for 4/5: +1 if bit clear, +1 more if 5. 0xF7B00 = copy of the 14-byte record 0xC0794+14*v {int32 count; uint8 nations[10]}; the first byte (0) is dropped. Records: v0 1-4; v1/v2 1-5; v3 6-9; v4 1-6; v5 1,5,6,7,8,9; v6-8 1-9; v9 1-7,9. 0xF7C9C int32 count, 0xF7CA0 int32[] candidate nations. 0xF7C00/0xF7C04 map GIF buffer/size. 0xF7C08[9]/0xF7C2C[9] ch_ buffers and word sizes; 0xF7C40[9]/0xF7C64[9] cv_ buffers and sizes. 0xC14E4+8n int16 {x,y,w,h}: card rectangle, drawn at x+8,y+6. 0xC076C/0xC0780 int16[10]: token x,y. 0xF4A5C+8n: 35x35 token sprites. 0xF51AC/0xF51B4: arrow sprites at (251,389) and (376,389). 0xC08AC: player-number words 'Zero'..'Eight'. 0xC768C: nation names. 0xF1566+0xC7n: nation byte +0x9A (3 = human). Mouse 0xE1628/0xE162C/0xE1630. Dialog 0xC08D0: 4 buttons: 0x39 (251,389,13x19, no label), 0x3A (376,389), 0x58 'SELECT' (251,409,138x19), 3 'AST' (251,429).",
+  "calls": "f3CD6C, fg_vbcopy, fg_vbopen/vbclose, f3AE90 (cut save sprite), f3C9D0, f2FC04, f3AF8C, fg_setcolor, f3B05C, f2F9F8, fg_settrans(0,1), fg_move, f8240F fg_imagebuf, fg_showgif('' from memory, flags 7), sprintf 0x7DB3D, f3AB7C, fg_vbtccopy, f3A0B0, f3CC14, f775F0, fg_mousepos, f3C5D4, f300E0, free 0x877E6, f79A9C (clamp idx to 0..count-1), f78A20 (wait ms), f3AF54, f3C940, f302C4, f3C7A0",
+  "indirect": ""
+ },
+ "0x2f9f8": {
+  "addr": "0x2F9F8",
+  "bytes": 524,
+  "grade": "D",
+  "category": "nation-choice screen",
+  "purpose": "Loads the pictures for the nation choice from ACIV.CT1. First the map zoom GIF for the player count into a new heap block (size in a 16-bit word). Then, for each candidate i in the 0xF7B04 list, '<ch_name>.gif' and '<cv_name>.gif' (sprintf '%s.gif') into heap blocks. The slots are cleared first (9 each).",
+  "globals": "[0xF40D4] = ACIV.CT1 handle. 0xC1A38[players] = map names (zoom3/4/5/6.gif, zoom78.gif for 7 and 8). 0xF7C00 = map block, word 0xF7C04 = its size. 0xF7B00 count, bytes 0xF7B04[i] nation. 0xC1494[n] ch_ names, 0xC14BC[n] cv_ names. 0xF7C08[i]/word 0xF7C2C[i] and 0xF7C40[i]/word 0xF7C64[i] written. All CT1 sizes fit in 16 bits (largest zoom4.gif 38267).",
+  "calls": "cat_size 0xA24A7, malloc 0x822B5, cat_load 0xA25B3, sprintf 0x7DB3D",
+  "indirect": ""
+ },
+ "0x2fc04": {
+  "addr": "0x2FC04",
+  "bytes": 1244,
+  "grade": "D",
+  "category": "nation-choice screen",
+  "purpose": "Adjusts the picture names and card rectangles to the player count by strcpy-ing new names INTO the string literals that the tables 0xC1494/0xC14BC point to, and rewriting rectangle words. 3 players: ch_af3/cv_af3 for Africa, rect (143,194,186,125); ch_italy/cv_italy in slot 2, rect (147,23,115,92); cv_ill3 in slot 3; cv_cret3 in slot 5. Otherwise: ch_af48/cv_af48 rect (121,196,208,123), ch_ibera/cv_ibera rect (0,91,65,135), cv_illy, cv_crete. Then 4 players: cv_cret3. 5 or 6: ch_ass56/cv_ass56, Assyria rect (459,0,55,36); else ass78 (459,0,137,36). 6: ch_egy6/cv_egy6, Egypt (315,261,200,58); else egy78 (315,261,249,58).",
+  "globals": "Writes the strings at [0xC1498],[0xC149C],[0xC14B0],[0xC14B8] (ch_ slots 1,2,7,9) and [0xC14C0],[0xC14C4],[0xC14C8],[0xC14D0],[0xC14D8],[0xC14E0] (cv_ slots 1,2,3,5,7,9) in the data object. Writes int16 rects 0xC14EC..F2 (nation 1), 0xC14F4..FA (2), 0xC151C..22 (7), 0xC152C..32 (9). Reads 0xF40F0.",
+  "calls": "none (inline strcpy loops)",
+  "indirect": ""
+ },
+ "0x300e0": {
+  "addr": "0x300E0",
+  "bytes": 148,
+  "grade": "D",
+  "category": "nation-choice screen",
+  "purpose": "Click handler of the nation-choice dialog. Button id (16-bit compares) -> code: 0x39 -> -9 (previous), 0x3A -> -10 (next), 0x58 -> -16 (SELECT). Id 3 (AST) restores the image buffer, shows the AST chart in view mode (f136B0(1)), shows the back buffer and reloads choose.gif (f3CD6C(6)), then returns -100. Any other id returns -100.",
+  "globals": "[0xF522C] image buffer for f8240F(\u2026, 0xFF00)",
+  "calls": "f8240F fg_imagebuf, f136B0(1), f3CC14, f3CD6C(6)",
+  "indirect": ""
+ },
+ "0x30174": {
+  "addr": "0x30174",
+  "bytes": 336,
+  "grade": "D",
+  "category": "nation-choice screen",
+  "purpose": "Gives nation n to the computer and shows it. Sets nation byte +0x9A to 2 and, with the mouse hidden, draws its 35x35 token at (0xC076C[n], 0xC0780[n]) on the active surface. Then the sunken name box (0x109,0x185,0x6E,0x13), the name in colour 5 centred at (0x109,0x189,w 0x6E), and a 750 ms wait.",
+  "globals": "0xF1566+0xC7n (=0xF14CC+0x9A) = 2. 0xF4A5C+8n token sprites. 0xC768C names.",
+  "calls": "f78884, f3AF8C, f3C9D0, fg_setcolor, f3A0B0, f788AC, f78A20(750)",
+  "indirect": ""
+ },
+ "0x302c4": {
+  "addr": "0x302C4",
+  "bytes": 2708,
+  "grade": "D",
+  "category": "AI",
+  "purpose": "Assigns the remaining nations to computer players by player count ([0xF40F0] = 3..8). rem = players minus the number of nations 1..9 with +0x9A == 3 (human). For each count it follows a fixed order. Africa (1) if free; then pairs chosen by game_rand (rand*2>>15 or rand*3>>15). A pair partner is skipped if its alternative is human. Nations taken by the computer through f30174. Three-way choices are switches on a 3-bit mask of which of a nation triple is human, dispatched through jump tables. Order: 3 players: Africa, Illyria|Iberia, Thrace|Crete. 4: Africa, Iberia, switch on (3,4,5). 5: Africa, Iberia, Asia, switch (3,4,5). 6: Africa, Iberia, Crete, Egypt, Asia|Assyria, Illyria|Thrace. 7: switch (6,7,8), Africa, Egypt, Iberia, switch (3,4,5). 8: switch (6,7,8), Africa, Egypt, Iberia, Illyria, Thrace, Crete. Each assignment is guarded by rem > 0 and the nation's +0x9A == 0. Note: after Africa the code does rem++ (all six places), after every other nation rem--. In a 3-player game with 2 humans this would give 2 computer nations (G: possible 1995 bug, check in DOSBox-X).",
+  "globals": "Nation +0x9A bytes: 0xF162D (1 Africa), 0xF16F4 (2), 0xF17BB (3), 0xF1882 (4), 0xF1949 (5), 0xF1A10 (6), 0xF1AD7 (7), 0xF1B9E (8), 0xF1C65 (9); read as [0xF16F1] etc. sar 24 and as 0xF1563+0xC7n sar 24. Reads 0xF40F0. Random seed 0xCAC5C (through game_rand).",
+  "calls": "f30174, game_rand 0x78AE4",
+  "indirect": "jmp cs:[4*mask+table], mask = 4*(A human) + 2*(B human) + (C human), 0..7 (ja skips). Table 0x30224 (4 players, triple 3,4,5): [0x30521 rand3: {3,4} / {5,3} / {4,5}, 0x304F7 rand2: 3 or 4, 0x305BD: 5, 0x30412 x5: none]. Table 0x30244 (5 players, 3,4,5): [0x306EF rand3 (same pairs), 0x306C5 3|4, 0x3072C 5, 0x30412 ...]. Table 0x30264 (7 players, triple 6,7,8): [0x30A0D rand3: {6? 8,6} / {7,8} (rand 0 and 2 -> 7,8; 1 -> 8,6), 0x30940 6|7, 0x30A76 8, 0x30965 x5 (continue)]. Table 0x30284 (7 players, 3,4,5): [0x30AD7 rand3, 0x30A94 3|4, 0x30B65 5, 0x30AB9 x5]. Table 0x302A4 (8 players, 6,7,8): [0x30CE4 rand3: {6,8} or {7,8}, 0x30BFB 6|7, 0x30D14 8, 0x30C20 x5]. Entries 2 and 4 are equal and 3,5,6,7 are the default in every table. Read from the dd lines in AC_MAIN.asm at 0x30224..0x302C0."
+ },
+ "0x136b0": {
+  "addr": "0x136B0",
+  "bytes": 1684,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "The Archaeological Succession Table screen (astblan2.gif, f3CD6C(4)), drawn into the background buffer. mode 1 (from nation choice): font 1, only the names of nations 1..9 still choosable (in 0xF7CA0) at (71/72, 0x86+25(n-1)), colour 15 with a colour-5 shadow (Illyria printed once more). Other modes, for nations in play: AST rule evaluation from the per-nation table 0xBCFDA (17 entries {int16 era, int16 points}, 68 bytes/nation, at pos = +0x5C). Inputs: the city level from +0x51; the category count f1486C; 9+ advances; and +0x5E = f17760 (advance points, stored). Result: +1 (era 0 always; era 1 if cities >= 2; era 2 if level+groups >= 6; era 3 if the sum >= 12; era 4 if points >= table and level 5; era 5 if level 5, which sets the 'won' flag) or -1 (no cities and the era is not 0). mode 3 applies it (+0x5C ++/--). The token 0xF4ACC[n] is drawn at (0x83+26*pos, 0x80+25(n-1)). mode 3 then stores each nation's score f147C4 in 0xEE9F0+90n+2*min(turn,44), increments the turn word 0xF40FC, draws sprites and dialog 0xBC8F0 and loops f78BA4 (or, when f7BA64 says nobody human, waits 250/2000 ms by word 0xF40BA) until -1. Other modes: CONTINUE button 0x2A of 0xBB800 moved to (265,402), loop until -1. Returns (mode 3) 1 if someone reached the end, else 0.",
+  "globals": "Nation records 0xF14CC+0xC7n: +0x24..+0x3B advances (24 bytes), +0x51 cities, +0x5C AST position (byte), +0x5E advance points (int16, written), +0x9A in play. 0xBCFDA AST table. 0xF7C9C/0xF7CA0 choice list (mode 1). 0xEE9F0 int16[10][45] score history (G). word 0xF40FC = turn ([0xF40FA] sar 16), word 0xF40BA. Dialogs 0xBB800 (count 1: 0x2A 'CONTINUE' at 0xB0EAB) and 0xBC8F0 (6 buttons). [0xF8E78] = 0xBC8F0. Sprites 0xF521C, 0xF5224 (c_invld pieces).",
+  "calls": "f3CD6C, fg_vbopen/vbclose, f39F90, fg_setcolor, f3A0B0, f1486C, f17760, f3AF8C, f3BB48, f3BC64, f3B4E0, f3CC68, f78BA4, f147C4, fg_mousepos, f7BA64, f78A20",
+  "indirect": ""
+ },
+ "0x147c4": {
+  "addr": "0x147C4",
+  "bytes": 168,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "A nation's score: int16 +0x5E (advance points) + f6DD98(byte +0x3D) + byte +0x3E + 100 * byte +0x5C (AST position) + 50 * byte +0x51 (cities). The meanings of +0x3D/+0x3E and f6DD98 are G (nation number -> value of trade cards in hand, treasury).",
+  "globals": "0xF1528/0xF1506/0xF1507/0xF1525/0xF151A + 0xC7n (read sar 16/24 -> fields +0x5E, +0x3D, +0x3E, +0x5C, +0x51)",
+  "calls": "f6DD98",
+  "indirect": ""
+ },
+ "0x1486c": {
+  "addr": "0x1486C",
+  "bytes": 404,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Counts in how many advance groups nation n owns at least one advance. Advances are the bytes +0x24+i. Groups and flags: i 0..6 -> flag 0xF62A0; 6..10 -> 0xF62A1. Then if advance 19 is owned: count++, flag 0xF62A1 again, and the next group is skipped; else 10..14 (or advance 19) -> 0xF62A2. Then 14..18 -> 0xF62A3 and 19..23 -> 0xF62A4. The groups overlap at 6, 10 and 14, and advance 19 is counted twice (G: source quirk). Clears the five flag bytes first. Returns the count 0..5.",
+  "globals": "0xF14ED+0xC7n+i (sar 24 -> +0x24+i), 0xF1500+0xC7n (-> +0x37 = advance 19). Writes uint8 0xF62A0..0xF62A4.",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x17760": {
+  "addr": "0x17760",
+  "bytes": 140,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "The total cost of the advances nation n owns: sum of int16 0xBD480[i] over i 0..23 with byte +0x24+i == 1. The costs are 45,45,80,110,140,180,140,80,110,140,230,60,60,120,110,170,200,180,240,50,80,150,220,250.",
+  "globals": "0xF14CC+0xC7n+0x24.. (read as [+0x21] sar 24). 0xBD480 int16[24] cost table (read as [0xBD47E+2i] sar 16).",
+  "calls": "none",
+  "indirect": "(the jump table at 0x177CC after it belongs to the next function)"
+ },
+ "0x194e4": {
+  "addr": "0x194E4",
+  "bytes": 244,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Prepares the Mining bonus list for nation n: clears 6 bytes at 0xF68B8. If n owns advance 5 (byte +0x29) and [0xF6740] and [0xF6744] are both 0: [0xF6754] = 1, count [0xF68B4] starts at 1, and for each i 1..5 with nation byte [0xBDD3C[i]] != 0 (commodities 4, 12, 11, 16, 18 = the card counts at +4, +12, \u2026) the commodity goes in 0xF68B8[count] and i in 0xF68C0[count], count++. Otherwise [0xF6754] = 0. [0xF68B0] = 0 in both cases. (G: advance 5 = Mining, the ore commodities.)",
+  "globals": "Reads 0xF14CC+0xC7n (+0x29, +commodity), 0xF6740, 0xF6744, 0xBDD3C uint8[6] = {0,4,12,11,16,18}. Writes 0xF68B8[6], 0xF68C0[], 0xF68B4 count, 0xF68B0, uint8 0xF6754.",
+  "calls": "memset 0x7D5D0",
+  "indirect": ""
+ },
+ "0x195d8": {
+  "addr": "0x195D8",
+  "bytes": 296,
+  "grade": "D",
+  "category": "game rules/state",
+  "purpose": "Value of nation n's trade-card hand: sum over commodities i 1..18 of cards[i]^2 * ((i+1)>>1), with cards[i] = signed byte +i of the nation record (face value = stack number). If the Mining flag [0xF6754] is set, it tries each entry j of the list 0xF68B8[0..count-1]: the commodity with id == list[j], if held, counts as cards+1. It returns the best total. Entry 0 (commodity 0) is the hand without the bonus.",
+  "globals": "0xF14CC+0xC7n+1..+0x12 (cards per commodity), uint8 0xF6754, 0xF68B4 count, 0xF68B8 list (read as [0xF68B5+j] sar 24)",
+  "calls": "none",
+  "indirect": ""
+ },
+ "0x13e50": {
+  "addr": "0x13E50",
+  "bytes": 1092,
+  "grade": "D",
+  "category": "in-game menu/options",
+  "purpose": "The census screen (census.gif, f3CD6C(5)), drawn into the background buffer. For each nation in play it places the 24x23 token 0xF4ACC[n] in the cell for its population p = byte +0x98 (index p-1). Cells: column (p-1)%11 at x 0x36+49*col, row (p-1)/11 at y 0x42+47*row. Several nations in one cell are offset diagonally by 19/(k-1) each (k = nations with that value; a single one gets +10,+10). A nation with byte +0x35 != 0 gets a colour-5 box and a white dashed box (fg_dashrel pattern 0xDDDD) around its token (G: the player whose turn it is). If byte 0xF40FE == 1 (PBEM) it prints 'This data is invalid and will remain so until the next PBEM consolidation' at y 460 under the c_invld sprite. CONTINUE (0x2A of 0xBB800) is moved and resized to (264,398,111x23), the dialog drawn, f3CC68, loop f78BA4 until -1, then the button's size is put back to 110x19.",
+  "globals": "Nation +0x98 (0xF1564+0xC7n, read as [0xF1561] sar 24), +0x35 (0xF1501+0xC7n), +0x9A. byte 0xF40FE ([0xF40FB] sar 24). Dialog 0xBB800 (count at 0xBB800). Sprites 0xF4ACC[n], 0xF5214. String 0xC7A5C.",
+  "calls": "f3CD6C, fg_vbopen/vbclose, memset 0x7D5D0 (two 55-byte histograms), f3AF8C, fg_setcolor, fg_move, fg_box, fg_dashrel, f3A0B0, f3BB48, f3BC64, f3BD80, f3BE10, f3B4E0, f3CC68, f78BA4",
+  "indirect": ""
+ },
+ "0x19c10": {
+  "addr": "0x19C10",
+  "bytes": 1300,
+  "grade": "D",
+  "category": "in-game menu/options",
+  "purpose": "The 'Civilization Tools' screen: civilization advances of every nation in play. It first saves the whole screen to a GIF FILE named 'junk' (fg_makegif 0..639 x 0..479) and loads background picture 20 (f3CD6C(0x14)). If flags 0xE1624 bit 0x80 and byte 0xF4102 is 0x12 or 0x13, the PBEM 'This data is invalid\u2026' line is printed twice at y 435. Title 'Civilization Tools' in font 2 (f3A18C). Per nation row k: the token, the name in colour 15 for the current nation [0xF40F8] (else 5), the total cost of its advances (itoa) at x 600, and a 6x4 grid of the 24 advance names. An owned advance is upper-case (0xC7E24) in colour 15, or 14 if its index is in the nation's list 0xF6E10+10n (count word 0xF6E76+2n; G: bought this turn); a missing one is mixed case (0xC7DC4) in colour 5. Dialog 0xBD940: code -0x50..-0x57 = click on row k: grid index from the mouse ((x-61)/90)*4 + (y-(49k+36))/11, f1A124(index), then redraw. -1: show the 'junk' GIF back into the back buffer, f3CC14, restore [0xF8E78].",
+  "globals": "[0xF8E78] saved and restored. byte 0xF52D0 = 0. 0xE1624, 0xF4102, 0xF40F8. Nation +0x24..+0x3B advances (0xF14F0+0xC7n+i), +0x9A. 0xBD480 costs. 0xF6E10 int16[10][5] list, 0xF6E76 int16[] counts. 0xC768C names. 0xC7DC4/0xC7E24 advance name tables. 0xF4ACC/0xF4AD0/0xF4AD2 token sprites and their w/h. Dialog 0xBD940 (9 buttons). Mouse 0xE1628/0xE162C.",
+  "calls": "f78884, fg_makegif 0x8CE50 ('junk' written to disk), f788AC, f3CD6C, fg_setcolor, f39F90, f3A0B0, fg_vbopen/vbclose, sprintf, f3A18C, itoa, f3AF8C, f3B4E0, f3CC68, f78BA4, f1A124, fg_move, fg_showgif('junk', 3), f3CC14",
+  "indirect": ""
+ },
+ "0x1a124": {
+  "addr": "0x1A124",
+  "bytes": 636,
+  "grade": "D",
+  "category": "in-game menu/options",
+  "purpose": "Pop-up description of advance idx (0..23). The text 0xC7E9C[idx] is word-wrapped at width 200 to get its height h; box x=210, w=220, height h+65, y=(480-H)/2. The screen under it is saved to a GIF FILE 'junk2' (fg_makegif). Then f3C940 disables the current dialog, and in the back buffer: a raised 3-D frame (flags 3), the advance name (0xC7DC4) centred in colour 15 and underlined (fg_move/fg_draw), the description in colour 5 (with 0x8F/0x8E colour codes). CONTINUE (button 0x2A of dialog 0xBBBEC) is placed at (265, y+H-29), labelled 'CONTINUE' and drawn. The box region is pasted to the screen and f78BA4 loops until -1. Finally [0xF8E78] is restored, f3C8C4 re-enables the dialog, and 'junk2' is shown back at (x,y).",
+  "globals": "0xC7E9C[24] description texts ('CATEGORY: \u2026 COST: \u2026 CREDITS: \u2026'), 0xC7DC4 names, dialog 0xBBBEC, [0xF8E78] saved and restored, back buffer 0xF52C8",
+  "calls": "f3A42C (measure, then draw), f78884/f788AC, fg_makegif ('junk2' file), f3C940, fg_vbopen/vbclose, f3C9D0, fg_setcolor, f3A0B0, fgf_width, fg_move, fg_draw, f3BB48, f3BC64, f3C284, f3B05C, fg_vbpaste, f78BA4, f3C8C4, fg_showgif('junk2', 3)",
+  "indirect": ""
+ },
+ "0x121a0": {
+  "addr": "0x121A0",
+  "bytes": 500,
+  "grade": "D",
+  "category": "other",
+  "purpose": "Frees the game sprites cut by f11A8C (f3AF54 on each): the c_invld pieces 0xF5214/0xF521C/0xF5224; for i 1..13 0xF489C, 0xF497C, 0xF4E3C, 0xF4DCC (and 0xF490C for i <= 9); for i 1..13 0xF4ACC, 0xF4BAC, 0xF4B3C, 0xF49EC (and 0xF4A5C for i <= 9); 0xF4D2C..0xF4D54; the minimap 0xF520C; 0xF518C, 0xF5194, 0xF517C, 0xF5184; 30 entries from 0xF4EAC, 0xF4F9C and 0xF508C; cardtiny 0xF4C1C[1..33]. 0xF519C and 0xF51A4 are not freed. Reached from the dispatcher 0x3FB94 for id 0x51 (G: leaving the game).",
+  "globals": "Sprite records listed (word +4 cleared, block freed)",
+  "calls": "f3AF54",
+  "indirect": ""
+ },
+ "0x3ab7c": {
+  "addr": "0x3AB7C",
+  "bytes": 396,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Message box sized to its text, centred in the message area. It measures the text (f3A42C at width w-10, align 2 = centred, draw 0) for its width mw and height th. Box x0 = x+(w-(mw+10))/2, y0 = y+(h-(th+10))/2. In the back buffer: fill colour 13 (x0..x0+mw+9, y0..y0+th+9), box colour 4 at it and at inset 2, box colour 14 at inset 1, then the text in colour 5 centred at (x0+5, y0+5). Same as f3A9F4 but centred.",
+  "globals": "int16 0xBB3FA x, 0xBB3FC y, 0xBB3FE w, 0xBB400 h (read through [0xBB3F8..0xBB3FE] sar 16); back buffer [0xF52C8]",
+  "calls": "f3A42C, fg_vbopen/vbclose, fg_setcolor, fg_rect, fg_box",
+  "indirect": ""
+ },
+ "0x3a9f4": {
+  "addr": "0x3A9F4",
+  "bytes": 392,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Same as f3AB7C (message box sized to the text, centred in the area 0xBB3FA, colours 13/4/14, text 5, in the back buffer) but with the text left-aligned (align 0 in both f3A42C calls).",
+  "globals": "0xBB3FA..0xBB400, [0xF52C8]",
+  "calls": "f3A42C, fg_vbopen/vbclose, fg_setcolor, fg_rect, fg_box",
+  "indirect": ""
+ },
+ "0x3a990": {
+  "addr": "0x3A990",
+  "bytes": 100,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Erases the message strip. It reloads the current background picture (f3CD6C(byte 0xEE168)) and copies rows 332..454, columns x..x+w-1 of the message area from the background buffer to the same place in the back buffer (fg_vbcopy, destination given by its lower-left corner (x, 454)).",
+  "globals": "byte 0xEE168 (read as [0xEE165] sar 24), int16 0xBB3FA x and 0xBB3FE w, [0xF52CC] -> [0xF52C8]",
+  "calls": "f3CD6C, fg_vbcopy",
+  "indirect": ""
+ },
+ "0x3a148": {
+  "addr": "0x3A148",
+  "bytes": 68,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Prints a number centred: itoa(value=ecx, buf, 10), then f3A0B0(x=eax, y=edx, w=ebx, buf).",
+  "globals": "none",
+  "calls": "itoa 0x8C897, f3A0B0",
+  "indirect": ""
+ },
+ "0x3a3a0": {
+  "addr": "0x3A3A0",
+  "bytes": 140,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Prints s right-aligned with its right edge at x and its top at y: fg_move(x - fgf_width(s, strlen), y + int16 [0xF8B00]), then f3AD08(s). If s is longer than 128 characters it prints 'String too long' at (x,y) with f3A044 instead.",
+  "globals": "int16 0xF8B00 (read as [0xF8AFE] sar 16: the current font's top offset)",
+  "calls": "fgf_width, fg_move, f3AD08, f3A044",
+  "indirect": ""
+ },
+ "0x3af54": {
+  "addr": "0x3AF54",
+  "bytes": 56,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Frees sprite record spr: if its width word +4 is non-zero, free(+0) and +4 = 0.",
+  "globals": "the record passed in eax",
+  "calls": "free 0x877E6",
+  "indirect": ""
+ },
+ "0x3aff4": {
+  "addr": "0x3AFF4",
+  "bytes": 104,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Draws sprite spr mirrored: fg_move(x, y + h - 1), fg_flpimage(data +0, w +4, h +6), on the active surface. It is the flipped twin of f3AF8C.",
+  "globals": "sprite record (eax), x edx, y ebx",
+  "calls": "fg_move, fg_flpimage 0x8FA30",
+  "indirect": ""
+ },
+ "0x3b7cc": {
+  "addr": "0x3B7CC",
+  "bytes": 164,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Draws the button with this id (first match, 16-bit compare of rec+0x0E) pressed (f3B2D8) in the back buffer. If none: the 'Button not found' box (0xB3C25).",
+  "globals": "dialog (eax), id (edx), [0xF52C8]",
+  "calls": "f3A7B0, fg_vbopen, f3B2D8, fg_vbclose",
+  "indirect": ""
+ },
+ "0x3b870": {
+  "addr": "0x3B870",
+  "bytes": 164,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Draws the button with this id up (f3B0D4) in the back buffer. If none: 'Button not found' (0xB3C36).",
+  "globals": "dialog, id, [0xF52C8]",
+  "calls": "f3A7B0, fg_vbopen, f3B0D4, fg_vbclose",
+  "indirect": ""
+ },
+ "0x3b9a4": {
+  "addr": "0x3B9A4",
+  "bytes": 140,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Returns the pressed-state byte rec+0x12 (sign-extended, read as dword [dlg+20i+0x11] sar 24) of the button with this id. If none: 'Button not found' (0xB3C58) and 0.",
+  "globals": "dialog, id",
+  "calls": "f3A7B0",
+  "indirect": ""
+ },
+ "0x3bb48": {
+  "addr": "0x3BB48",
+  "bytes": 144,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Sets the x (int16 rec+0x00, [dlg+20i+2]) of the button with this id to ebx (first match). 'Button not found' (0xB3C8B) if none. No redraw.",
+  "globals": "dialog, id, value",
+  "calls": "f3A7B0",
+  "indirect": ""
+ },
+ "0x3bd80": {
+  "addr": "0x3BD80",
+  "bytes": 144,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Sets the width (int16 rec+0x04, [dlg+20i+6]) of the button with this id to ebx; 'Button not found' if none.",
+  "globals": "dialog, id, value",
+  "calls": "f3A7B0",
+  "indirect": ""
+ },
+ "0x3be10": {
+  "addr": "0x3BE10",
+  "bytes": 144,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Sets the height (int16 rec+0x06, [dlg+20i+8]) of the button with this id to ebx; 'Button not found' if none.",
+  "globals": "dialog, id, value",
+  "calls": "f3A7B0",
+  "indirect": ""
+ },
+ "0x3c0d8": {
+  "addr": "0x3C0D8",
+  "bytes": 144,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Sets the style byte (rec+0x11, [dlg+20i+0x13]) of the button with this id to (int8) ebx; 'Button not found' if none.",
+  "globals": "dialog, id, value",
+  "calls": "f3A7B0",
+  "indirect": ""
+ },
+ "0x3c284": {
+  "addr": "0x3C284",
+  "bytes": 144,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Sets the label pointer (uint32 rec+0x08, [dlg+20i+0xA]) of the button with this id to ebx (e.g. 'CONTINUE' from f1A124); 'Button not found' (0xB3D68) if none.",
+  "globals": "dialog, id, label address",
+  "calls": "f3A7B0",
+  "indirect": ""
+ },
+ "0x3c828": {
+  "addr": "0x3C828",
+  "bytes": 156,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Disables a whole dialog in the back buffer. For each button i: 0xF8E44[i] = enabled byte rec+0x10, then rec+0x10 = 0 and redraw (f3B4E0), inside fg_vbopen/vbclose of [0xF52C8]. It is the back-buffer twin of f3C940, which does the same on the active surface with the mouse hidden.",
+  "globals": "uint8 0xF8E44[] saved enabled flags, [0xF52C8]",
+  "calls": "fg_vbopen, f3B4E0, fg_vbclose",
+  "indirect": ""
+ },
+ "0x3c7a0": {
+  "addr": "0x3C7A0",
+  "bytes": 136,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Re-enables a dialog in the back buffer: rec+0x10 = 0xF8E44[i] for each button, redraw (f3B4E0) inside fg_vbopen/vbclose of [0xF52C8]. It undoes f3C828/f3C940; 0x2EFA0 uses it after f302C4.",
+  "globals": "0xF8E44[], [0xF52C8]",
+  "calls": "fg_vbopen, f3B4E0, fg_vbclose",
+  "indirect": ""
+ },
+ "0x3c8c4": {
+  "addr": "0x3C8C4",
+  "bytes": 124,
+  "grade": "D",
+  "category": "panel/UI widget",
+  "purpose": "Like f3C7A0 (enabled bytes back from 0xF8E44 and redraw each button) but on the active surface, with the mouse hidden (f78884/f788AC) and no vbopen.",
+  "globals": "0xF8E44[]",
+  "calls": "f78884, f3B4E0, f788AC",
+  "indirect": ""
+ }
+}
