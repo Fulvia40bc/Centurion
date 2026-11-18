@@ -36,7 +36,7 @@
      MENU1 : 5, 0x52, 0x53
      MENU2 : 8, 0x56, 0xE2
      PANEL : 9..0x10, 0x25
-     MAP1  : 0x1B..0x24
+     MAP1  : 0x1B..0x24 DONE (2026-11-18), apart from DETAIL while zoomed (0x3E374, PANEL)
      MOVE  : 0x26, 0x27, 0x28, 0x2B..0x32, 0xC4..0xC8
      STACK : 0x4F, 0x51, 0x101
      S1    : 0x50
@@ -54,6 +54,7 @@
 
 #include <stdint.h>
 #include "game.h"
+#include "map.h"
 
 /* 0x3FB94: the button dispatcher. id = the button's int16 +0x0E, sign-extended by the callers. Returns the code for
    the caller's loop, -100 = nothing to do. */
@@ -184,37 +185,43 @@ int f3FB94(int id)
         code = -0x3D;                   /* 0x40293 mov [ebp-0x3C], 0xFFFFFFC3 */
         break;
     case 0x1B:  /* -> 0x402A7 */
-        /* scroll: f3D52C(-1, -1); -100 (MAP1) */
-        not_ported(0x402A7u);
+        f3D52C(-1, -1);                         /* 0x402A7 scroll (map.c) */
+        return code;                            /* -100 */
     case 0x1C:  /* -> 0x402C0 */
-        /* scroll: f3D52C(0, -1); -100 (MAP1) */
-        not_ported(0x402C0u);
+        f3D52C(0, -1);                          /* 0x402C0 scroll (map.c) */
+        return code;                            /* -100 */
     case 0x1D:  /* -> 0x402D9 */
-        /* scroll: f3D52C(1, -1); -100 (MAP1) */
-        not_ported(0x402D9u);
+        f3D52C(1, -1);                          /* 0x402D9 scroll (map.c) */
+        return code;                            /* -100 */
     case 0x1E:  /* -> 0x402F5 */
-        /* scroll: f3D52C(-1, 0); -100 (MAP1) */
-        not_ported(0x402F5u);
+        f3D52C(-1, 0);                          /* 0x402F5 scroll (map.c) */
+        return code;                            /* -100 */
     case 0x1F:  /* -> 0x4030E */
-        /* scroll: f3D52C(1, 0); -100 (MAP1) */
-        not_ported(0x4030Eu);
+        f3D52C(1, 0);                           /* 0x4030E scroll (map.c) */
+        return code;                            /* -100 */
     case 0x20:  /* -> 0x40327 */
-        /* scroll: f3D52C(-1, 1); -100 (MAP1) */
-        not_ported(0x40327u);
+        f3D52C(-1, 1);                          /* 0x40327 scroll (map.c) */
+        return code;                            /* -100 */
     case 0x21:  /* -> 0x40343 */
-        /* scroll: f3D52C(0, 1); -100 (MAP1) */
-        not_ported(0x40343u);
+        f3D52C(0, 1);                           /* 0x40343 scroll (map.c) */
+        return code;                            /* -100 */
     case 0x22:  /* -> 0x4035C */
-        /* scroll: f3D52C(1, 1); -100 (MAP1) */
-        not_ported(0x4035Cu);
+        f3D52C(1, 1);                           /* 0x4035C scroll (map.c) */
+        return code;                            /* -100 */
     case 0x23:  /* -> 0x40375 */
-        /* mini-map click: int32 [0xF4884] = ([0xE1628] - 0x1E1) / 7 - 3, [0xF4888] = 2 * ([0xE162C] - 0x170) / 7 -
-           4 (signed idiv), f3D52C(0, 0); -100 (MAP1) */
-        not_ported(0x40375u);
+        /* mini-map click: centre the map window on the clicked point (signed idiv, 0x4038B, 0x403A8) */
+        setD32(0xF4884u, (uint32_t)((S32(0xE1628u) - 0x1E1) / 7 - 3));         /* 0x4039E */
+        setD32(0xF4888u, (uint32_t)((2 * (S32(0xE162Cu) - 0x170)) / 7 - 4));   /* 0x403AF */
+        f3D52C(0, 0);                           /* 0x403B6 (clamps) */
+        return code;                            /* -100 */
     case 0x24:  /* -> 0x403C8 */
-        /* DETAIL: byte [0xC1A34] = (int8 [0xC1A34] == 3) ? 0 : 3; int16 [0x107690] == 0: f3D52C(0, 0), else
-           0x3E374([0xF40F8]); -100 (MAP1) */
-        not_ported(0x403C8u);
+        /* DETAIL (TOGGLE UNITS): 3 <-> 0 only (levels 1 and 2 come from the toggles box) */
+        setD8(0xC1A34u, (uint8_t)(S8(0xC1A34u) == 3 ? 0 : 3));   /* 0x403C8 dword [0xC1A31] sar 24; 0x403D7/0x403DF */
+        if (D16(0x107690u) == 0) {              /* 0x403E6: not zoomed */
+            f3D52C(0, 0);                       /* 0x403F4 */
+            return code;                        /* -100 */
+        }
+        not_ported(0x3E374u);                   /* 0x4040B 0x3E374([0xF40F8]): the zoomed overview (PANEL) */
     case 0x101: /* -> 0x4041D */
         /* REPLAY: [0xEDF58] == 0 -> -100; int16 [0x107692] != 0 -> -1 via 0x3FD35; else "Map shows Round %d post
            movement state.": message area resized, "junk" GIF of the strip, f3C828(0xF596C), labels via sprintf

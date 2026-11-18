@@ -416,6 +416,41 @@ takes, by player count 3..8: fixed orders, pairs and triples drawn with `game_ra
     rewrote savgameb.dat with flag byte 0xE1624 = 02 instead of 06 (and a new CRC). That is game code after the
     restore (not ported yet); the run copy's saves were put back from `advciv_play` afterwards.
 - `--click` scripts reach the restore too: `advciv GAMEDIR --click 320 186 --click 320 354 --dump-ds OUT.bin`.
+- The restore then goes on through main 0x115B0..0x1177C, shared with a new game (`game_continue`), to 0x1188C:
+  0 unexplained bytes against DOSBox-X there too.
+
+**M4, module MAP1: the map window (2026-11-18 night).**
+- `map.c`: the redraw 0x3D52C (scroll clamp, the map picture, borders, markers, cities, tokens and ships, the
+  mini-map with its viewport box), borders 0x3D18C, tokens 0x3DAD8, ships 0x3DE40, the number sprites, 0x3CBBC and
+  the two labels.
+- `mapdata.c`: the scroll in pixels, the home view 0x3D9FC, centring 0x3DA60, the highlight setters, the territory
+  aliases 157..159 (a second piece of land for three territories), the hit test 0x3D2A4 (now used by the click
+  wait) and 0x3F558.
+- **BUG(1995), fixed by default:** 0x3F558 frees the N.RL block but zeroes the wrong field, leaving the pointer to
+  the freed block (harmless in the original as long as the block is reloaded before a second free).
+- **Checks (V):**
+  - `port/test/hit_test.c`: the hit test against an independent reading of mapdataz.dat, 14 map variants × 9
+    scrolls × every screen point: 28,166,400 points, all agree.
+  - Frame: the R4 autosave restored in both; in DOSBox-X the original runs on to its game screen
+    (`tools/dosbox/run_restored_screen.sh`: Africa's ship construction, Sabrata highlighted). The port copies the
+    map's plain state from that dump (`--map-state`: scroll, highlights, territory, area, city and nation records,
+    player, phase, detail level; no heap handles) and redraws. Map window **0 px** (199,056 px, pointer included),
+    mini-map **0 px** (`tools/verify/rectdiff.py`). The 1-px ring around the mini-map comes from the game panel,
+    not ported yet.
+  - The dispatcher's map cases are translated (scroll arrows 0x1B..0x22, mini-map click 0x23, TOGGLE UNITS 0x24).
+    In DOSBox-X (`tools/dosbox/run_map_states.sh`) the original was clicked through eight presses from the restored
+    R4 screen: TOGGLE UNITS (3 → 0 → 3), and with the detail level poked to 1 and to 2 (TOGGLE UNITS only swaps 3
+    and 0; 1 and 2 come from the toggles box): right, down (clamped at row 7), mini-map, left, up, up, TOGGLE UNITS.
+    The port replays each from the dump before it (`--map-state BEFORE.bin --press ID`): every frame 0 px in the map
+    window and the mini-map, scroll and detail level identical. So all four detail levels, odd and even rows (the
+    35-px half steps), both clamps and the mini-map arithmetic are covered.
+  - Note for test scripts: in the original the dispatcher's mini-map case reads the mouse position again after the
+    click wait, so a poked click there uses the real pointer (320,240 in these runs; the port replays it with
+    `--mouse 320 240`).
+  - Not covered yet: the movement phase's drawing (tokens under ships in sea mode, the ship values), which needs a
+    save in MOVEMENT (module MOVE).
+- Oddity (D): in the movement phase the number on a ship stack gets one extra shadow copy (colour 5), only when the
+  current player is nation 2 (Iberia, 0x3E24A); G: so it stays readable on that nation's colour.
 
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.

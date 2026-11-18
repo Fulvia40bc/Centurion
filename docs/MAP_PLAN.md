@@ -87,7 +87,7 @@ in protected mode after int 21h AH=2Ch. Data dumps go through tools/verify/dscom
   - Save (0x5E7D0) is reached only from the in-game menu. Test it by producing savgame1.dat from a given
     savgamea.dat and description, and comparing byte for byte with a file the original wrote (STACK).
   - F8: the description field after typing.
-- **MAP1.**
+- **MAP1.** DONE 2026-11-18 (V, OVERVIEW §5): restored R4 screen, all four detail levels, scrolls, mini-map; the movement-phase drawing waits for a MOVEMENT save (MOVE).
   - Now: restore R4 in both. The port hook runs f3D9FC(nation) as the game does, with the scroll from the DOSBox-X
     dump. Compare only the map window (8..0x277, 6..0x144) and the mini-map rectangle
     (0x1E0..0x27B, 0x16F..0x1A3) with the DOSBox-X frame after the restore.

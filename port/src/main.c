@@ -42,6 +42,7 @@ static void save_frame_and_exit(void);
    window as the game does (f3D52C(0, 0): clamp, map picture, borders, markers, cities, tokens, ships, mini-map).
    The frame is then compared with the DOSBox-X capture in the map window and the mini-map only. */
 static const char *s_map_state;
+static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1;
 static const struct { uint32_t addr, len; } MAP_STATE[] = {
     { 0xF4884u, 8 },        /* scroll column, row */
     { 0xF6110u, 4 },        /* int16 min, max column */
@@ -57,6 +58,7 @@ static const struct { uint32_t addr, len; } MAP_STATE[] = {
     { 0xF4102u, 1 },        /* phase */
     { 0xC1A34u, 1 },        /* detail level */
     { 0x108804u, 1 },       /* land/sea mode */
+    { 0x107690u, 2 },       /* int16 zoomed (the dispatcher's DETAIL and ZOOM test it) */
 };
 
 static int map_state_draw(const char *path)
@@ -77,7 +79,14 @@ static int map_state_draw(const char *path)
     }
     for (i = 0; i < sizeof MAP_STATE / sizeof MAP_STATE[0]; i++)
         memcpy(DP(MAP_STATE[i].addr), dump + (MAP_STATE[i].addr - 0xB0000u), MAP_STATE[i].len);
-    f3D52C(0, 0);
+    if (s_press >= 0) {   /* --press ID [--mouse X Y]: the button the player clicked next, through the dispatcher */
+        if (s_mouse_x >= 0) {
+            setD32(0xE1628u, (uint32_t)s_mouse_x);
+            setD32(0xE162Cu, (uint32_t)s_mouse_y);
+        }
+        fprintf(stderr, "advciv: f3FB94(0x%X) = %d\n", (unsigned)s_press, f3FB94(s_press));
+    } else
+        f3D52C(0, 0);
     return 0;
 }
 
@@ -143,6 +152,12 @@ int main(int argc, char **argv)
             s_dump_path = argv[++i];
         else if (strcmp(argv[i], "--map-state") == 0 && i + 1 < argc)
             s_map_state = argv[++i];
+        else if (strcmp(argv[i], "--press") == 0 && i + 1 < argc)
+            s_press = (int)strtol(argv[++i], NULL, 0);
+        else if (strcmp(argv[i], "--mouse") == 0 && i + 2 < argc) {
+            s_mouse_x = atoi(argv[++i]);
+            s_mouse_y = atoi(argv[++i]);
+        }
         else if (strcmp(argv[i], "--dump-at-1184F") == 0 || strcmp(argv[i], "--dump-early") == 0)
             s_dump_early = 1;                         /* new game: stop before the nation choice (the loading check);
                                                          restore: stop at 0x115B0 (the S1 check) */
