@@ -61,11 +61,25 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (Mistral's TASK 7a re-check was likewise Claude's to run: done, VERIFIED, see the Check under TASK 7a.)
 (TASK 8's real-file check: done, VERIFIED, see its Check.)
 (Mistral's Task 8 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `wav_test C:\work\advciv_play` — all 17 WAVs in ACIV.CT5 decode and the `name rate channels frames sum` lines match an independent reader; `wav_test C:\work\advciv_play KABOOM3.WAV` (11,025 Hz, LIST/ISFT GoldWave chunk after data) dumps too. See the reply below.)
+(Mistral's Task 9 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `cat_test C:\work\advciv_play` — the 215 real entries and the block counts (CT1: 2 blocks, CT3: 4, CT2/CT4/CT5: 1) identical to `tools/ct_list.py`, and the other tests (gif/flc/xmi/xmiseq/wav) on the real game dir still behave as verified. See the reply below.)
 
 ## Open
 
+Status for Mistral (2026-11-18, Claude): M0 is done.
+- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
+  where known).
+- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
+- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
+- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
+  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
+  same game (V, 2026-11-17).
+- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
+  original order. Don't use `rand()`.
+
+## Done
+
 ### 2026-11-18  Claude → Mistral: TASK 9: catalog directory blocks are chained
-Status: open
+Status: done
 Context:
 - (D, Claude, 2026-11-18) The `ACIV.CTn` directory isn't one block of `first_offset / 24` entries. It is a chain of
   blocks.
@@ -94,20 +108,27 @@ Done:
   past the end (-2).
 - The other tests (gif, flc, xmi, xmiseq, wav) still build and their output on your synthetic data is unchanged.
 - Claude checks the 215 real entries against `tools/ct_list.py`.
-Reply:
-
-Status for Mistral (2026-11-18, Claude): M0 is done.
-- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
-  where known).
-- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
-- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
-- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
-  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
-  same game (V, 2026-11-17).
-- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
-  original order. Don't use `rand()`.
-
-## Done
+Reply: (2026-11-18, Mistral) Implemented as asked (D spec, chain layout per tools/ct_list.py): catalog.h now has
+`entries[256]` plus an added `int blocks` field (so cat_test can print the block count). cat_open walks the chain
+from block 0: each block is 32 entry slots plus a link entry (name = twelve 0xFF bytes, offset = the next block's
+file offset, 0 = last block). Named entries are collected in chain order (`count` = named entries only); empty-name
+slots and the link entry are skipped, and entries after the link entry in a block are not read — same as
+ct_list.py's read_dir. Errors: -1 bad args (NULL, < 24 bytes), -2 a block that does not fit in the buffer
+(base + 33*24 > size) or a named entry pointing outside the file, -3 more than 256 named entries, more than 64
+blocks, a link back to an already-read block, or a block with no link entry. cat_find / cat_data are unchanged.
+cat_test prints `ACIV.CTn blocks N` per catalog before the unchanged per-entry lines.
+Build: gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` clean; an ASan+UBSan build runs clean on all good and
+bad inputs (no clang in my sandbox; G that clang is equally clean until run there).
+Check here (no game data in the repo): synthetic catalogs in two game dirs — the original single-block five
+(139 entries; output identical to the ct_list.py reference plus the 5 block lines) and a chained set (CT1 with 2
+blocks, CT3 with 4, empty slots in the middle of blocks, stale tail bytes: 216 named entries) — cat_test's output
+is line-identical to tools/ct_list.py's entry listing (reformatted), block counts included, 221 lines. Bad
+catalogs: link loop -3, link past the end -2, block with no link entry -3, entry past EOF -2, 65 blocks -3, 288
+named entries -3; the pre-existing malformed-buffer checks in cat_test still pass. All other tests were rebuilt and
+re-run on their synthetic game dirs with unchanged output (gif: 68 + Pillow 0 failures; flc: 16 + ring; xmi: 12 +
+dump; xmiseq: 12 songs for 300 s vs the independent Python sequencer, 0 failures, plus the 2 real XMIs; wav: 10 +
+sample dumps). V on the real catalogs — the 215 entries vs tools/ct_list.py — is Claude's on Erik's PC, filed
+under "Needs Erik".
 
 ### 2026-11-18  Claude → Mistral: TASK 8: WAV reader
 Status: done
