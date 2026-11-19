@@ -78,6 +78,137 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
+### 2026-11-19  Claude → Mistral: TASK 17: fg_showflic and fg_flicsize in fg.c (the calamity animations)
+Status: open
+Context:
+- docs/M6_PLAN.md, module ANIM. The calamity animations (Volcano, Epidemic, Civil War, ... 27 FLC files inside
+  ACIV.CT4) are played by Fastgraph's `fg_showflic` (0x92486) after `fg_flicsize` (0x92451). Neither is in fg.c
+  yet, so ANIM (0x79ADC, 0x79C70, 0x7A0A0, 0x7A4A0, 0x7A4C4) waits for this task.
+- Read docs/LIBRARY_CALLS.md, the entries "0x92451 fg_flicsize" and "0x92486 fg_showflic" **with their Check's
+  corrections**. Where the showflic entry is silent about a chunk decoder, the decoders are the ones in the entry
+  "0x87F94 fg_flicplay" (same Fastgraph family; the byte formats are D for flicplay). Claude re-read the parts below
+  from the disassembly on 19 Nov (D) and they override the entries where they differ.
+- The game's only calls (D): 0x79B64 / 0x7A306 `fg_flicsize(hdr, &w, &h)`, then `fg_move((0x270 - w) / 2 + 8,
+  (0x13F - h) / 2 + 6)`, then 0x79C13 / 0x7A3E2 `fg_showflic("", 1, 6)` after `fg_imagebuf(buf, size)` with the
+  whole FLC loaded from ACIV.CT4 by `cat_load`. So flags 6 = at the cursor, from memory, with the delay; count 1.
+  Implement every flag anyway (the test covers them).
+- port/src/flc.c (your earlier task) is a separate standard decoder into its own pixel buffer. Do NOT build
+  fg_showflic on top of it: the original decodes straight onto the screen (deltas apply to whatever is on screen,
+  rows wrap past the right edge, only the bottom is clipped). flc.c stays as the independent model for the test.
+
+Ask:
+1. `port/src/fg.c` / `fg.h`, next to fg_showgif:
+```c
+int fg_flicsize(const uint8_t *header, int *width, int *height);   /* 0x92451 */
+int fg_showflic(const char *filename, int count, int flags);        /* 0x92486 */
+```
+   **fg_flicsize** (D): if the word at header+4 is 0xAF11 or 0xAF12: *width = word +8, *height = word +0xA;
+   else both = -1. Returns 0 always.
+
+   **fg_showflic**, step by step (D unless marked):
+   - Colour count check: the port is always in mode 25 (256 colours), so it never returns early. Write a comment.
+   - Source. flags & 4: the data is fg_imagebuf's buffer (fg.c's `s_imgbuf`, `s_imgsize`); the 128-byte header is at
+     its start; filename is ignored. Otherwise open `filename` (fg.c's `load_file`, so the game directory works):
+     not found → return 1 (0x924E4). The port reads the whole file into a temporary buffer and then behaves as
+     memory mode with size = the file length (G: the original streams it through the imagebuf; the bytes and the
+     end-of-data rule are the same). A file shorter than 128 bytes: missing header bytes read as 0 (G; the
+     original does not detect a short read).
+   - Header: magic word +4 must be 0xAF11 or 0xAF12, else return 2 (0x9250D; in file mode free the buffer).
+     Delay ticks (16-bit, 0x9252C/0x92544): AF11: `(uint16_t)((uint32_t)speed16 * 1429u / 5500u)` where the
+     product is the 32-bit dx:ax of a 16-bit mul, and the 16-bit div of dx:ax by 5500 would fault if the
+     quotient > 0xFFFF (cannot happen for a 16-bit speed: max 0xFFFF*1429/5500 < 0x10000). AF12:
+     `speed32 / 55`, the quotient of the 32/16 div (a quotient > 0xFFFF faults in DOS; the port takes it
+     truncated to 16 bits and comments it, G). frames = word +6, W = word +8, H = word +0xA.
+   - Origin: (x0, y0) = (0, 0), or the graphics cursor (fg_getxpos(), fg_getypos()) if flags & 2 (0x92598).
+     xr = x0 + W - 1 (0x925BC; SS2's "last byte" column).
+   - Byte reader (0x925EB..0x92605, D). `left` = bytes available: memory mode starts at size - 0x80 with the read
+     pointer at +0x80 (0x925D6). Reading a byte when left == 0 returns -1 (int32) and does not advance; otherwise
+     it returns the byte 0..255, left--, and also decrements the current chunk's counter `crem` (below).
+     **Words are assembled like the original:** `b1 = rd(); b2 = rd(); w = (uint32_t)b2; w = (w & 0xFFFF0000u) |
+     ((uint32_t)(b2 & 0xFF) << 8) | (uint32_t)(b1 & 0xFF);` (`mov bl,al` / `mov ah,al` / `mov al,bl` on eax).
+     So w is 0xFFFFFFFF only when the second read ran dry and the first byte was 0xFF (or dry); a real 0xFFFF word
+     gives 0x0000FFFF. Dwords: low word then high word, each assembled the same way, then low | high << 16 of
+     their low 16 bits.
+   - Pass loop: `fleft = frames` (0x9255F). Per frame (0x925EB):
+     - Size low word (as above). If it is 0xFFFFFFFF → end of pass (0x9262A → 0x930CC).
+     - Size high word, then the type word. Type 0xF100 (prefix): skip size - 6 bytes, then go to the key check
+       below (it counts as a frame: correction 6; the original sets slack = size - 6 at 0x9281E and skips it in
+       the slack step after the key check). Type 0xF1FA: go on. Any other type: stop, return 0
+       (0x926B4 → 0x93127; file mode: free the buffer).
+     - 0xF1FA: `slack = size - 16` (16-bit sub/sbb, so 32-bit; 0x926BE). Chunk count word (0x9270A). Skip 8
+       bytes (0x9270D: if fewer than 8 are left, `left` becomes 0, G for the exact pointer). If the chunk count is
+       0, go straight to the key check (0x9272A).
+     - Per chunk: size dword; `slack -= size` (0x927B1, 16-bit sub/sbb, so 32-bit); `crem = size - 4`
+       (0x927C1; the chunk's unread bytes, and every byte read decrements it, so after the type word it is
+       size - 6); type word. Dispatch: 4 COLOR_256, 7 SS2, 11 COLOR_64, 12 LC, 13 BLACK,
+       15 BRUN, 16 COPY; every other type, including > 0x10, is skipped (correction 3). After the handler: if
+       `crem < 0` (the handler overran) → end of pass (0x93041, not the end of the call: this differs from
+       flicplay). Else skip `crem` bytes (if fewer are left, `left` becomes 0). Next chunk until the count is done
+       (0x93061).
+     - Key check (0x9306B): fg_intkey(&k, &a); if k == 27 (Esc) stop and return 0 (0x93079 → 0x9311C). Other keys
+       are dropped (fg_intkey already removed them).
+     - Skip `slack` bytes (0x9307E; if fewer are left, `left` becomes 0, G).
+     - Delay (0x93086): unless flags & 1 or delay == 0: fg_waitfor(delay) (G: the original busy-waits on the BIOS
+       tick count from the end of the frame; the key check in between takes no time).
+     - fleft-- (0x930C2); if it is not 0, next frame. (frames 0 in the header wraps to 2^32: endless pass.)
+   - End of pass (0x930CC): if count != 0: count--, and if it reaches 0, stop and return 0. Otherwise (count was
+     0, or is still above 0): fleft = frames, the read pointer back to +0x80 and left = size - 0x80 (0x93104), next
+     frame. So count 1 plays the file's `frames` frames once; the ring frame (frame frames+1) is never shown.
+   - Return 0 when stopped (0x93130). File mode frees its buffer at every return.
+   - **Palette chunks** (4 and 11; both skipped entirely if flags & 0x10, D): packet count word; then ONE pace for
+     the whole chunk (the retrace wait runs once, before the first packet: correction 1): in the port, show the
+     screen and wait for the next 1/RETRACE_HZ period exactly as fg_setdacs does when not headless (factor that
+     code out of fg_setdacs into a static helper; fg_setdacs behaves as before). index = 0; per packet:
+     index += skip byte (8-bit wrap); count byte (0 = 256); count RGB triples into fg.c's palette `s_dac`
+     (type 4: each byte >> 2; type 11: each byte & 0x3F, G: the original writes the byte unchanged to the 6-bit
+     DAC, which keeps the low 6 bits); index += 1 per triple (8-bit wrap); set `s_dirty`. A packet count of 0
+     loops ~2^32 in the original (correction 5); the port treats it as 0 packets and comments it (G).
+   - **Pixel decoders**: as in the fg_flicplay entry (BRUN, COPY, LC, SS2, BLACK), with these rules for fg_showflic:
+     - Output always goes to the SCREEN (`s_screen`, 640 wide), even if a virtual buffer is open (the original's
+       table has no virtual-buffer entry; G: it would crash. Comment it.)
+     - A row write of n bytes at (x, y): skipped if y >= 480 (signed compare, the only clip, D). Otherwise the bytes
+       go to offset y * 640 + x onward, so a run past x 639 continues on the next scanline (no x clip, D). The port
+       additionally drops any byte whose offset is < 0 or >= 640 * 480 (negative y or past the end: G, the
+       original writes outside the screen there; comment it).
+     - BLACK: H rows of W zeros at (x0, y0 + r), each row with the same clip rule (G: the flicplay entry's
+       stale-y quirk is not checked for showflic; the report must say whether any of the 27 files has a BLACK
+       chunk).
+     - SS2's "low byte at the right edge" goes to (xr, y).
+     - A chunk count 0 for BRUN/COPY/BLACK with H = 0: the original loops ~2^32 rows; the port draws nothing and
+       comments it (G).
+   - The graphics cursor and the colour are not changed. Mark the screen changed (`touch()`) after each frame.
+
+2. A test hook if you need one for Esc: `void fg_test_key(int key);` (headless: the next fg_intkey returns key, 0).
+   Add it to fg.h with the other test hooks.
+
+3. `port/test/showflic_test.c` (add a `showflic_test` build line where flc_test is built in tools/build_port.ps1):
+   a. **Synthetic files** built in the test: one FLC per chunk type (COLOR_256, COLOR_64, BRUN, COPY, LC, SS2
+      including a skip-lines word and a last-byte word, BLACK), a prefix frame, a 0-chunk frame, an unknown chunk
+      type 0x20, an unknown frame type, a bad magic (return 2), a missing file (return 1), a chunk that overruns
+      its size, count 0 stopped by Esc after 5 frames, count 2 (two passes: count the frames shown with the input
+      hook), flags 0x10 (palette untouched), flags & 2 at (630, 470) with W = 20, H = 20 (rows wrap past x 639 into
+      the next scanline; rows y >= 480 not drawn). For each, the expected screen and palette are written out by
+      hand in the test (not by calling the code under test).
+   b. **The 27 real files**: open ACIV.CT4 from the game directory given on the command line (default
+      `C:\work\advciv_play`), and for every `*.FLC` entry in it: cat_size, cat_load into a malloc'd buffer,
+      fg_imagebuf(buf, size), fg_flicsize, fg_move as the game does (above), fg_showflic("", 1, 7) headless
+      (7 = 6 | no delay). With fg_set_input_hook capture the screen and fg_dac() after every frame. Decode the same
+      file with flc.c (flc_open / flc_next) and compare frame k's W x H window at the cursor and its palette
+      (flc.c's 8-bit palette >> 2, or however flc.c stores it: say which) with the capture. All frames of all 27
+      files must match. Print one line per file: name, W x H, frames, delay ticks, chunk types seen with counts,
+      frames compared, mismatches.
+   c. Mutation check: break one decoder at a time (e.g. SS2's skip-lines sign, BRUN's sign, the 8-bit index wrap,
+      the bottom clip) and confirm the test fails each time; list them in the report.
+
+Self-check: build with `-Wall -Wextra -Werror` (both targets as in build_port.ps1), run showflic_test, flc_test and
+the existing tests that link fg.c (start, info, menu tests etc.: run the whole build_port.ps1 test list), all pass.
+
+Check (Claude): plays several calamity FLCs in DOSBox-X (a Volcano and an Epidemic at least) with
+breakpoints after fg_showflic's frames and compares the screen against the port's frames, 0 px.
+
+Report: what you built, the 27-file table from 3b, the mutation list, every G choice you made, anything in the
+entries that did not match the files.
+
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
   where known).
