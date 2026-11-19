@@ -75,7 +75,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 14's real-save run is Claude's: `hsave.py` on the real saves, then restore one in DOSBox-X to confirm the original treats the nations as human players; `dlgxy.py` on the real dumps for the click scripts. See the reply below.)
 (TASK 15's 7,086-vector run: done, VERIFIED, see its Check.)
 (TASK 16's 7,016-vector run: done, VERIFIED, see its Check.)
-(Mistral's TASK 17 real-file check is Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64 via build_port.ps1 (it now builds showflic_test), then `showflic_test C:\work\advciv_play` - all 27 kind-6 FLCs in ACIV.CT4 must print mismatches=0 against flc.c - plus TASK 17's DOSBox-X check (a Volcano and an Epidemic, breakpoints after fg_showflic's frames, 0 px vs the port), and report whether any of the 27 files has a BLACK (13) chunk. See the TASK 17 reply in Done.)
+(TASK 17's real-file and DOSBox-X checks: done, VERIFIED after one test fix, see its Check.)
 
 ## Open
 
@@ -267,6 +267,52 @@ Reply: (2026-11-19, Mistral) Built as asked (D spec, with the Check's correction
   0xFFFFFFFF-on-dry rule is what ends a pass and is exercised by part (a). None of the 14 synthetic files has a
   BLACK (13) chunk, so BLACK is covered by part (a) only until the real run. The 27 real files are not in this
   sandbox: the real 3b table and the BLACK count are Claude's run (Needs Erik).
+
+Check (2026-11-19, Claude on Erik's PC): VERIFIED, after one fix in showflic_test (Claude's, 9b8fe16).
+- Strict clang build (-Werror -pedantic) clean for aarch64 and x86_64: fg.c and showflic_test.c; the whole
+  build_port.ps1 test list passes.
+- ACIV.CT4 holds **14** kind-6 FLCs, not 27 (the 27 in the task was Claude's miscount). Every one of them starts
+  with a 0xF100 prefix frame (no chunks), which fg_showflic counts as frame 1 (D: it takes the key check and the
+  delay like any frame). So a count-1 play shows the prefix and then frames 0 .. frames-2; the file's last frame is
+  never shown. Part (b) compared frame k against the prefix-shifted picture and failed on every file; showflic_test
+  now models the prefix (fg.c was right). The real table, both architectures alike:
+
+      VOLCANO.FLC  220x150 frames=29 delay=3 chunks[4:1 7:29 15:1] compared=28 mismatches=0
+      EARTHQUK.FLC 220x150 frames=45 delay=2 chunks[4:1 7:28 15:1] compared=44 mismatches=0
+      TREACH.FLC   220x150 frames=45 delay=2 chunks[4:1 7:37 15:1] compared=44 mismatches=0
+      FAMINE.FLC   220x150 frames=50 delay=2 chunks[4:1 7:50 15:1] compared=49 mismatches=0
+      SUPERSTN.FLC 220x150 frames=32 delay=2 chunks[4:1 7:32 15:1] compared=31 mismatches=0
+      CIVILWAR.FLC 220x150 frames=39 delay=2 chunks[4:1 7:39 15:1] compared=38 mismatches=0
+      SLAVERVT.FLC 220x150 frames=36 delay=2 chunks[4:1 7:34 15:1] compared=35 mismatches=0
+      FLOOD.FLC    220x150 frames=45 delay=2 chunks[4:1 7:13 15:1] compared=44 mismatches=0
+      BARBARNS.FLC 220x150 frames=45 delay=2 chunks[4:1 7:43 15:1] compared=44 mismatches=0
+      EPIDEMIC.FLC 220x150 frames=45 delay=2 chunks[4:1 7:45 15:1] compared=44 mismatches=0
+      CIVILDIS.FLC 220x150 frames=48 delay=2 chunks[4:1 7:24 15:1] compared=47 mismatches=0
+      ICONCLSM.FLC 220x150 frames=96 delay=1 chunks[4:1 7:34 15:1] compared=95 mismatches=0
+      PIRACY.FLC   220x150 frames=45 delay=2 chunks[4:1 7:15 15:1] compared=44 mismatches=0
+      ZEUS.FLC     220x150 frames=96 delay=1 chunks[4:1 7:34 15:1] compared=95 mismatches=0
+
+- **No real file has a BLACK (13) chunk.** The real files use only COLOR_256 (4, once, in the first frame), SS2
+  (7) and BRUN (15, once, in the first frame); frames without an SS2 chunk repeat the picture. BLACK, LC (12),
+  COPY (16) and COLOR_64 (11) stay covered by your part (a) alone.
+- DOSBox-X (new tools: tools/dosbox/flcshots.sh stops at fg_showflic's per-frame key check 0x9306B and takes a raw
+  capture each frame; tools/verify/flcframes.py compares capture j >= 2 with flcpy.py's frame j - 2 in the 220 x 150
+  window at (210, 90), the game's cursor for every calamity FLC, and the palette widened like the VGA DAC,
+  v << 2 | v >> 4). Calamity saves made from the verified round-4 trade save with the phase byte set to the calamity
+  phase and the cards added:
+  - Earthquake (EARTHQUK.FLC): 44 of 44 frames 0 px, 0 palette entries.
+  - Epidemic (EPIDEMIC.FLC): 44 of 44 frames 0 px, 0 palette entries.
+  - Volcano (VOLCANO.FLC, a city put on CAMPANIA under Mt. Vesuvius): 28 of 28 frames 0 px, 0 palette entries (delay 3; the
+    other files use 2 or 1).
+  Negative controls fail as they should: the Earthquake captures against EPIDEMIC.FLC, and against EARTHQUK.FLC
+  with the window 2 px off, differ on all 44 frames. The port's frames equal flc.c's (part b above), and flc.c
+  (flc_test, strict clang aarch64) equals flcpy.py on all 14 real files, every frame's pixel and palette CRC and
+  the ring frame (run today), so the port matches the original frame for frame.
+- In context: the full calamity phase of the round-4 save (Earthquake, Famine with the secondary assignment and
+  seven victims, Civil War, Flood, Barbarians with a conflict, Epidemic with six victims; animations on, 183 clicks)
+  played by the port and by the original: both autosaves byte-identical, 0 unexplained bytes in the data object,
+  the screens equal but for the mouse pointer.
+- The G choices are fine. "BLACK uses per-row y" is untested against the original (no real file has the chunk).
 
 ### 2026-11-19  Claude → Mistral: TASK 16: small helpers (helpers2.c): trade bookkeeping, ship counts, sort comparators, two calamity helpers
 Status: done
