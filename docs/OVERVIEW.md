@@ -530,6 +530,36 @@ Translated in one workflow (three translators, three reviewers):
   - Not yet checked: clicks inside these screens (a toggle and its aciv.cfg write, the advance pop-up, the volume
     arrows), Trading Wrapup (needs a save after TRADE) and the full-map view (button 8, AST phase only).
 
+**M4, module MOVE: the movement primitives and buttons (2026-11-18 night).**
+- `move.c`: the eight primitives and the dispatcher's movement cases:
+  - primitives: tokens off/onto a territory, the ship move, a nation leaving a territory, ship selection and two
+    ship tests;
+  - cases: MOVE TOKENS 0x26, MOVE SHIPS 0x27, UNDO MOVE 0x28, the count buttons 0xC4..0xC8, and EMBARK, DISEMBARK,
+    DISEMBARK ALL, NEXT SHIP on both coasts.
+- **BUG(1995), fixed by default:** NEXT SHIP writes its play-by-email move-log record even in a normal game. There
+  the log pointer is 0, so each press writes two bytes into the first kilobytes of DOS memory (the interrupt vector
+  table, then the BIOS data area); by the 4th press it hits INT 9's (the keyboard's) vector. G: a long session
+  with many NEXT SHIP presses could crash the machine. Every other ship action tests for PBEM first.
+- `port/test/move_test.c`: 38 hand vectors, 200,000 random operations against a second implementation, and 29
+  dispatcher cases. Five deliberately broken copies of move.c were all caught.
+- **A save in the MOVEMENT phase, from the original itself:** restore R4, click FINISHED; the original autosaves
+  "AutoSaved after SHIP CONSTRUCTION - R4". It is installed in the run copy as savgame0.dat (slot 0).
+- `tools/dosbox/run_steps.sh` plays clicks in any input loop (here f78BA4's 0x78BD3 for the computers' "Movement
+  for X complete" screens, then the human movement loop 0x55FFD) and dumps the state at every stop. The computers'
+  moves replay identically in every run.
+- **Check (V):** in DOSBox-X, Africa (the human, moving last):
+  - land: TUNISIA, count 2, THAPSUS (2 tokens move), UNDO MOVE;
+  - ship (one ship poked in at SABRATA, as Africa has none in this save): MOVE SHIPS, SABRATA, EMBARK, DISEMBARK,
+    THAPSUS (the ship sails), UNDO MOVE.
+  - The port replays each dispatcher button from the dump before it (`--map-state`, which now also copies the
+    movement state and the panel dialog, label pointers turned back into link addresses). It is compared with the
+    dump after it over the area, nation, movement, highlight and dialog state (`tools/verify/rangecmp.py`).
+  - count 2, UNDO (land), EMBARK, DISEMBARK, UNDO (ship): **0 differing bytes**; both UNDOs redraw the map window
+    at **0 px**.
+  - MOVE SHIPS: 1 byte differs, Tunisia's ship-box colour. The case returns -2 and the movement phase's own loop
+    (not ported yet) then highlights the selection.
+  - The map clicks themselves go through the movement phase (0x55xxx, the game loop), which comes with M6.
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 

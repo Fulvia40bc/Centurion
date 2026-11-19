@@ -105,7 +105,7 @@ in protected mode after int 21h AH=2Ch. Data dumps go through tools/verify/dscom
   - Ship panel 0x5D14C: restore the autosave before MOVEMENT, click a coastal territory, compare the panel
     (278..357, 370..411).
   - Full: on the START screen.
-- **MOVE.**
+- **MOVE.** DONE 2026-11-18 (V, OVERVIEW §5): the dispatcher cases on a MOVEMENT save; the phase loop itself is M6.
   - Restore the autosave before MOVEMENT. Script one land move and one ship move (select, count 0xC4.., move
     0x28).
   - Data: BP at the end of case 0x28 in 0x3FB94: the area records 0xE31B8, the nation +0x40..+0x61 bytes.
