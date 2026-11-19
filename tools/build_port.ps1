@@ -31,6 +31,14 @@ foreach ($arch in 'aarch64', 'x86_64') {
   & $cc @warn (Join-Path $test 'font_test.c') (Join-Path $src 'fgfont.c') (Join-Path $src 'png_write.c') `
         -o (Join-Path $o 'font_test.exe')
   if ($LASTEXITCODE) { throw "font_test ${arch}: build failed" }
+  # dro_play (HANDOFF Task 11): the vendored Nuked-OPL3 is built unchanged; clang needs -Wno-static-in-inline for
+  # its 'inline OPL3_Generate4Ch' (gcc does not warn). The strict flags apply to everything else.
+  $nuked = Join-Path $src '..\third_party\nuked-opl3'
+  & $cc @warn "-I$nuked" -c (Join-Path $nuked 'opl3.c') -Wno-static-in-inline -o (Join-Path $o 'opl3.o')
+  if ($LASTEXITCODE) { throw "opl3.c ${arch}: build failed" }
+  & $cc @warn "-I$nuked" (Join-Path $test 'dro_play.c') (Join-Path $src 'dro.c') (Join-Path $src 'opl.c') `
+        (Join-Path $o 'opl3.o') -o (Join-Path $o 'dro_play.exe')
+  if ($LASTEXITCODE) { throw "dro_play ${arch}: build failed" }
   # the port itself (so far: start-up and the title menu)
   $game = @('main.c', 'fg.c', 'ui_text.c', 'ui_dialog.c', 'ui_screen.c', 'title.c', 'state.c', 'le_image.c', 'fgfont.c',
             'gif.c', 'catalog.c', 'palette.c', 'png_write.c', 'plat_sdl3.c', 'ui_widgets.c', 'setup.c', 'variants.c', 'load.c', 'gfxload.c', 'newgame.c', 'choose.c', 'ui_kit2.c', 'ast.c', 'ui_kit3.c', 'dispatch.c', 'nations.c', 'save.c', 'saveload.c', 'map.c', 'mapdata.c', 'panel.c', 'shippanel.c') | ForEach-Object { Join-Path $src $_ }

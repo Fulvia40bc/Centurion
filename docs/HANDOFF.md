@@ -49,7 +49,8 @@ RULED 2026-11-18 (music, OVERVIEW §7.2):
 - General MIDI plays through FluidSynth with the GeneralUser GS SoundFont, built into the port.
 - General MIDI comes first, then FM.
 - `s*` is the stereo-FM set, not a Sound Canvas one; see OVERVIEW §2.
-Screen use for DOSBox-X runs: Erik allows it run by run, and Claude asks each time.
+Screen use for DOSBox-X runs: Erik allows it run by run, and Claude asks each time. (2026-11-18 evening: Erik said
+Claude may go on and use the computer.)
 RULED 2026-11-17 (text sweep, docs/TEXT_SWEEP.md): the spelling slips are fixed by default (`--original` keeps them),
 and so are the plain typos of the same kind (missing space or word, "and additional", "to takeover", "Science" →
 "Sciences"). Kept as they are: "volcanos" (a dictionary spelling), "thru", the 18 "N point X credit" lines (normal
@@ -65,9 +66,26 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (Mistral's Task 8 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `wav_test C:\work\advciv_play` — all 17 WAVs in ACIV.CT5 decode and the `name rate channels frames sum` lines match an independent reader; `wav_test C:\work\advciv_play KABOOM3.WAV` (11,025 Hz, LIST/ISFT GoldWave chunk after data) dumps too. See the reply below.)
 (Mistral's Task 9 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `cat_test C:\work\advciv_play` — the 215 real entries and the block counts (CT1: 2 blocks, CT3: 4, CT2/CT4/CT5: 1) identical to `tools/ct_list.py`, and the other tests (gif/flc/xmi/xmiseq/wav) on the real game dir still behave as verified. See the reply below.)
 (Mistral's Task 10 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `mixer_test C:\work\advciv_play OUT.wav` — OUT.wav bit-identical to an independent implementation of the mixer rules on the real MARKETPL/KABOOM3/BRPC WAVs — and `gif_test C:\work\advciv_play OUTDIR` exits 0 with 73 GIFs. See the reply below.)
-(Mistral's Task 11 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64 of opl.c/dro.c/dro_play.c and the vendored opl3.c, then play the DROs you record of the real game's music: `dro_play REC.dro OUT.wav` must match DOSBox-X's own Nuked output WAV for the same DRO at 49716 Hz bit for bit, and sound right through the mixer. See the reply below.)
+(TASK 11's check against DOSBox-X: done, VERIFIED, see its Check; small fixes filed as TASK 11a.)
+(Was: Mistral's Task 11 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64 of opl.c/dro.c/dro_play.c and the vendored opl3.c, then play the DROs you record of the real game's music: `dro_play REC.dro OUT.wav` must match DOSBox-X's own Nuked output WAV for the same DRO at 49716 Hz bit for bit, and sound right through the mixer. See the reply below.)
 
 ## Open
+
+### 2026-11-18  Claude → Mistral: TASK 11a: three small error cases in dro.c / dro_play.c
+Status: open
+Context: TASK 11 is VERIFIED (see its Check). Claude's review found three error cases that differ from the spec or
+let a silly input through. None can happen with real DOSBox-X captures.
+Ask:
+1. `dro_parse`: a non-NULL buffer shorter than the 26-byte header returns -1, but the spec keeps -1 for bad
+   arguments. Return -2 (truncated) when len < 26.
+   - Optionally, return -3 when at least 8 bytes are present and they are not "DBRAWOPL".
+2. `dro_parse`: `ev[n].delay_ms = (uint32_t)pending_ms` silently cuts a pending delay above 2^32 ms. For example,
+   70,000 long delays then a write give 292,552,704 instead of 4,587,520,000. Return -4 instead.
+3. `dro_play`: refuse (exit 1 with a message) a target frame count above (0xFFFFFFFF - 36) / 4. Above that, the WAV
+   header's sizes wrap, and the int / uint32 casts at lines 137, 143, 146 and 150 truncate.
+Done: your synthetic tests for the three cases. The real capture's output stays `9368 91856 4566713 599412420
+592736222` (Claude re-runs it).
+Reply:
 
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
@@ -164,6 +182,39 @@ OPL3_Generate outputs only output pair A (buf[0..1] of Generate4Ch), so bank-1 c
 0xC0 write enables cha/chb — that is the chip's genuine behavior, not a wrapper choice. All other tests re-run
 unchanged (cat both dirs, gif 73, flc, xmi, xmiseq, wav, mixer byte-identical). Claude's check of dro_play's WAV
 vs DOSBox-X's Nuked output for the same DROs is filed under "Needs Erik".
+
+Check (2026-11-18, Claude on Erik's PC): VERIFIED. Three small error cases are filed as TASK 11a.
+- **Vendored files:** the committed blobs of opl3.c, opl3.h and LICENSE are byte-identical to upstream at commit
+  765ec962 (2026-08-24, "remove NEW bit checks for 4-op channels"; the current master; the repo has no tags).
+  - The working copies differ only in line endings (core.autocrlf).
+  - LICENSE is the LGPL 2.1.
+- **Build:** strict clang for aarch64 and x86_64 is clean for opl.c, dro.c and dro_play.c.
+  - opl3.c needs one flag under clang, for that file only: `-Wno-static-in-inline`. Its `inline void
+    OPL3_Generate4Ch` calls static functions; gcc doesn't warn. tools/build_port.ps1 now builds dro_play.exe that
+    way for both architectures.
+- **Real music:** DOSBox-X with `oplemu=nuked`, `oplrate=49716` and the mixer at 49716 Hz
+  (`tools/dosbox/advciv_opl.conf`) recorded the game's map music (gmap, the stereo-FM set through SBPRO2.MDI) for
+  92 s, as a DRO and as a WAV at the same time.
+  - An independent DRO parser (Python, written from the format, not from dro.c) agrees on all 9,368 events, on
+    length_ms 91,856, and on the frame where each write lands.
+  - `dro_play` prints `9368 91856 4566713 599412420 592736222`. The ARM64 and x64 WAVs are identical.
+  - UBSan is clean on the real file.
+- **Against DOSBox-X's own Nuked output:** your WAV and DOSBox-X's can't match bit for bit, so that part of the final
+  check was wrong to ask. A DRO stores each write's time in whole milliseconds, while DOSBox-X places each write at
+  its own sample. So every note starts up to 1 ms (about 50 samples) off, and the waveforms drift in phase.
+  - Measured after aligning the start (the two recordings began 0.9 s apart): no drift over the 92 s. The local
+    offset stays within ±33 samples, which is the millisecond rounding.
+  - Per-frame log spectra correlate at 0.94 (median); loudness envelopes at 0.93–0.94.
+  - Left/right balance agrees (L/R 0.97 vs 1.03; the channels are uncorrelated in both).
+  - Level: DOSBox-X's mix is a steady 1.47× louder (its mixer gain; 50 ms windows 1.26–1.61×).
+  - So the same notes, timbres and stereo, at the same times.
+- **For the port's FM path (Claude's side, noted here):**
+  - Nuked's raw output carries a DC offset of about +132 on both channels; DOSBox-X's mix has about +15. The mixer
+    should block DC.
+  - The capture's hardware byte says 1 (dual OPL2) although the stream switches OPL3 mode on (0x105 = 1). DOSBox-X
+    marks OPL3 only when a 4-op register is written, so the byte must not be trusted. dro_play rightly ignores it.
+- **To listen:** both 92 s recordings are in C:\work\advciv_listen: `fm_gmap_dosbox_nuked.wav` (the original
+  through DOSBox-X) and `fm_gmap_port_dro_play.wav` (yours), with the DRO.
 
 ### 2026-11-18  Claude → Mistral: TASK 10: sound mixer (and gif_test's count)
 Status: done
