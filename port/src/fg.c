@@ -115,6 +115,7 @@ static int s_pmx = -1, s_pmy = -1, s_pvis;    /* pointer as last presented */
 /* the BIOS keyboard buffer (INT 16h): 15 keystrokes, (scan << 8) | ascii; G for the size (the standard 32-byte ring) */
 static uint16_t s_keys[15];
 static int s_nkeys;
+static int s_test_key;                       /* tests (headless): the next fg_intkey returns this key, 0 */
 
 /* fonts (0xE0B02 cell size per slot, nonzero = used; 0xE0A74 current 1..32, 0 none; 0xE0A70 spacing) */
 static fg_font s_font[32];
@@ -297,6 +298,11 @@ void fg_test_mouse(int x, int y, int buttons)
 void fg_set_input_hook(void (*hook)(void))
 {
     s_input_hook = hook;
+}
+
+void fg_test_key(int key)
+{
+    s_test_key = key;
 }
 
 static void service(void)
@@ -820,6 +826,23 @@ int fg_dashrel(int ix, int iy, int pattern)
 
 /* ---- palette ------------------------------------------------------------------------------------------------- */
 
+/* The port's stand-in for the original's wait-until-vertical-retrace (the 3DAh bit-3 test at 0x879EF, also used by
+   fg_showflic's palette chunks): show the screen and pace to the next 1/RETRACE_HZ s, except headless. */
+static void pace_retrace(void)
+{
+    if (!s_headless) {                        /* port: one call per retrace period (G for the period) */
+        uint64_t now = plat_ticks_ms(), target = s_next_retrace;
+        if (target <= now || target > now + 1000u / RETRACE_HZ)
+            target = now + 1000u / RETRACE_HZ;   /* the first of a run of calls, or after a pause */
+        fg_present();
+        now = plat_ticks_ms();
+        if (now < target)
+            plat_sleep_ms((uint32_t)(target - now));
+        s_next_retrace = target + 1000u / RETRACE_HZ;
+        poll_events();                        /* the window stays responsive through a fade */
+    }
+}
+
 /* 0x879DC fg_setdacs: DAC[(start + i) & 255] = values (6 bits kept, as the VGA DAC). The original first waits until
    the VGA is in vertical retrace; the port shows the screen and paces to the next 1/RETRACE_HZ s instead, except
    headless. */
@@ -833,17 +856,7 @@ int fg_setdacs(int start, int count, const uint8_t *values)
         for (k = 0; k < 3; k++)
             s_dac[(start + i) & 0xFF][k] = (uint8_t)(values[3 * i + k] & 0x3F);
     s_dirty = 1;
-    if (!s_headless) {                        /* port: one call per retrace period (G for the period) */
-        uint64_t now = plat_ticks_ms(), target = s_next_retrace;
-        if (target <= now || target > now + 1000u / RETRACE_HZ)
-            target = now + 1000u / RETRACE_HZ;   /* the first of a run of calls, or after a pause */
-        fg_present();
-        now = plat_ticks_ms();
-        if (now < target)
-            plat_sleep_ms((uint32_t)(target - now));
-        s_next_retrace = target + 1000u / RETRACE_HZ;
-        poll_events();                        /* the window stays responsive through a fade */
-    }
+    pace_retrace();
     return 0;
 }
 
@@ -987,6 +1000,440 @@ int fg_imagebuf(uint8_t *buffer, uint32_t size)
         s_imgsize = size;
     }
     return 0;
+}
+
+/* ---- FLI/FLC playback (0x92451 fg_flicsize, 0x92486 fg_showflic) ------------------------------------------------- */
+
+/* 0x92451 fg_flicsize: the FLI/FLC header's width/height; both -1 for any other magic. Always returns 0. */
+int fg_flicsize(const uint8_t *header, int *width, int *height)
+{
+    uint32_t magic = (uint32_t)header[4] | ((uint32_t)header[5] << 8);
+
+    if (magic == 0xAF11u || magic == 0xAF12u) {   /* 0x92458 */
+        *width = (int)((uint32_t)header[8] | ((uint32_t)header[9] << 8));    /* 0x92451: movzx [esi+8], [esi+0xA] */
+        *height = (int)((uint32_t)header[0xA] | ((uint32_t)header[0xB] << 8));
+    } else {
+        *width = -1;                          /* 0x9247F */
+        *height = -1;
+    }
+    return 0;                                 /* 0x9247A xor eax,eax */
+}
+
+/* header bytes of a possibly short file: missing bytes read as 0 (G: the original does not detect a short read) */
+static unsigned flic_hb(const uint8_t *d, size_t size, size_t off)
+{
+    return off < size ? d[off] : 0;
+}
+
+static uint32_t flic_hw(const uint8_t *d, size_t size, size_t off)
+{
+    return (uint32_t)flic_hb(d, size, off) | ((uint32_t)flic_hb(d, size, off + 1) << 8);
+}
+
+static uint32_t flic_hd(const uint8_t *d, size_t size, size_t off)
+{
+    return flic_hw(d, size, off) | (flic_hw(d, size, off + 2) << 16);
+}
+
+/* the byte reader (0x925EB..0x92605): left = bytes available; reading at left == 0 returns -1 and does not
+   advance; every read also decrements the current chunk's counter crem */
+typedef struct {
+    const uint8_t *p;
+    int32_t left;
+    int32_t crem;
+} flrd_t;
+
+static int32_t flic_rd(flrd_t *r)
+{
+    if (r->left == 0)
+        return -1;
+    r->left--;
+    r->crem--;
+    return *r->p++;
+}
+
+/* words are assembled as the original does (mov bl,al / mov ah,al / mov al,bl on eax): w is 0xFFFFFFFF only when
+   the second read ran dry and the first byte was 0xFF (or dry); a real 0xFFFF word gives 0x0000FFFF */
+static uint32_t flic_word(flrd_t *r)
+{
+    int32_t b1 = flic_rd(r), b2 = flic_rd(r);
+    uint32_t w = (uint32_t)b2;
+
+    return (w & 0xFFFF0000u) | (((uint32_t)b2 & 0xFFu) << 8) | ((uint32_t)b1 & 0xFFu);
+}
+
+/* dwords: low word then high word, each assembled the same way, then low | high << 16 of their low 16 bits */
+static uint32_t flic_dword(flrd_t *r)
+{
+    uint32_t lo = flic_word(r), hi = flic_word(r);
+
+    return (lo & 0xFFFFu) | ((hi & 0xFFFFu) << 16);
+}
+
+static void flic_skip(flrd_t *r, uint32_t n)
+{
+    while (n-- > 0)
+        (void)flic_rd(r);                     /* if fewer are left, left becomes 0 */
+}
+
+/* a run of n bytes at (x, y) goes to offset y*640 + x onward, so a run past x 639 continues on the next scanline;
+   the only clip is y >= 480 (signed compare, D, 0x9325A). Output always goes to the screen, even with a virtual
+   buffer open (the original's table 0x93375 has no vb entry; G: it would crash). The port also drops bytes outside
+   the screen (negative offsets, past the end: G, the original writes outside there). */
+static void flic_write(int x, int y, const uint8_t *src, uint32_t n)
+{
+    int64_t off;
+    uint32_t i;
+
+    if (y >= SCR_H)
+        return;
+    off = (int64_t)y * SCR_W + x;
+    for (i = 0; i < n; i++)
+        if (off + (int64_t)i >= 0 && off + (int64_t)i < (int64_t)SCR_W * SCR_H)
+            s_screen[off + (int64_t)i] = src[i];
+}
+
+/* 0x92486's palette chunks (types 4 COLOR_256 and 11 COLOR_64, both skipped when flags & 0x10): packet count word,
+   then ONE retrace wait for the whole chunk (correction 1), index = 0, per packet: index += skip byte (8-bit wrap),
+   count byte (0 = 256), count RGB triples into s_dac (type 4: byte >> 2; type 11: byte & 0x3F, G: the original writes
+   the byte unchanged to the 6-bit DAC), index += 1 per triple (8-bit wrap). A packet count of 0 loops ~2^32 in the
+   original (correction 5); the port treats it as 0 packets (G). */
+static void flic_color(flrd_t *r, uint32_t ctype)
+{
+    uint32_t packets = flic_word(r);
+    uint8_t index = 0;
+
+    if (packets == 0)
+        return;
+    pace_retrace();                           /* one wait per chunk, before the first packet */
+    while (packets-- > 0) {
+        uint32_t skip = (uint32_t)flic_rd(r) & 0xFFu;
+        uint32_t cnt = (uint32_t)flic_rd(r) & 0xFFu;
+        uint32_t j;
+        int k;
+
+        if (cnt == 0)
+            cnt = 256;
+        index = (uint8_t)(index + skip);
+        for (j = 0; j < cnt; j++) {
+            for (k = 0; k < 3; k++) {
+                uint32_t b = (uint32_t)flic_rd(r) & 0xFFu;
+
+                s_dac[index][k] = ctype == 4 ? (uint8_t)(b >> 2) : (uint8_t)(b & 0x3Fu);
+            }
+            index = (uint8_t)(index + 1);
+        }
+    }
+    s_dirty = 1;
+}
+
+/* type 15 BRUN: per row the packet-count byte (the loop bound, as in the verified flc.c), then until W bytes are
+   done: signed n, n > 0 replicates the next byte n times, n < 0 copies -n literal bytes (n == 0: nothing, G) */
+static void flic_brun(flrd_t *r, int x0, int y0, uint32_t W, uint32_t H, uint8_t *row)
+{
+    uint32_t y;
+
+    for (y = 0; y < H; y++) {                /* H = 0: the original loops ~2^32 rows; the port draws nothing (G) */
+        uint32_t packets = (uint32_t)flic_rd(r) & 0xFFu;
+        uint32_t x = 0;
+
+        while (packets-- > 0 && x < W) {
+            int c = (int8_t)((uint32_t)flic_rd(r) & 0xFFu);
+
+            if (c > 0) {
+                uint8_t v = (uint8_t)((uint32_t)flic_rd(r) & 0xFFu);
+                memset(row + x, v, (size_t)c);
+                flic_write(x0 + (int)x, y0 + (int)y, row + x, (uint32_t)c);
+                x += (uint32_t)c;
+            } else if (c < 0) {
+                uint32_t n = (uint32_t)(-c), i;
+                for (i = 0; i < n; i++)
+                    row[x + i] = (uint8_t)((uint32_t)flic_rd(r) & 0xFFu);
+                flic_write(x0 + (int)x, y0 + (int)y, row + x, n);
+                x += n;
+            }
+        }
+    }
+}
+
+/* type 16 COPY: H rows of W literal bytes, each row padded to (W+3)&~3 bytes in the file (as the verified flc.c
+   reads them) */
+static void flic_copy(flrd_t *r, int x0, int y0, uint32_t W, uint32_t H, uint8_t *row)
+{
+    uint32_t rowb = (W + 3u) & ~3u;
+    uint32_t y;
+
+    for (y = 0; y < H; y++) {
+        uint32_t i;
+
+        for (i = 0; i < W; i++)
+            row[i] = (uint8_t)((uint32_t)flic_rd(r) & 0xFFu);
+        flic_write(x0, y0 + (int)y, row, W);
+        flic_skip(r, rowb - W);
+    }
+}
+
+/* type 13 BLACK: H rows of W zeros at (x0, y0 + r), each row with the same clip rule (G: the flicplay entry's stale-y
+   quirk is not checked for showflic) */
+static void flic_black(int x0, int y0, uint32_t W, uint32_t H, uint8_t *row)
+{
+    uint32_t y;
+
+    memset(row, 0, W);
+    for (y = 0; y < H; y++)
+        flic_write(x0, y0 + (int)y, row, W);
+}
+
+/* type 12 LC (DELTA_FLI): y = y0 + word skip; word line count; per line: unsigned packet-count byte; x = 0; per
+   packet: x += unsigned skip byte; signed n: n >= 0 copies n literal bytes, n < 0 replicates the next byte -n times */
+static void flic_lc(flrd_t *r, int x0, int y0, uint8_t *row)
+{
+    uint32_t start = flic_word(r) & 0xFFFFu;
+    uint32_t lines = flic_word(r) & 0xFFFFu;
+    int y = y0 + (int)start;
+    uint32_t l;
+
+    for (l = 0; l < lines; l++) {
+        uint32_t packets = (uint32_t)flic_rd(r) & 0xFFu;
+        uint32_t x = 0;
+
+        while (packets-- > 0) {
+            uint32_t skip = (uint32_t)flic_rd(r) & 0xFFu;
+            int c = (int8_t)((uint32_t)flic_rd(r) & 0xFFu);
+
+            x += skip;
+            if (c >= 0) {
+                uint32_t i, n = (uint32_t)c;
+                for (i = 0; i < n; i++)
+                    row[i] = (uint8_t)((uint32_t)flic_rd(r) & 0xFFu);
+                flic_write(x0 + (int)x, y, row, n);
+                x += n;
+            } else {
+                uint32_t n = (uint32_t)(-c);
+                uint8_t v = (uint8_t)((uint32_t)flic_rd(r) & 0xFFu);
+                memset(row, v, n);
+                flic_write(x0 + (int)x, y, row, n);
+                x += n;
+            }
+        }
+        y++;
+    }
+}
+
+/* type 7 SS2 (DELTA_FLC): y = y0; word line count; per line read words until a packet count: bit15+bit14 set ->
+   y += -word (lines skipped); bit15 set only -> the low byte goes to (xr, y); else the packet count (0 goes to the
+   next line). Per packet: x += unsigned skip byte; signed n: n < 0 replicates the next 2-byte pair -n times,
+   n > 0 copies n literal 16-bit pairs (2n bytes); written at x, x += 2*|n| */
+static void flic_ss2(flrd_t *r, int x0, int y0, int xr, uint8_t *row)
+{
+    uint32_t lines = flic_word(r) & 0xFFFFu;
+    int y = y0;
+
+    while (lines > 0) {
+        int lp = (int16_t)(flic_word(r) & 0xFFFFu);
+
+        if ((lp & 0xC000) == 0xC000) {
+            y += -lp;
+        } else if ((lp & 0xC000) == 0x8000) {
+            uint8_t b = (uint8_t)(lp & 0xFF);
+            flic_write(xr, y, &b, 1);         /* the low byte at the right edge (xr, y) */
+        } else {
+            uint32_t packets = (uint32_t)lp;
+            uint32_t x = 0;
+
+            lines--;
+            while (packets-- > 0) {
+                uint32_t skip = (uint32_t)flic_rd(r) & 0xFFu;
+                int c = (int8_t)((uint32_t)flic_rd(r) & 0xFFu);
+
+                x += skip;
+                if (c < 0) {
+                    uint32_t n = (uint32_t)(-c), i;
+                    uint8_t b1 = (uint8_t)((uint32_t)flic_rd(r) & 0xFFu);
+                    uint8_t b2 = (uint8_t)((uint32_t)flic_rd(r) & 0xFFu);
+
+                    row[0] = b1;
+                    row[1] = b2;
+                    for (i = 0; i < n; i++)
+                        flic_write(x0 + (int)x + 2 * (int)i, y, row, 2);
+                    x += 2 * n;
+                } else if (c > 0) {
+                    uint32_t n = (uint32_t)c * 2u, i;
+                    for (i = 0; i < n; i++)
+                        row[i] = (uint8_t)((uint32_t)flic_rd(r) & 0xFFu);
+                    flic_write(x0 + (int)x, y, row, n);
+                    x += n;
+                }
+            }
+            y++;
+        }
+    }
+}
+
+/* 0x92486 fg_showflic(filename, count, flags): play a FLI/FLC. flags bit 0 = no frame delay, bit 1 = top-left at the
+   graphics cursor (else (0,0)), bit 2 = the data is fg_imagebuf's buffer (the 128-byte header at its start, data from
+   +0x80; filename ignored), bit 4 = ignore palette chunks. Returns 0 when played or stopped, 1 when the file cannot
+   be opened, 2 for a bad magic. */
+int fg_showflic(const char *filename, int count, int flags)
+{
+    const uint8_t *data;
+    uint8_t *filebuf = NULL;
+    size_t size;
+    uint32_t frames, W, H, delay, magic;
+    int x0, y0, xr;
+    flrd_t r;
+    int32_t fleft;
+    uint8_t *row;
+    int rc = 0;
+
+    /* the colour count check: the port is always in mode 25 (256 colours, fg_setmode at 0x109F3), so the original's
+       [0xD9F8C] != 0x100 early return (0x9249A) never happens here */
+    if (flags & 4) {
+        data = s_imgbuf;
+        size = s_imgsize;
+    } else {
+        filebuf = load_file(filename, &size);
+        if (filebuf == NULL)
+            return 1;                         /* 0x924E4 */
+        data = filebuf;                       /* the port reads the whole file and then behaves as memory mode with
+                                                 size = the file length (G: the original streams it through the
+                                                 imagebuf; the bytes and the end-of-data rule are the same) */
+    }
+    magic = flic_hw(data, size, 4);
+    if (magic != 0xAF11u && magic != 0xAF12u) {   /* 0x9250D */
+        free(filebuf);
+        return 2;
+    }
+    frames = flic_hw(data, size, 6);
+    W = flic_hw(data, size, 8);
+    H = flic_hw(data, size, 0xA);
+    if (magic == 0xAF11u) {
+        uint32_t speed16 = flic_hw(data, size, 0x10);
+
+        delay = (uint16_t)((speed16 * 1429u) / 5500u);   /* 0x9252C: the 32-bit dx:ax product, the 16-bit div of
+                                                             dx:ax by 5500 (a quotient > 0xFFFF would fault; cannot
+                                                             happen for a 16-bit speed) */
+    } else {
+        uint32_t speed32 = flic_hd(data, size, 0x10);
+
+        delay = (uint16_t)(speed32 / 55u);    /* 0x92544: a quotient > 0xFFFF faults in DOS; the port takes it
+                                                 truncated to 16 bits (G) */
+    }
+    if (flags & 2) {                          /* 0x92598 */
+        x0 = fg_getxpos();
+        y0 = fg_getypos();
+    } else {
+        x0 = 0;
+        y0 = 0;
+    }
+    xr = x0 + (int)W - 1;                     /* 0x925BC: SS2's "last byte" column */
+
+    row = malloc((size_t)W + 256u);           /* the decoders' scratch row */
+    if (row == NULL) {
+        free(filebuf);
+        return 0;
+    }
+    r.p = data + 0x80;                        /* 0x925D6 */
+    r.left = size >= 0x80 ? (int32_t)(size - 0x80) : 0;
+    r.crem = 0;
+    fleft = (int32_t)frames;                  /* 0x9255F; frames 0 wraps to an endless pass */
+
+    for (;;) {
+        uint32_t szlo = flic_word(&r);
+
+        if (szlo == 0xFFFFFFFFu)              /* 0x9262A -> 0x930CC: end of pass */
+            goto end_pass;
+        {
+            uint32_t szhi = flic_word(&r);
+            uint32_t size = (szlo & 0xFFFFu) | ((szhi & 0xFFFFu) << 16);
+            uint32_t type = flic_word(&r);
+            uint32_t slack;
+
+            if (type == 0xF100u) {            /* prefix: skipped, but counts as a frame (correction 6) */
+                slack = size - 6;             /* 0x9281E */
+                goto key_check;
+            }
+            if (type != 0xF1FAu) {            /* 0x926B4 -> 0x93127: stop, return 0 */
+                rc = 0;
+                goto done;
+            }
+            slack = size - 16u;               /* 0x926BE, 16-bit sub/sbb: 32-bit */
+            {
+                uint32_t nchunks = flic_word(&r);   /* 0x9270A */
+                uint32_t c;
+
+                flic_skip(&r, 8);             /* 0x9270D the reserved bytes */
+                for (c = 0; c < nchunks; c++) {
+                    uint32_t csize = flic_dword(&r);
+                    uint32_t ctype;
+
+                    slack -= csize;           /* 0x927B1 */
+                    r.crem = (int32_t)(csize - 4u);   /* 0x927C1 */
+                    ctype = flic_word(&r);
+                    switch (ctype) {
+                    case 4:
+                    case 11:
+                        if ((flags & 0x10u) == 0)
+                            flic_color(&r, ctype);
+                        break;
+                    case 7:
+                        flic_ss2(&r, x0, y0, xr, row);
+                        break;
+                    case 12:
+                        flic_lc(&r, x0, y0, row);
+                        break;
+                    case 13:
+                        flic_black(x0, y0, W, H, row);
+                        break;
+                    case 15:
+                        flic_brun(&r, x0, y0, W, H, row);
+                        break;
+                    case 16:
+                        flic_copy(&r, x0, y0, W, H, row);
+                        break;
+                    default:                  /* every other type, including > 0x10, is skipped (correction 3) */
+                        break;
+                    }
+                    if (r.crem < 0)           /* 0x93041: the handler overran the chunk -> end of pass */
+                        goto end_pass;
+                    flic_skip(&r, (uint32_t)r.crem);
+                }
+            }
+        key_check:                            /* 0x9306B */
+            {
+                unsigned char k, a;
+
+                fg_intkey(&k, &a);
+                if (k == 27) {                /* 0x93079 -> 0x9311C: Esc stops */
+                    rc = 0;
+                    goto done;
+                }
+            }
+            flic_skip(&r, slack);             /* 0x9307E */
+            if ((flags & 1u) == 0 && delay != 0)
+                fg_waitfor((int)delay);       /* 0x93086 */
+            touch();                          /* the screen may have changed */
+            fleft--;                          /* 0x930C2 */
+            if (fleft != 0)
+                continue;
+        }
+    end_pass:                                 /* 0x930CC */
+        if (count != 0) {
+            count--;
+            if (count == 0) {
+                rc = 0;
+                goto done;
+            }
+        }
+        fleft = (int32_t)frames;
+        r.p = data + 0x80;
+        r.left = size >= 0x80 ? (int32_t)(size - 0x80) : 0;
+        r.crem = 0;                           /* 0x93104: rewind, next pass */
+    }
+done:
+    free(row);
+    free(filebuf);                            /* file mode frees its buffer at every return */
+    return rc;
 }
 
 /* ---- catalogs (0xA22C3..0xA25B3) -------------------------------------------------------------------------------- */
@@ -1250,6 +1697,12 @@ void fg_intkey(unsigned char *key, unsigned char *aux)
     uint16_t k;
 
     service();
+    if (s_headless && s_test_key != 0) {     /* test hook: fg_test_key */
+        *key = (unsigned char)s_test_key;
+        *aux = 0;
+        s_test_key = 0;
+        return;
+    }
     if (s_nkeys == 0) {
         *key = 0;
         *aux = 0;

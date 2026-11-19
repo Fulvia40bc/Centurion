@@ -59,6 +59,10 @@ int  fg_gifpal(const char *filename, uint8_t *palette);         /* 0x878F7: read
 
 /* images and catalogs (Fastgraph/Image; the game's catalog layer 0xA22C3..0xA25B3 on top of catalog.c) */
 int  fg_showgif(const char *filename, int flags);               /* 0x88F98: at the cursor (upper-left), flags per doc */
+int  fg_flicsize(const uint8_t *header, int *width, int *height);   /* 0x92451: FLI/FLC header -> w/h, else -1; returns 0 */
+int  fg_showflic(const char *filename, int count, int flags);    /* 0x92486: play a FLI/FLC onto the screen; 0 played/
+                                                                    stopped, 1 no file, 2 bad magic; flags: 1 no delay,
+                                                                    2 at the cursor, 4 from fg_imagebuf, 0x10 no palette */
 int  cat_open_file(const char *path);     /* 0xA22C3: returns a catalog handle (>0) or 0 */
 int  cat_show(const char *name, int flags, int handle);          /* 0xA22FF: GIF (or FLC) from a catalog at the cursor */
 long cat_size(const char *name, int handle);                    /* 0xA24A7: entry length, or <0 */
@@ -88,6 +92,7 @@ void fg_set_quit(void (*handler)(void));  /* run when the window is closed (PLAT
 void fg_set_input_hook(void (*hook)(void));  /* called each time the game polls input (tests: save the frame, quit) */
 void fg_frame_with_pointer(uint8_t *out, int x, int y);   /* tests: the screen + Fastgraph's pointer at (x, y) if shown */
 void fg_test_mouse(int x, int y, int buttons);            /* tests (headless): set the mouse as the game will read it */
+void fg_test_key(int key);                  /* tests (headless): the next fg_intkey returns key, 0 */
 int  fg_imagebuf(uint8_t *buffer, uint32_t size);   /* 0x8240F: the buffer fg_showgif(.., flags & 4) reads; size 0 =
                                                        Fastgraph's internal 4096 bytes (0xD6694); returns 0 */
 int  cat_read(int handle, uint8_t *buffer, unsigned count, unsigned *bytes);  /* _dos_read (0x92420) on a catalog

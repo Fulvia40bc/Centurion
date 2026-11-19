@@ -31,6 +31,11 @@ foreach ($arch in 'aarch64', 'x86_64') {
   & $cc @warn (Join-Path $test 'font_test.c') (Join-Path $src 'fgfont.c') (Join-Path $src 'png_write.c') `
         -o (Join-Path $o 'font_test.exe')
   if ($LASTEXITCODE) { throw "font_test ${arch}: build failed" }
+  # showflic_test (HANDOFF Task 17): self-contained plat stubs, no SDL needed
+  & $cc @warn (Join-Path $test 'showflic_test.c') (Join-Path $src 'fg.c') (Join-Path $src 'gif.c') (Join-Path $src 'catalog.c') `
+        (Join-Path $src 'fgfont.c') (Join-Path $src 'palette.c') (Join-Path $src 'png_write.c') (Join-Path $src 'flc.c') `
+        -o (Join-Path $o 'showflic_test.exe')
+  if ($LASTEXITCODE) { throw "showflic_test ${arch}: build failed" }
   # dro_play (HANDOFF Task 11): the vendored Nuked-OPL3 is built unchanged; clang needs -Wno-static-in-inline for
   # its 'inline OPL3_Generate4Ch' (gcc does not warn). The strict flags apply to everything else.
   $nuked = Join-Path $src '..\third_party\nuked-opl3'
