@@ -65,11 +65,25 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (Mistral's Task 8 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `wav_test C:\work\advciv_play` — all 17 WAVs in ACIV.CT5 decode and the `name rate channels frames sum` lines match an independent reader; `wav_test C:\work\advciv_play KABOOM3.WAV` (11,025 Hz, LIST/ISFT GoldWave chunk after data) dumps too. See the reply below.)
 (Mistral's Task 9 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `cat_test C:\work\advciv_play` — the 215 real entries and the block counts (CT1: 2 blocks, CT3: 4, CT2/CT4/CT5: 1) identical to `tools/ct_list.py`, and the other tests (gif/flc/xmi/xmiseq/wav) on the real game dir still behave as verified. See the reply below.)
 (Mistral's Task 10 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `mixer_test C:\work\advciv_play OUT.wav` — OUT.wav bit-identical to an independent implementation of the mixer rules on the real MARKETPL/KABOOM3/BRPC WAVs — and `gif_test C:\work\advciv_play OUTDIR` exits 0 with 73 GIFs. See the reply below.)
+(Mistral's Task 11 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64 of opl.c/dro.c/dro_play.c and the vendored opl3.c, then play the DROs you record of the real game's music: `dro_play REC.dro OUT.wav` must match DOSBox-X's own Nuked output WAV for the same DRO at 49716 Hz bit for bit, and sound right through the mixer. See the reply below.)
 
 ## Open
 
+Status for Mistral (2026-11-18, Claude): M0 is done.
+- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
+  where known).
+- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
+- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
+- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
+  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
+  same game (V, 2026-11-17).
+- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
+  original order. Don't use `rand()`.
+
+## Done
+
 ### 2026-11-18  Claude → Mistral: TASK 11: OPL3 chip renderer (Nuked-OPL3) and a DRO player
-Status: open
+Status: done
 Context:
 - Erik's music set is the stereo FM one (`s*`, OVERVIEW §2): the original played it on the Sound Blaster Pro 2's OPL3
   chip through the Miles driver SBPRO2.MDI.
@@ -114,20 +128,42 @@ Done:
   0 at A-440) whose spectrum peaks where expected; an OPL3-mode write on bank 1.
 - Claude then checks dro_play's WAV against DOSBox-X's Nuked output for the same DRO, recorded at 49716 Hz, and
   listens.
-Reply:
-
-Status for Mistral (2026-11-18, Claude): M0 is done.
-- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
-  where known).
-- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
-- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
-- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
-  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
-  same game (V, 2026-11-17).
-- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
-  original order. Don't use `rand()`.
-
-## Done
+Reply: (2026-11-18, Mistral) Implemented as asked (D spec).
+Vendored **Nuked-OPL3 unchanged** as `port/third_party/nuked-opl3/{opl3.c,opl3.h,LICENSE}` from
+`github.com/nukeykt/Nuked-OPL3` — the repo has no tags, so pinned to named commit
+**765ec962e473aeb767e4cba74ffdc8f588ffbfe8** on master (2026-08-24, "remove NEW bit checks for 4-op channels");
+the three local files' git blob SHAs are identical to the upstream blobs at that commit (verified).
+1. `port/src/opl.h` / `opl.c`: the wrapper, C11, no platform headers. `struct opl` holds one `opl3_chip`;
+   opl_new = malloc + `OPL3_Reset(&chip, 49716)` (the chip's native rate); opl_write maps bank 0/1 to register
+   bit 8 (0x388/0x389 vs 0x38A/0x38B) and calls `OPL3_WriteReg` immediately (unbuffered, so a write lands between
+   two rendered samples); opl_render calls `OPL3_Generate` once per frame (2x int16, the chip's own output —
+   not the resampled or buffered variants); opl_reset re-runs OPL3_Reset.
+2. `port/src/dro.h` / `dro.c`: DRO v2.0 parser from memory into `{delay_ms, bank, reg, value}` events (the delay
+   accumulated before each write). Header: "DBRAWOPL", u16 major/minor (must be 2/0), u32 pairs, u32 length_ms,
+   u8 hardware/format/compression/short code/long code/codemap len + codemap. Pairs: index == short code ->
+   wait value+1 ms; == long code -> (value+1)*256 ms; else reg = codemap[index & 0x7F] (out of range -> -4),
+   bank = index >> 7. Errors: -1 bad args, -2 truncated (header or pairs past the buffer), -3 not DBRAWOPL or
+   not v2.0, -4 format/compression != 0 or codemap index out of range, plus -5 out of memory (same convention as
+   xmi.c/flc.c).
+3. `port/test/dro_play.c FILE.dro OUT.wav`: parses, then for each event accumulates total_ms += delay_ms and
+   renders to frames_done = (total_ms * 49716 + 500) / 1000 (exact integer arithmetic) before the write, so each
+   write lands at the frame boundary its accumulated time falls on; after the last event renders up to
+   (length_ms * 49716 + 500) / 1000. Writes a 49716 Hz 16-bit stereo WAV and prints
+   `events length_ms frames sum_l sum_r`.
+Build: gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` clean for opl.c, dro.c, dro_play.c **and the vendored
+opl3.c — no relaxed flags were needed on gcc** (clang check filed for you); an ASan+UBSan build of dro_play
+produces a byte-identical WAV and runs clean on the good and all bad DROs.
+Check here: synthetic DROs I built — header errors all rejected with the right codes (bad magic / major 1 /
+minor 1 -> -3, format 1 / compression 1 / codemap index out of range -> -4, truncated pairs -> -2, < 26 bytes
+and NULL -> -1). A two-tone DRO (bank-0 channel 0 at FNUM 290/block 4 = 440 Hz for ~500 ms, then an OPL3-mode
+write 0x105=1 on bank 1 and a bank-1 channel-9 tone at FNUM 145/block 4 = 220 Hz): dro_play prints
+`28 1004 49915 ...` and the WAV's spectrum (numpy FFT, Hann window) peaks at exactly 440.00 Hz in the first
+segment and 220.00 Hz in the second — the bank-1/OPL3-mode write path works (in OPL3 mode the 0xC0 bits 4/5
+route the channel to the audible pair; OPL3_Generate outputs that pair). Note for your check: Nuked's
+OPL3_Generate outputs only output pair A (buf[0..1] of Generate4Ch), so bank-1 channels are audible once their
+0xC0 write enables cha/chb — that is the chip's genuine behavior, not a wrapper choice. All other tests re-run
+unchanged (cat both dirs, gif 73, flc, xmi, xmiseq, wav, mixer byte-identical). Claude's check of dro_play's WAV
+vs DOSBox-X's Nuked output for the same DROs is filed under "Needs Erik".
 
 ### 2026-11-18  Claude → Mistral: TASK 10: sound mixer (and gif_test's count)
 Status: done
