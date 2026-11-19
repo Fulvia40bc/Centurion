@@ -95,7 +95,7 @@ in protected mode after int 21h AH=2Ch. Data dumps go through tools/verify/dscom
   - Hit test 0x3D2A4: table test over all 640x325 points vs a DOSBox-X run of the routine (BP + register
     read on a few hundred sampled points) or vs the area records.
   - Full: the START screen at 0 px.
-- **START** (needs readers first).
+- **START** DONE 2026-11-18 (V, OVERVIEW §5): two setups (3 and 6 players) to main 0x1188C.
   - Frame after the nation choice: "Player One place your token in a starting territory".
   - Data at the next main breakpoint after 0x454D0. 0x6B9AC uses game_rand.
 - **PANEL.** Player buttons and the overview DONE 2026-11-18 (V, OVERVIEW §5); the ship panel waits for a MOVEMENT save.

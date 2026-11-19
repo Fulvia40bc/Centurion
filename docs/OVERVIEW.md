@@ -469,6 +469,34 @@ takes, by player count 3..8: fixed orders, pairs and triples drawn with `game_ra
 - Oddity (D): in the movement phase the number on a ship stack gets one extra shadow copy (colour 5), only when the
   current player is nation 2 (Iberia, 0x3E24A); G: so it stays readable on that nation's colour.
 
+**M4, module START: the starting territories (2026-11-18 night).** A new game in the port now runs on through main
+0x11854..0x11884 to 0x1188C (`--through-start`).
+- `start.c`:
+  - 0x6B9AC: one coin flip per computer nation;
+  - 0x454D0: the "%s place your token in a starting territory." screen, with its own click loop;
+  - 0x3D434: a map-screen click;
+  - 0x45F88: a computer's pick from its opening map;
+  - 0x3A924 and 0x15FE0 (loading a .BPM's three tables).
+- `aistart.c`: 0x14C6C, which opening map (`.BPM` in ACIV.CT3) each nation gets, by player count and by which
+  neighbours are in play. 58 maps, 13 jump tables. A second interpreter written by the reviewer agrees on all
+  135,212 cases.
+- **BUG(1995), fixed by default:** a copied test. For a human Illyria in a 4-player game, the choice between ILLY40
+  ("non-iberia") and ILLY41 tests Illyria's own byte (always set) where Africa's belongs. It only matters in a
+  4-human Iberia/Illyria/Thrace/Crete game.
+- **Script steps for the port:**
+  - `--wait N`: N input polls with no click (the nation choice's closing waits poll too);
+  - `--settle N`: polls before the frame is saved.
+- **Check (V)**, `tools/dosbox/run_start.sh` against the port with the same seed and clicks:
+  - 2 humans (Africa, Italy) + 1 computer (Crete):
+    - both placement screens **0 px**;
+    - memory at main 0x1188C **0 unexplained bytes**, the same final seed;
+    - the last frame's map window and mini-map 0 px. The rest of that frame is not comparable: DOSBox-X's raw
+      shot comes after the original has run on into its game loop, which redraws the panel and hides the pointer.
+  - 2 humans (Africa, Iberia) + 4 computers (Thrace, Crete, Asia, Egypt; 6 players): the same results. The four
+    computers pick areas 130, 86, 4 and 129 from their opening maps, as in the original, and the final seed is
+    identical.
+  - The original autosaves once it runs on past the stop; `run_start.sh` keeps and restores the run copy's saves.
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 
@@ -512,6 +540,23 @@ Pace: one module at a time, each with its own commit; ultracode workflows for th
 13. **Zeus borrows the iconoclasts' sound and picture.** `ZEUS.WAV` and `ICONCLSM.WAV` (Iconoclasm and Heresy) hold
     the same sample data, 132,352 samples at 22,050 Hz, and `ZEUS.FLC` is byte-identical to `ICONCLSM.FLC` (329,936
     bytes): Zeus's pity looks and sounds exactly like the temples being torn down.
+
+14. **The opening maps keep their editing history.** The map editor wrote each `.BPM` label into a 41-byte buffer
+    without clearing it, so older, longer labels show through after the NUL:
+    - ASSY71 and ASSY81 read "vs Asia", then **"...edit this!!!"**: a reminder to the developer that nobody acted
+      on, shipped in the game. ILLY30 keeps "!!" and "layers" from the same default text.
+    - The "Base map by Jim - 8/2" labels were typed over "7/29/95", so "/95" still shows behind them.
+    - ILLY32 was once "illy vs italy vs thrc or afrc"; AFRC40 ("non-iberia") was once an Italy-vs-Illyria map.
+    - 8 of the 66 opening maps are never used: IBER60/70/80 (Jim's base maps; the IBER61/71/81 variants are
+      used instead), ILLY30, ITAL31, THRC30, THRC72, THRC73.
+    - Two labels don't fit their use (G, renaming during development): ILLY32 "illy vs italy vs thrc" is read
+      only when Thrace is *not* in play, and ITAL32 "Italy vs Africa vs Thrace" also serves Italy + Illyria +
+      Thrace, the matchup of the unused ITAL31.
+    - A dead developer switch: per-nation opening-map overrides (names at 0xF6064, flags at 0xF60E8) are still
+      honoured by four routines, but main clears them and nothing sets them. With the loose-file fallback when a
+      name is missing from ACIV.CT3, it looks like the developers' way to try edited maps without rebuilding the
+      catalogue.
+15. Clicking outside your own starting territories rings the PC speaker bell (`printf("\a")`).
 
 Text slips found in passing (to fix by default, `--original` keeps them): "converts %s by **Montheism**!" (twice),
 "popped once **to** often". A full text sweep is part of M4/M6.

@@ -21,6 +21,7 @@
 #include "save.h"
 #include "map.h"
 #include "panel.h"
+#include "start.h"
 
 static const char *s_frame_path;
 static int s_pointer_x = -1, s_pointer_y = -1;
@@ -31,7 +32,8 @@ static int s_dump_early;
 
 /* --click X Y (repeatable, headless): each is a press for one input poll, then a release; after the last one the
    frame is saved once the game has polled input a few more times (its screen is drawn before it waits) */
-enum { MAX_CLICKS = 32, SETTLE_POLLS = 4 };
+enum { MAX_CLICKS = 32 };
+static int s_settle = 4;   /* --settle N: input polls after the last click before the frame is saved */
 static int s_clicks[MAX_CLICKS][2], s_nclicks, s_click, s_pressed, s_idle;
 
 static void save_frame_and_exit(void);
@@ -43,7 +45,7 @@ static void save_frame_and_exit(void);
    window as the game does (f3D52C(0, 0): clamp, map picture, borders, markers, cities, tokens, ships, mini-map).
    The frame is then compared with the DOSBox-X capture in the map window and the mini-map only. */
 static const char *s_map_state;
-static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview;
+static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview, s_through_start;
 static const struct { uint32_t addr, len; } MAP_STATE[] = {
     { 0xF4884u, 8 },        /* scroll column, row */
     { 0xF6110u, 4 },        /* int16 min, max column */
@@ -104,6 +106,13 @@ static void script_hook(void)
     if (s_click < s_nclicks) {   /* per click: 2 polls released (the game first waits for a release, 0x775F0),
                                     2 polls pressed (its click wait), then released again */
         int x = s_clicks[s_click][0], y = s_clicks[s_click][1];
+        if (x < 0) {             /* --wait N: N polls with no button down (the pointer where the last click was) */
+            if (++s_pressed >= y) {
+                s_pressed = 0;
+                s_click++;
+            }
+            return;
+        }
         fg_test_mouse(x, y, s_pressed >= 2 && s_pressed < 4);
         if (++s_pressed == 5) {
             s_pressed = 0;
@@ -111,7 +120,7 @@ static void script_hook(void)
         }
         return;
     }
-    if (s_frame_path != NULL && s_dump_path == NULL && ++s_idle >= SETTLE_POLLS)   /* with --dump-ds the program runs
+    if (s_frame_path != NULL && s_dump_path == NULL && ++s_idle >= s_settle)   /* with --dump-ds the program runs
                                                                                      on and saves the frame at the dump */
         save_frame_and_exit();
 }
@@ -161,6 +170,15 @@ int main(int argc, char **argv)
             s_dump_path = argv[++i];
         else if (strcmp(argv[i], "--map-state") == 0 && i + 1 < argc)
             s_map_state = argv[++i];
+        else if (strcmp(argv[i], "--wait") == 0 && i + 1 < argc && s_nclicks < MAX_CLICKS) {
+            s_clicks[s_nclicks][0] = -1;              /* a script step of N polls without a click */
+            s_clicks[s_nclicks][1] = atoi(argv[++i]);
+            s_nclicks++;
+        }
+        else if (strcmp(argv[i], "--settle") == 0 && i + 1 < argc)
+            s_settle = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--through-start") == 0)
+            s_through_start = 1;                      /* new game: go on through the starting territories to 0x1188C */
         else if (strcmp(argv[i], "--overview") == 0)
             s_overview = 1;
         else if (strcmp(argv[i], "--press") == 0 && i + 1 < argc)
@@ -233,12 +251,14 @@ int main(int argc, char **argv)
             rc = game_load(s_seed, s_use_seed);       /* main 0x114CF..0x1184A */
             if (!s_dump_early)
                 f2EFA0();                             /* 0x1184F: the nation choice; returns to 0x11854 */
+            if (!s_dump_early && s_through_start)
+                start_slice();                        /* 0x11854..0x11884: the starting territories (START) */
             if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
                 fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
             if (s_dump_path != NULL && s_frame_path != NULL)   /* the screen at the dump, as run_setup.sh captures it */
                 (void)save_frame();
             fprintf(stderr, "advciv: stopped at main 0x%X (%d), seed %08X; the game itself is not ported yet\n",
-                    s_dump_early ? 0x1184Fu : 0x11854u, rc, (unsigned)D32(0xCAC5Cu));
+                    s_dump_early ? 0x1184Fu : s_through_start ? 0x1188Cu : 0x11854u, rc, (unsigned)D32(0xCAC5Cu));
             plat_shutdown();
             return 0;
         }

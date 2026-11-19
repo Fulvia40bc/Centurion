@@ -378,8 +378,9 @@ static void f12DA4(void)
 /* 0x128F0 (main 0x116F0): the names of the map's western nation by the board (bit 0x02 of 0xE1624, G: the larger
    board): IBERIA / Iberian / IBER, else ITALY / Italian / ITAL, copied into the strings the pointers 0xC7694, 0xC76CC,
    0xC766C point to (data link addresses: 0xB646A, 0xB64D8, 0xB643A); with [0xF60F0] set also three letters at
-   0xF607F..0xF6081 ("BRE" / "TAL", G: an abbreviation). Then per player count some territory bytes (in 0xE1638's
-   records and beyond) lose their high nibble or a flag (meanings G). */
+   0xF607F..0xF6081 ("BER" / "TAL": letters 1..3 of nation 2's opening-map override name at 0xF6064 + 13 * 2, the
+   dead developer switch of OVERVIEW §6 egg 14). Then per player count some territory bytes (in 0xE1638's records
+   and beyond) lose their high nibble or a flag (meanings G). */
 static void f128F0(void)
 {
     if (D8(0xE1624u) & 0x02) {                        /* 0x12902 */
