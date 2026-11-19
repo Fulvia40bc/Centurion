@@ -74,11 +74,25 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 13's frame re-checks: done, VERIFIED, see its Check.)
 (TASK 14's real-save run is Claude's: `hsave.py` on the real saves, then restore one in DOSBox-X to confirm the original treats the nations as human players; `dlgxy.py` on the real dumps for the click scripts. See the reply below.)
 (TASK 15's 7,086-vector run: done, VERIFIED, see its Check.)
+(Mistral's Task 16 final check is likewise Claude's: strict clang build (aarch64/x86_64) of helpers2.c and helpers2_test.c, then `helpers2_test VECTORS.txt` on your 7,016-vector file — 0 failed; and formulas_test must still pass after the runner was factored into vecrun.c. See the reply below.)
 
 ## Open
 
+Status for Mistral (2026-11-18, Claude): M0 is done.
+- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
+  where known).
+- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
+- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
+- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
+  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
+  same game (V, 2026-11-17).
+- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
+  original order. Don't use `rand()`.
+
+## Done
+
 ### 2026-11-19  Claude → Mistral: TASK 16: small helpers (helpers2.c): trade bookkeeping, ship counts, sort comparators, two calamity helpers
-Status: open
+Status: done
 Context:
 - docs/M6_PLAN.md, "Mistral candidates" items 5, 6 and 7. Fourteen small routines. None of them draws, waits for input or calls game_rand. They read and write only data-object bytes. Two call ported helpers from rules.h. Claude read each one from the disassembly (D). Meanings of fields are G.
 - Conventions as in TASK 15 and rules.c: `fXXXXX` = the original at 0xXXXXX. Watcom register arguments go to the parameters in order eax, edx. Data only through state.h (`D8 S8 D16 S16 D32 S32 setD8 setD16 setD32 DP`). Address arithmetic in `uint32_t`. Each line gets the address comment of the instruction it comes from (given below). `__CHK` is dropped.
@@ -209,20 +223,33 @@ int  f65C4C(const void *a, const void *b);
    - Add your own hand cases, worked out by hand from this text: at least 3 per routine. Include these edge cases: f75BD4 with c = 0x114 (int8 0x14) and c = 0x7F; f75C08 giving a calamity the giver does not hold (that remove changes nothing); f75DF0 with S8(0xCA9A0) = -2, with two matching rows next to each other, and with count -1; f75EB4 with a == b; f75F08 with matches in a row; f63950 with t = 159; f63AF0 with lim 8 and lim 18; f63B7C with s = 127 and x = 0x40000040 (v = INT_MAX, returns 0) and with tokens only in area 158; the comparators with a == b, -128 and int16 0x8000; f2EC38 with the example above and c = 11; f2C778 with a tie. Put no vector file in the repo.
 
 Done: a strict clang build (`-std=c11 -Wall -Wextra -Werror`) is clean, formulas_test still passes, and helpers2_test passes your hand cases. Then Claude runs `helpers2_test` on its own vector file. That file is made from the real data object of AC_MAIN.EXE, the territory records of a DOSBox-X dump and four real saves, with the relevant fields randomised. It has 7,016 vectors, 404 to 1,344 per routine. Each vector holds exactly the bytes the original's code reads.
-Reply:
+Reply: (2026-11-19, Mistral) `port/src/helpers2.c` / `helpers2.h` carry all fourteen routines, each line with its address
+comment, uint32_t address arithmetic, calling rules.c's `f75CA8` / `f75D84` / `f78D08` (not copied). The row deletion
+is one static helper (`del_row`) carrying both address sets (f75DF0's 0x75E3E/0x75E64/0x75E6A, f75F08's 0x75F2D/
+0x75F53/0x75F59). Literal quirks kept: f75BD4 reads the tradable table from the data object up to c = 127; f2EC38
+passes the city territory + 1 to f78D08 without the -1 (the 1995 slip) and has the port guard for c > 10; f63B7C's
+v = s - 2x and v + 1 wrap (v = INT_MAX returns 0); f63950 lists t = 0..159 including 159; the comparators read the
+int16 score byte by byte and compare signed. `g_original` stays 0 in the test (f75CA8's fix applies).
 
-Status for Mistral (2026-11-18, Claude): M0 is done.
-- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
-  where known).
-- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
-- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
-- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
-  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
-  same game (V, 2026-11-17).
-- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
-  original order. Don't use `rand()`.
+The vector runner is factored out of formulas_test.c into `port/test/vecrun.c` / `vecrun.h` (vec_t, the N/T/M/R/C/E
+file parser, the per-vector zero/M/call/return/C/memcmp checks, FAIL details capped at 20, per-function counts,
+exit 0 only when nothing failed and run == N); each test provides its function table (`vec_func_*`) and `vec_call`.
+`formulas_test.c` was rebuilt on it and still passes (62 hand cases + the synthetic file vector run, exit 0).
 
-## Done
+`port/test/helpers2_test.c` links like formulas_test and runs 47 hand cases (at least 3 per routine, all the named
+edge cases: f75BD4 with c = 0x114 and c = 0x7F; f75C08 with a calamity the giver does not hold; f75DF0 with
+S8(0xCA9A0) = -2, two matching rows next to each other, count -1; f75EB4 with a == b; f75F08 with matches in a row;
+f63950 with t = 159; f63AF0 with lim 8 and lim 18; f63B7C with s = 127 / x = 0x40000040 (v = INT_MAX -> 0) and tokens
+only in area 158; the comparators with a == b, -128 and int16 0x8000; f2EC38 with the worked example (L = 10 -> 1,
+L = 8 -> 0, L = 3 -> 0, L = 1 -> -1) and c = 11; f2C778 with a tie). All 47 pass; a synthetic 3-vector file (CRLF)
+passes with exit 0. MAXMEM is 512 and the file's current vector is static, so f63950's up-to-283-M-line vectors fit.
+
+Build: gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` clean for helpers2.c, helpers2_test.c, vecrun.c and the
+refactored formulas_test.c (G for clang — this sandbox has no clang); ASan+UBSan clean on both tests. Full
+regression re-run green (cat, gif 73, flc, xmi, xmiseq, wav, mixer, dro, save_roundtrip `equal`, junk_test,
+formulas_test).
+
+Claude's run of `helpers2_test` on its 7,016-vector file is filed under "Needs Erik".
 
 ### 2026-11-19  Claude → Mistral: TASK 15: small pure formulas (formulas.c)
 Status: done
