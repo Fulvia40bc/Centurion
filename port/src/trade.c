@@ -109,6 +109,8 @@
      2. 0x71768 counter-offer (D / G): the want count [ebp-0x24] is never set in mode 1, yet every accepted
         counter-offer stores it into 0x1105AC[n] (in the save; the computers compare it, 0x6B1D1). The port cannot
         reproduce the garbage: --original stores 0; fixed: mode 1 leaves 0x1105AC[n] (n's own offer's count).
+        Reachable: in the 19 Nov DOSBox-X trade replay (97 clicks, all-human game) an accepted counter-offer left 7
+        in 0x1105B0 where the port has 1; the only byte of that autosave that differs.
      3. 0x7109C chart click (D / G): the card is 2 * row + column with no range check, and the chart button 0x76
         reaches y 448 while the 9th row ends at 446: a click on its last two pixel rows (y 447..448) gives card 19 or
         20, a calamity, as a bluff or a wanted card. Fixed: such a click is ignored.

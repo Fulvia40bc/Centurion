@@ -35,6 +35,30 @@ D dbg "SM 0188:2DA628 $(le $2) $(le $3) 01 00 00 00" > /dev/null
 got=$(D dbg "D 0188:2DA628" > /dev/null; D dbgscreen | grep -E '^0188:002DA628' | head -1 | cut -c15-49)
 D dbg "BPDEL *" > /dev/null
 [ -n "$NEXT_BP" ] && D dbg "BP 0180:$(printf '%X' $(( NEXT_BP + 0x202000 )))" > /dev/null
+if [ "$1" = "0x78BD3" ] && [ -z "$NO_REPOKE" ]; then
+  # f78BA4: when a button is hit, 0x3C5D4 (called at 0x78C8C) waits for the release with fg_mousepos, which puts the
+  # real (unmoved) DOSBox pointer into 0xE1628/0xE162C; callers such as the trade composer then read the click's
+  # position from there. A real click keeps the pointer where it clicked, so write x, y again on the return
+  # (0x78C91). With no button hit the run goes on to NEXT_BP instead and stops there as before.
+  D dbg "BP 0180:27AC91" > /dev/null
+  D dbgkey F5 > /dev/null
+  e=""
+  for i in $(seq 1 120); do
+    s=$(D dbgscreen)
+    if ! echo "$s" | tail -2 | grep -q '(Running)'; then e=$(echo "$s" | grep -o 'EIP=[0-9A-F]*' | head -1); break; fi
+    sleep 1
+  done
+  if [ "$e" = "EIP=0027AC91" ]; then
+    D dbg "SM 0188:2DA628 $(le $2) $(le $3)" > /dev/null
+    D dbg "BPDEL *" > /dev/null
+    [ -n "$NEXT_BP" ] && D dbg "BP 0180:$(printf '%X' $(( NEXT_BP + 0x202000 )))" > /dev/null
+    D dbgkey F5 > /dev/null
+    echo "click $2,$3 at $1: wrote $got, x,y again after 0x3C5D4"
+  else
+    echo "click $2,$3 at $1: wrote $got (no button hit; stopped at $e)"
+  fi
+  exit 0
+fi
 D dbgkey F5 > /dev/null
 echo "click $2,$3 at $1: wrote $got"
 if [ -n "$4" ]; then

@@ -30,21 +30,12 @@
                0x252BC  a computer picks the secondary victims' coastal cities: 0x2462B
                0x27518  a computer assigns Iconoclasm's secondary losses: 0x24074
                (0x25548 and 0x2E1D0 are reached only through 0x252BC / 0x24EB8: no call site here)
-     ANIM:     0x7A4A0  [0xCAC60] = [0xCAC64] = -1 (the animation's memo, G): 0x1E17C
-               0x7A4C4  the calamity animation f7A0A0([0xF783C]) when bit 0x04 of [0xF097C] is set: 0x20BAD (every
-                        redraw of 0x207B4), 0x24AEF (every redraw of 0x2468C in phase 15)
-               (0x7A0A0 / 0x79ADC / 0x79C70 are reached through kit.c's f79270, which stops at them itself: Zeus's
-               -298 and every calamity message with anim 1 when animations are on)
-     CAL2:     0x25A38 Famine, 0x2D4F0 Flood, 0x2E59C Epidemic (handlers called by 0x1E0A0); 0x291D0 (the secondary
-               losses shown) and 0x29550 (the human assigns them), called by 0x23ACC
-     CAL3:     0x1E7A0 Volcano / Earthquake;  CAL4: 0x29E34 Civil War;  CAL5: 0x217A0 Barbarian Hordes
-   So today a CALAMITIES phase with no calamity held runs (the 100 ms home view, round 1); any held calamity stops at
-   0x7A4A0 before the first handler (ANIM). Once ANIM is there: Treachery, Superstition, Slave Revolt, Civil Disorder,
-   Piracy and Iconoclasm with at most two secondary losses run for human nations with animations off; Iconoclasm with
-   more than two secondary losses (human victim) stops at 0x29550, every other calamity at its handler.
+     The animations (anim.c), CAL2 (cal2.c: 0x25A38 Famine, 0x2D4F0 Flood, 0x2E59C Epidemic, 0x291D0, 0x29550), CAL3
+     (cal3.c: 0x1E7A0 Volcano / Earthquake), CAL4 (cal4.c: 0x29E34 Civil War) and CAL5 (cal5.c: 0x217A0 Barbarian
+     Hordes) are called directly since 19 Nov; only the computers' routines above still stop the port.
 
-   tax.c (0x6685C's 0x2468C mode 2, 0x66D8C's 0x28CFC kind 2) and pop.c (0x67758's 0x28CFC kind 3) still stop at their
-   own stubs of f2468C / f28CFC: cal1.h exports the real ones (Claude replaces those stubs when merging).
+   tax.c (0x6685C's 0x2468C mode 2, 0x66D8C's 0x28CFC kind 2) and pop.c (0x67758's 0x28CFC kind 3) call the real
+   f2468C / f28CFC (cal1.h).
 
    game_rand (f78AE4): one call per card Zeus discards (0x1E47E), nothing else in this module (D: no other call of
    0x78AE4 in these 16 functions). The computers' routines (0x20C70, 0x213C0, ...) and the animation draw on their
