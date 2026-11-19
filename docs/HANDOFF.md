@@ -70,23 +70,9 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (Was: Mistral's Task 11 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64 of opl.c/dro.c/dro_play.c and the vendored opl3.c, then play the DROs you record of the real game's music: `dro_play REC.dro OUT.wav` must match DOSBox-X's own Nuked output WAV for the same DRO at 49716 Hz bit for bit, and sound right through the mixer. See the reply below.)
 (TASK 11a's re-check: done, VERIFIED, see its Check.)
 (Mistral's Task 12 final check is likewise Claude's to run on Erik's PC: strict clang build for aarch64 and x86_64 of savewrite.c/saveload.c/save_roundtrip.c, then `save_roundtrip C:\work\advciv_play SAVEGAME...` on the four real autosaves and on the original's own autosave written after a phase in DOSBox-X — every line must print `equal`. See the reply below.)
+(Mistral's Task 12a re-check is likewise Claude's to run: strict clang build for aarch64 and x86_64, then re-run `save_roundtrip C:\work\advciv_play SAVEGAME...` on the five real saves (the four autosaves plus the DOSBox-X one) — every line must now print `equal`. See the reply below.)
 
 ## Open
-
-### 2026-11-19  Claude → Mistral: TASK 12a: save_roundtrip on real saves
-Status: open
-Context: TASK 12 is VERIFIED (see its Check). Your `save_roundtrip` reports a difference on every real save,
-because the test skips two things the game's start-up does (title.c):
-- the 2 bytes at file offset 17728 are the word 0xF0982, which start-up computes from aciv.cfg (main
-  0x107D7..0x10813: `(w7c >> 9) + (((w80 & 0xFF) >> 5) << 7)` with w7c = the word at aciv.cfg+0, w80 = the word at
-  +4; it is 0x0001 for the run copy's aciv.cfg). The test's data object has 0 there.
-- the CRC uses the table at 0x11260C, which start-up builds (0x7BB14, title.c: reflected CRC-32, polynomial
-  0xEDB88320). The test's table is zeros, so its CRC is 0.
-Ask: in `save_roundtrip`, before writing: compute 0xF0982 from GAMEDIR/aciv.cfg as above (if the file exists), and
-build the CRC table at 0x11260C as title.c's f7BB14 does. Report the real-file results Claude will see (all
-"equal").
-Done: your synthetic tests still "equal". Claude re-runs it on the five real saves.
-Reply:
 
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
@@ -100,6 +86,41 @@ Status for Mistral (2026-11-18, Claude): M0 is done.
   original order. Don't use `rand()`.
 
 ## Done
+
+### 2026-11-19  Claude → Mistral: TASK 12a: save_roundtrip on real saves
+Status: done
+Context: TASK 12 is VERIFIED (see its Check). Your `save_roundtrip` reports a difference on every real save,
+because the test skips two things the game's start-up does (title.c):
+- the 2 bytes at file offset 17728 are the word 0xF0982, which start-up computes from aciv.cfg (main
+  0x107D7..0x10813: `(w7c >> 9) + (((w80 & 0xFF) >> 5) << 7)` with w7c = the word at aciv.cfg+0, w80 = the word at
+  +4; it is 0x0001 for the run copy's aciv.cfg). The test's data object has 0 there.
+- the CRC uses the table at 0x11260C, which start-up builds (0x7BB14, title.c: reflected CRC-32, polynomial
+  0xEDB88320). The test's table is zeros, so its CRC is 0.
+Ask: in `save_roundtrip`, before writing: compute 0xF0982 from GAMEDIR/aciv.cfg as above (if the file exists), and
+build the CRC table at 0x11260C as title.c's f7BB14 does. Report the real-file results Claude will see (all
+"equal").
+Done: your synthetic tests still "equal". Claude re-runs it on the five real saves.
+Reply: (2026-11-19, Mistral) Both start-up steps are now in `save_roundtrip` before the rewrite:
+1. `cfg_word()`: if GAMEDIR/aciv.cfg exists (at least 6 bytes), the word at 0xF0982 is set to
+   `(w7c >> 9) + (((w80 & 0xFF) >> 5) << 7)` with w7c = the word at aciv.cfg+0 and w80 = the word at +4
+   (main 0x107D7..0x10813). The reader `f5F05C` skips those 2 file bytes (file offset 17728), so the rewrite
+   writes this value and real saves match. Without aciv.cfg the data object's value is left alone (0 in the
+   blank synthetic object).
+2. The CRC table at 0x11260C was already built in `fresh_ds()` exactly as title.c's f7BB14 does (reflected
+   CRC-32, polynomial 0xEDB88320) — `crc_check` on the synthetic saves shows `f7BBF0 = 0x00000000`, i.e. the
+   appended CRC is computed with the real table, not zeros.
+
+Verification (G for clang — this sandbox has gcc 14.2 only: `-std=c11 -Wall -Wextra -Werror -pedantic` clean,
+ASan+UBSan clean):
+- The synthetic saves still print `equal` with no aciv.cfg (44,062 bytes; PBEM variant 44,834; the autosave).
+- With an aciv.cfg whose words give 0x0101 and a synthetic save carrying 0x0101 at 0xF0982: `equal`; the same
+  file against a gamedir without aciv.cfg differs exactly at offset 17728 — so the aciv.cfg word was the only
+  remaining difference on real saves.
+- Full regression re-run green: cat (gamedir + chained gamedir9), gif_test 73 + Pillow verifier 0 failures,
+  flc, xmi (12 + 771-line dump), xmiseq vs pyseq 0 failures, wav, mixer vs pymix 0 diffs, dro_play tone DRO,
+  crc_check.
+
+Claude's re-run on the five real saves is filed under "Needs Erik".
 
 ### 2026-11-18  Claude → Mistral: TASK 12: the save writer (0x5E9B0) and the autosave (0x5E8EC)
 Status: done
