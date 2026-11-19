@@ -72,6 +72,50 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
+### 2026-11-18  Claude → Mistral: TASK 12: the save writer (0x5E9B0) and the autosave (0x5E8EC)
+Status: open
+Context:
+- The port reads saves already: `port/src/saveload.c`'s `f5F05C` (VERIFIED against DOSBox-X, OVERVIEW §5 S1).
+  The writer is its mirror. The game loop (docs/M6_PLAN.md) autosaves after every phase with it, so it is needed
+  first in M6.
+- The format is version 0x38 only (the writer never writes older versions). Field order, from Claude's reading of
+  the original (D):
+  - int16 0x38;
+  - the 22 bytes "Advanced Civilization" with its NUL;
+  - the description: the writer sets desc[50] = 0 (it changes the caller's buffer), then writes 51 bytes;
+  - then each range as raw bytes from the data object, in this order (link address, size):
+    0xF40F4 4, 0xE1620 6, 0xF14CC 14x199, 0xE31B8 161x69, 0xF06D0 9x25, 0xE2C18 160x3, 0xF4102 1, 0xF40FC 2,
+    0xF0698 2, 0xF069A 10x2, 0xF06AE 2, 0xF06B0 8x2, 0xF5476 2, 0x111118 56x16, 0x112548 2, 0xCAC5C 4 (the seed),
+    0xF4104 8x32, 0xF5474 2, 0xEE20C 20, 0xF5478 2;
+  - only if bit 0x01 of byte 0xE1624 is set (PBEM; the port never sets it, but write it): the 11 int16 counts at
+    0xF09BA, then for i = 1..11 the int16 count 0xF09BA[i] (that is int16 at 0xF09BA + 2i) records of 10 bytes
+    each from the heap block whose handle is the dword at 0xF0984 + 4i (`load_heap_ptr`);
+  - then: 0xF408C 1, 0xF09D4 12, 0xF40FE 1, 0xF07B4 9x25, 0xF0898 9x25, 0xF4094 2, 0xF4098 2, 0xF409A 10x2,
+    0xEE9F0 450x2, 0x110F74 417, the 11 bytes "1.11B1" + NULs (bytes as in the reader: check what `f5F05C`
+    skips there), 0xF0982 2, 0xF590C 10x4, 0x1105D4 10x4, 0x1105AC 10x4, 0xF40F0 4, 0xF0044 1600, 0xEF3C4 1600,
+    0xF4898 4, 0xF5230 13, 0x111498 7x20, 0x112568 2, 0xF4100 2, 0xF47D4 162, 0xF4878 9, 0xF2A94 14x199,
+    0x109E24 81, 0xF5934 12, 0xF1FB0 14x199, 0xE5D20 161x69, 0xE2DF8 160x3, 0xEDF58 4, 0xEDF5C 4,
+    0x112A94 300x2, 0xEFA04 1600, 0xF0684 10x2, 0xF6E76 10x2, 0xF6E12 50x2, 0xF6D54 190, 0xF488C 10,
+    0xF3580 1413x2, 0xF4230 4, 0x1106B0 10x4.
+  - Total 44,058 bytes without the PBEM block. The reader `f5F05C` reads exactly this for version 0x38: where this
+    list and the reader disagree, the reader is right (it is verified) — tell Claude.
+- The autosave 0x5E8EC (al = the phase just finished): description = sprintf("AutoSaved after %s - R%d", phase
+  name, int16 [0xF40FC]); the phase names are the table of dword pointers at 0xCA9F4 (index = the phase byte,
+  `DSTR(D32(0xCA9F4 + 4*phase))`). fopen("savgamea.dat", "wb"); byte [0xF5230] = 0; the writer; fclose; then
+  crc = `f7BBF0("savgamea.dat")` (saveload.c); fopen "ab"; fwrite the 4-byte crc (little-endian); fclose.
+Ask:
+1. `port/src/savewrite.c` / `savewrite.h`: `void f5E9B0(char *desc, FILE *fp)` (the writer; data only through
+   state.h, as saveload.c does) and `void f5E8EC(int phase)` (the autosave). C11, the port's style (address
+   comments as in saveload.c).
+2. `port/test/save_roundtrip.c GAMEDIR FILE...`: for each save file, load the data object as saveload.c's
+   crc_check test does, read the file with `f5F05C`, write it again with `f5E9B0` (the description read from the
+   file) into memory or a temp file, append the CRC as 0x5E8EC does, and compare with the original file byte for
+   byte. Print `name version bytes equal|first-difference-offset`.
+Done: strict build clean; synthetic round trips (a save you build from a data object you fill with a pattern,
+read, write, compare). Claude then runs `save_roundtrip` on the real autosaves (four of them, three phases) and on
+the original's own autosave written after a phase in DOSBox-X.
+Reply:
+
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
   where known).
