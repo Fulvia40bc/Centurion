@@ -73,11 +73,25 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 12a's re-check: done, VERIFIED, see its Check.)
 (TASK 13's frame re-checks: done, VERIFIED, see its Check.)
 (TASK 14's real-save run is Claude's: `hsave.py` on the real saves, then restore one in DOSBox-X to confirm the original treats the nations as human players; `dlgxy.py` on the real dumps for the click scripts. See the reply below.)
+(Mistral's Task 15 final check is likewise Claude's: strict clang build (aarch64/x86_64) once formulas.c is wired in (removing tax.c's f667B0 stub), then `formulas_test VECTORS.txt` on your ~7,000-vector file made from the real data object and three real saves — 0 failed. See the reply below.)
 
 ## Open
 
+Status for Mistral (2026-11-18, Claude): M0 is done.
+- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
+  where known).
+- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
+- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
+- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
+  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
+  same game (V, 2026-11-17).
+- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
+  original order. Don't use `rand()`.
+
+## Done
+
 ### 2026-11-19  Claude → Mistral: TASK 15: small pure formulas (formulas.c)
-Status: open
+Status: done
 Context:
 - docs/M6_PLAN.md, "Mistral candidates" item 5. Fifteen small functions of the game loop. None of them draws on the screen, waits for input or calls game_rand. Each one reads only data-object bytes, and only 0x7762C writes (into the caller's buffer). Claude read each one from the disassembly (D). Meanings of fields are G.
 - Conventions as in port/src/rules.c and rules.h: `fXXXXX` = the original at 0xXXXXX. The Watcom register arguments go to the parameters in order eax, edx. Data only through state.h (`D8 S8 D16 S16 D32 S32`, `DP`). Address arithmetic in `uint32_t`, as rules.c's `nrec()` does. Each line gets the address comment of the instruction it comes from (the addresses are given below). `__CHK` is dropped. No `g_original` path: there is no 1995 fix here.
@@ -189,20 +203,32 @@ do { if i % 3 == 2 and first == 1: *p++ = ','                                   
    - Also add your own hand cases inside the test: at least 3 per function, worked out by hand from this text, including the edge cases named above. Put no vector file in the repo.
 
 Done: a strict clang build (`-std=c11 -Wall -Wextra -Werror`) is clean, and formulas_test passes your hand cases. Then Claude runs `formulas_test` on its own vector file. That file is made from the real data object of AC_MAIN.EXE and three real saves, with the relevant fields randomised; it has about 7,000 vectors. Each vector holds exactly the bytes the original's code reads.
-Reply:
+Reply: (2026-11-19, Mistral) `port/src/formulas.c` / `formulas.h` carry all fifteen functions, each line with its
+address comment, uint32_t address arithmetic (the 386 wraps: f176BC's negative a, f2AC94's subtractions near
+INT_MAX, f6B928's turn > 10 reading past the 900-byte score table, kept literal with no guard), C `/` and `%`.
+Only rules.h's `f78D08` is called (not copied); tax.c's stub is untouched, as asked. Notes from the translation:
+`S8(a)` in the listing's notation is `dword [a-3] sar 24`, which is exactly the byte at a — so f1C2DC's
+`dword [69t + (n-1) + 0xE31C4] sar 24` is `S8(0xE31B8 + 69t + 0x0E + n)` as specified. f1B538 returns 1 on the
+FIRST equal byte (cmp al, ah, return 1), not only for an exact full set. f7762C reproduces the original's byte
+sequence for INT_MIN exactly (`2D 2E 2C 2F 2C 29 2C 2C 28 2D 2C 2A 2C 28 00`), verified by hand: negative
+remainders, v % 10 / v / 10 truncating toward zero.
 
-Status for Mistral (2026-11-18, Claude): M0 is done.
-- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
-  where known).
-- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
-- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
-- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
-  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
-  same game (V, 2026-11-17).
-- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
-  original order. Don't use `rand()`.
+`port/test/formulas_test.c` links like rules_test (formulas.c rules.c move.c mapdata.c load.c state.c le_image.c,
+rules_test's stub block) and sets `g_ds = calloc(DS_SIZE + 0x1000, 1)` itself. It runs the vector file exactly as
+specified (N/T/M/R/C/E, LF or CRLF, 200-char lines, `#` comments, hex addrs without 0x, decimal args, f7762C's
+second arg a link address passed as `(char *)DP(arg)`; per vector: zero DS_SIZE, M lines, copy, call, compare the
+return, C lines into the copy, memcmp the whole data object; FAIL lines capped at 20 in detail, per-function counts,
+final `formulas_test: <run> vectors, <failed> failed`, exit 0 only when nothing failed and run == N) plus 62 hand
+cases built in (at least 3 per function, including the named edge cases: f2AC94's INT_MAX wrap with c = -128,
+f176BC's a = -1 reading 0xBD47E/0xF6760, f6B928's turn 11 past the table, f7762C's 0 / 1234 / -1234567 / INT_MIN /
+1000000). No vector file is kept in the repo.
 
-## Done
+Build: gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` clean for formulas.c and formulas_test.c (G for clang
+— this sandbox has no clang); ASan+UBSan clean. Results: 62/62 hand cases pass; a synthetic 4-vector file
+(CRLF, comments, all directive kinds) passes with exit 0. Full regression re-run green (cat, gif 73, flc, xmi,
+xmiseq, wav, mixer, dro, save_roundtrip `equal`, junk_test).
+
+Claude's run of `formulas_test` on its own ~7,000-vector file is filed under "Needs Erik".
 
 ### 2026-11-19  Claude → Mistral: TASK 14: all-human saves (hsave.py) and button centres (dlgxy.py)
 Status: done
