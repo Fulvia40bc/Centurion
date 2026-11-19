@@ -9,6 +9,7 @@
    a new game starts from; --dump-ds OUT.bin writes the data object at the stop. */
 #include <stdio.h>
 #include <stdlib.h>
+#include <setjmp.h>
 #include <string.h>
 
 #include "fg.h"
@@ -22,6 +23,7 @@
 #include "map.h"
 #include "panel.h"
 #include "start.h"
+#include "stack.h"
 
 static const char *s_frame_path;
 static int s_pointer_x = -1, s_pointer_y = -1;
@@ -37,6 +39,45 @@ static int s_settle = 4;   /* --settle N: input polls after the last click befor
 static int s_clicks[MAX_CLICKS][2], s_nclicks, s_click, s_pressed, s_idle;
 
 static void save_frame_and_exit(void);
+static int save_frame(void);
+
+/* main's two setjmps (0x11036 into 0xF58D4, 0x115CE into 0xF58A0) as C jmp_bufs in main's frame; the in-game START
+   NEW GAME and RESTORE (stack.c) jump to them through port_longjmp. The data object's jmp_buf bytes stay as they are
+   (by design: they hold DOS/4GW registers in the original). */
+static jmp_buf s_jb_F58D4, s_jb_F58A0;
+static int s_jb_F58D4_armed, s_jb_F58A0_armed, s_in_press;
+
+_Noreturn void port_longjmp(uint32_t jmpbuf)
+{
+    if (s_in_press) {   /* a test replay (--press): stop at the jump, with the dump and the frame, instead of
+                           restarting the program */
+        fprintf(stderr, "advciv: the pressed button jumps to main's setjmp(0x%X); stopped there\n", (unsigned)jmpbuf);
+        if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
+            fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
+        if (s_frame_path != NULL)
+            (void)save_frame();
+        exit(0);
+    }
+    if (jmpbuf == 0xF58D4u && s_jb_F58D4_armed)
+        longjmp(s_jb_F58D4, 1);
+    if (jmpbuf == 0xF58A0u && s_jb_F58A0_armed)
+        longjmp(s_jb_F58A0, 1);
+    fprintf(stderr, "advciv: longjmp(0x%X) without its setjmp\n", (unsigned)jmpbuf);
+    exit(3);
+}
+
+/* the end of what the port runs so far: the dump and frame the options ask for, then exit */
+static int stop_at(uint32_t addr, const char *how)
+{
+    if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
+        fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
+    if (s_dump_path != NULL && s_frame_path != NULL)   /* the screen at the dump, as the DOSBox-X scripts capture it */
+        (void)save_frame();
+    fprintf(stderr, "advciv: stopped at main 0x%X %s, seed %08X; the game itself is not ported yet\n", (unsigned)addr,
+            how, (unsigned)D32(0xCAC5Cu));
+    plat_shutdown();
+    return 0;
+}
 
 /* --map-state DUMP.bin (module MAP1's frame check, test hook): after a restore and game_continue, copy from a DOSBox-X
    data-object dump (MEMDUMPBIN 0188:2A9000 72C00, taken where the original waits on the restored game's screen) only
@@ -45,7 +86,7 @@ static void save_frame_and_exit(void);
    window as the game does (f3D52C(0, 0): clamp, map picture, borders, markers, cities, tokens, ships, mini-map).
    The frame is then compared with the DOSBox-X capture in the map window and the mini-map only. */
 static const char *s_map_state;
-static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview, s_through_start, s_in_press;
+static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview, s_through_start;
 static const struct { uint32_t addr, len; } MAP_STATE[] = {
     { 0xF4884u, 8 },        /* scroll column, row */
     { 0xF6110u, 4 },        /* int16 min, max column */
@@ -66,6 +107,13 @@ static const struct { uint32_t addr, len; } MAP_STATE[] = {
     { 0xF09E0u, 2 },        /* int16 the count buttons' value */
     { 0xF09B4u, 6 },        /* the PBEM move log (handle, 0 outside PBEM) and its int16 counter */
     { 0xF8E44u, 0x32 },     /* the dialog helpers' saved enabled bytes */
+    { 0xE5D20u, 0x2B65 },   /* REPLAY's post-movement snapshot: area records */
+    { 0xE2DF8u, 0x1E0 },    /*   territory state */
+    { 0xF1FB0u, 0xAE6 },    /*   nation records */
+    { 0xEDF58u, 8 },        /*   int32 snapshot present, its round */
+    { 0x107692u, 2 },       /* int16 replay showing */
+    { 0xBB3FAu, 8 },        /* the message area (x, y, w, h) */
+    { 0xF40FCu, 2 },        /* int16 the round */
     { 0x107690u, 2 },       /* int16 zoomed (the dispatcher's DETAIL and ZOOM test it) */
     { 0xEE168u, 1 },        /* the background picture of the game screen (f3CD6C, the status panel) */
     { 0xF06B0u, 0x10 },     /* int16[8] the nation of each player button */
@@ -252,44 +300,51 @@ int main(int argc, char **argv)
     if (s_frame_path != NULL || s_nclicks > 0)   /* start-up polls the keyboard too; the menu's first poll is its click
                                                     wait (0x4F6CE) */
         fg_set_input_hook(s_nclicks > 0 ? script_hook : save_frame_and_exit);
+    if (setjmp(s_jb_F58D4) != 0) {   /* main 0x11036 setjmp(0xF58D4): the in-game START NEW GAME (0x3FE9B) lands here
+                                        and goes on at 0x1103B (the continuous test /C is not ported) */
+        if (D16(0xF40C0u) == 0)                       /* 0x11155 */
+            setD16(0xF408Au, 0);
+        title_menu_again();                           /* 0x11168 */
+    }
+    s_jb_F58D4_armed = 1;
     for (;;) {   /* main 0x111A2..0x113FE: the menu, and for a new game the setup screens; CANCEL returns to 0x11168 */
+        int restored = 0;
+
         rc = title_menu();
         if (rc == -0x46) {                            /* RESTORE A SAVED GAME: main 0x11557 */
-            if (title_restore()) {                    /* 0x115A9; the game goes on at 0x115B0 */
-                if (!s_dump_early)                    /* --dump-early: stop at 0x115B0 (the S1 check) */
-                    (void)game_continue(0, 0);        /* 0x115B0..0x1177C; returns -1: main goes on at 0x1188C */
-                if (s_map_state != NULL && map_state_draw(s_map_state) != 0)
-                    return 1;
-                if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
-                    fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
-                if (s_dump_path != NULL && s_frame_path != NULL)
-                    (void)save_frame();
-                fprintf(stderr, "advciv: stopped at main 0x%X after a restore, seed %08X; the game itself is not "
-                        "ported yet\n", s_dump_early ? 0x115B0u : 0x1188Cu, (unsigned)D32(0xCAC5Cu));
-                plat_shutdown();
-                return 0;
+            if (!title_restore()) {                   /* 0x115A9; the game goes on at 0x115B0 */
+                title_menu_again();                   /* cancelled: back to 0x11168 */
+                continue;
             }
-            title_menu_again();                       /* cancelled: back to 0x11168 */
-            continue;
-        }
-        if (rc != -0x45)
+            restored = 1;
+            if (s_dump_early)                         /* --dump-early: stop at 0x115B0 (the S1 check) */
+                return stop_at(0x115B0u, "after a restore");
+        } else if (rc != -0x45)
             break;
-        if (title_newgame() != 0) {
-            rc = game_load(s_seed, s_use_seed);       /* main 0x114CF..0x1184A */
-            if (!s_dump_early)
-                f2EFA0();                             /* 0x1184F: the nation choice; returns to 0x11854 */
-            if (!s_dump_early && s_through_start)
-                start_slice();                        /* 0x11854..0x11884: the starting territories (START) */
-            if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
-                fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
-            if (s_dump_path != NULL && s_frame_path != NULL)   /* the screen at the dump, as run_setup.sh captures it */
-                (void)save_frame();
-            fprintf(stderr, "advciv: stopped at main 0x%X (%d), seed %08X; the game itself is not ported yet\n",
-                    s_dump_early ? 0x1184Fu : s_through_start ? 0x1188Cu : 0x11854u, rc, (unsigned)D32(0xCAC5Cu));
-            plat_shutdown();
-            return 0;
+        else if (title_newgame() == 0) {
+            title_menu_again();
+            continue;
+        } else
+            (void)game_load(s_seed, s_use_seed);      /* main 0x113FE..0x11555 */
+
+        game_continue_load();                         /* 0x115B0..0x115C4 */
+        if (setjmp(s_jb_F58A0) != 0)                  /* 0x115CE setjmp(0xF58A0): the in-game RESTORE (0x3FF82) lands
+                                                         here; it cleared bit 0x04 of [0xE1624], so 0x1177C takes the
+                                                         restored-game path */
+            restored = 1;
+        s_jb_F58A0_armed = 1;
+        rc = game_continue_rest(restored ? 0 : s_seed, restored ? 0 : s_use_seed);   /* 0x115D3..0x1184A */
+
+        if (rc == -1) {                               /* a restored game: main goes on at 0x1188C (0x14AA4, M6) */
+            if (s_map_state != NULL && map_state_draw(s_map_state) != 0)
+                return 1;
+            return stop_at(0x1188Cu, "after a restore");
         }
-        title_menu_again();
+        if (!s_dump_early)
+            f2EFA0();                                 /* 0x1184F: the nation choice; returns to 0x11854 */
+        if (!s_dump_early && s_through_start)
+            start_slice();                            /* 0x11854..0x11884: the starting territories (START) */
+        return stop_at(s_dump_early ? 0x1184Fu : s_through_start ? 0x1188Cu : 0x11854u, "in a new game");
     }
     fprintf(stderr, "advciv: the title menu returned %d (the game itself is not ported yet)\n", rc);
     plat_shutdown();

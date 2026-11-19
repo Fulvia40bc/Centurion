@@ -126,7 +126,7 @@ in protected mode after int 21h AH=2Ch. Data dumps go through tools/verify/dscom
   - SCORING (0x56): full frame. Data: 0xEE9F0 written by opening it.
   - AUDIO/VISUALS (0xE2): box frame plus aciv.cfg. Sound by ear (Erik).
   - Button 8: frame of the nation's full-map view.
-- **STACK.**
+- **STACK.** Translated 2026-11-18; REPLAY verified (OVERVIEW §5). SAVE needs keyboard input; RESTORE/NEW GAME need the game loop (M6). In-game START NEW GAME ends at the title menu (D), not the setup screen.
   - Replay 0x101 on a save with [0xEDF58] != 0: frame "Map shows Round %d post movement state." Data after
     CONTINUE equals the data before (push/pop round trip).
   - In-game START NEW GAME (0x51): back at the setup screen (frame). The data object at the setup screen equals

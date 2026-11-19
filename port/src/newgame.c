@@ -566,13 +566,15 @@ static void dos_gettime(uint32_t t)
 
 /* ---- Port entry points ---------------------------------------------------------------------------------------- */
 
-/* main 0x113FE..0x1184A for a new game (after title_newgame returned 1), in the original order, stopping before main's
+/* main 0x113FE..0x11555 for a new game (after title_newgame returned 1; main.c goes on with game_continue_load and
+   game_continue_rest, 0x115B0..0x1184A), in the original order, stopping before main's
    call of 0x2EFA0 at 0x1184F (the verification point: the caller dumps the data object there, ds_dump).
    Covered: 0x113FE (0x12DA4), 0x11403 (the PBEM test: the port always takes 0x114CF), 0x114CF..0x11555 (the "Loading
    game data and maps" screen), 0x115B0..0x1184A.
    Left out: 0x11410..0x114CA (PBEM start), 0x11557..0x115A9 (restore: not a new game), the debug log at 0x115C4, the
-   setjmp(0xF58A0) at 0x115CE (G: the target of the longjmps at 0x22F36, 0x230B2, 0x3FE9B, 0x3FF82, which restart the
-   game loop here; the port will need it when those are translated; the jmp_buf differs from DOSBox-X by design),
+   setjmp(0xF58A0) at 0x115CE (the target of the in-game RESTORE's longjmp 0x3FF82 only; 0x22F36, 0x230B2 and 0x3FE9B jump
+   to 0xF58D4, main 0x11036; main.c sets it between
+   game_continue_load and game_continue_rest; the jmp_buf differs from DOSBox-X by design),
    0x1187F (the PBEM start 0x12C38), and the restore path 0x1188C when bit 0x04 is clear (returns -1).
    use_seed: the seed dword 0xCAC5C gets seed_override instead of the clock value; everything else as the original
    (the clock bytes 0xF422C..0xF422F are still written). Returns 0. */
@@ -592,7 +594,10 @@ int game_load(uint32_t seed_override, int use_seed)
     fg_vbclose();                                     /* 0x1154B */
     f3CC14();                                         /* 0x11550: on the screen */
 
-    return game_continue(seed_override, use_seed);    /* 0x11555 jmp 0x115B0 */
+    (void)seed_override;
+    (void)use_seed;
+    return 0;                                         /* 0x11555 jmp 0x115B0: main goes on with game_continue_load,
+                                                         its setjmp(0xF58A0) and game_continue_rest */
 }
 
 /* main 0x115B0..0x1184A, where the new-game path (0x11555) and the title menu's restore (0x115A9, title_restore) meet:
@@ -601,13 +606,24 @@ int game_load(uint32_t seed_override, int use_seed)
    returns -1 at 0x1177C: main goes on at 0x1188C (0x14AA4, not ported). */
 int game_continue(uint32_t seed_override, int use_seed)
 {
-    uint32_t seed;
-    uint8_t bl, ch;
+    game_continue_load();
+    return game_continue_rest(seed_override, use_seed);
+}
 
+/* main 0x115B0..0x115C4: the tables, maps and sprites (before main's setjmp(0xF58A0) at 0x115CE) */
+void game_continue_load(void)
+{
     f12394();                                         /* 0x115B0: terrflag.dat */
     f3D170();                                         /* 0x115B5: mapdataz.dat, borders1/2.dat */
     f11A8C();                                         /* 0x115BA: the game sprites */
-    /* 0x115C4: debug log "Just loaded sprites" (no-op). 0x115CE: setjmp(0xF58A0), left out (see above) */
+    /* 0x115C4: debug log "Just loaded sprites" (no-op) */
+}
+
+/* main 0x115D3..0x1184A: after the setjmp(0xF58A0) at 0x115CE, which the in-game RESTORE jumps back to */
+int game_continue_rest(uint32_t seed_override, int use_seed)
+{
+    uint32_t seed;
+    uint8_t bl, ch;
 
     fg_vbopen(S32(0xF52C8u));                         /* 0x115DA */
     fg_move(0, 0);                                    /* 0x115E6 */

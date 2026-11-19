@@ -38,8 +38,8 @@
      PANEL : 9..0x10, 0x25 and DETAIL while zoomed DONE (2026-11-18, panel.c)
      MAP1  : 0x1B..0x24 DONE (2026-11-18)
      MOVE  : 0x26, 0x27, 0x28, 0x2B..0x32, 0xC4..0xC8 DONE (2026-11-18, move.c)
-     STACK : 0x4F, 0x51, 0x101
-     S1    : 0x50
+     STACK : 0x4F, 0x51, 0x101 DONE (2026-11-18, stack.c)
+     S1    : 0x50 DONE (2026-11-18, stack.c)
      PBEM  : 0x107 (SHOW PBEM, 0x545AC; PBEM is dropped by Erik's ruling, so it stays not_ported)
    Callees these cases need that are not ported: 0x3CCBC, 0x3CC68, 0x3CBBC, 0x3CD10 (screen copies), 0x13E50, 0x42754,
    0x19C10, 0x76A9C, 0x44A34, 0x763FC, 0x545AC, 0x44D5C, 0x436FC, 0x43E88, 0x4290C, 0x5E7D0, 0x5FF28, 0x121A0,
@@ -62,6 +62,7 @@
 #include "menu1.h"
 #include "menu2.h"
 #include "move.h"
+#include "stack.h"
 
 /* 0x3FB94: the button dispatcher. id = the button's int16 +0x0E, sign-extended by the callers. Returns the code for
    the caller's loop, -100 = nothing to do. */
@@ -113,17 +114,11 @@ int f3FB94(int id)
         setD8(0xF5500u, 0);                 /* 0x3FD91 xor dh, dh; 0x3FD93 mov [0xF5500], dh: no quit message */
         f44CAC();                           /* 0x3FD99 quit to DOS; does not return */
     case 0x4F:  /* -> 0x3FDAB */
-        /* SAVE GAME: f3CC68, f3CCBC, 0x5E7D0; -1 (STACK) */
-        not_ported(0x3FDABu);
+        return dcase_4F(code);                  /* SAVE GAME (stack.c) */
     case 0x51:  /* -> 0x3FDCF */
-        /* START NEW GAME: f3CC68, 0x121A0 (free sprites), 0x7ABD0 (free the state stack), 0x3F558 (free map
-           blocks), free + zero 0xF0984[1..11] and [0xEED74], [0xEED7C], [0xEED78], [0xEED80] (each if non-0),
-           f3C7A0([0xF8E78]), longjmp(0xF58D4) (0x87879) (STACK) */
-        not_ported(0x3FDCFu);
+        return dcase_51(code);                  /* START NEW GAME: frees, then longjmp to the title menu (stack.c) */
     case 0x50:  /* -> 0x3FEA0 */
-        /* RESTORE GAME: f3CC68, f3CCBC, 0x5FF28; -15 (cancel) -> -1 via 0x3FD35; else byte [0xE1624] &= ~4,
-           0x7ABD0, the same frees as 0x51, f3C7A0([0xF8E78]), longjmp(0xF58A0) (S1) */
-        not_ported(0x3FEA0u);
+        return dcase_50(code);                  /* RESTORE GAME: longjmp to main 0x115D3 unless cancelled (stack.c) */
     case 0x09:  /* -> 0x3FF87 */
         /* player button 0: n = int16 [0xF06B0] (dword [0xF06AE] sar 16) */
         if (D16(0x107690u) == 0) {              /* 0x3FF87 cmp word [0x107690],0; jne 0x3FFBD: not zoomed */
@@ -268,12 +263,7 @@ int f3FB94(int id)
         f3E374(S32(0xF40F8u));                  /* 0x40406 mov eax,[0xF40F8]; 0x4040B zoomed: the overview again (panel.c) */
         return code;                            /* 0x40410 -100 */
     case 0x101: /* -> 0x4041D */
-        /* REPLAY: [0xEDF58] == 0 -> -100; int16 [0x107692] != 0 -> -1 via 0x3FD35; else "Map shows Round %d post
-           movement state.": message area resized, "junk" GIF of the strip, f3C828(0xF596C), labels via sprintf
-           into 0x109E7C + f3C284, enables, World State Stack (0x7A8D0, 0x7A940 push, copies 0xE5D20 -> 0xE31B8,
-           0xE2DF8 -> 0xE2C18, 0xF1FB0 -> 0xF14CC), f3D52C, f3CBBC, f78BA4(0xF596C, 0) until -1, 0x7AC60 pop
-           (0x7ABD0 if it allocated), restore; -100 (STACK) */
-        not_ported(0x4041Du);
+        return dcase_101(code);                 /* REPLAY (stack.c) */
     case 0x25:  /* -> 0x406E0 */
         /* ZOOM / UN-ZOOM. While zoomed this case is reached from its own click wait below: UN-ZOOM returns -1,
            which ends that wait. */

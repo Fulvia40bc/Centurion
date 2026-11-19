@@ -560,6 +560,35 @@ Translated in one workflow (three translators, three reviewers):
     (not ported yet) then highlights the selection.
   - The map clicks themselves go through the movement phase (0x55xxx, the game loop), which comes with M6.
 
+**M4, module STACK: the World State Stack, in-game SAVE / RESTORE / NEW GAME, REPLAY (2026-11-18 night).**
+- `stack.c`:
+  - the stack: 0x7A8D0 allocate, 0x7A940 push, 0x7AC60 pop, 0x7ABD0 free;
+  - 0x121A0, which frees the game sprites;
+  - the dispatcher's SAVE GAME 0x4F, RESTORE GAME 0x50, START NEW GAME 0x51 and REPLAY 0x101.
+  - With these, every dispatcher case is translated except SHOW PBEM, which is dropped by ruling.
+- **main's two setjmps are real now.** NEW GAME's longjmp lands on the title menu (main 0x11036 → 0x1103B → 0x11155
+  → the menu; not on the setup screen as MAP_PLAN guessed). RESTORE's longjmp lands at 0x115D3, after the tables
+  and sprites; game_continue is split there (game_continue_load / game_continue_rest), and that path takes the
+  restored-game branch at 0x1177C. In a `--press` test the port stops at the jump instead.
+- **BUG(1995) fixes (`--original` keeps each):**
+  - START NEW GAME frees 28 kinds of game sprites but not 15 token sprites, which the next start cuts again (about
+    2 KB lost per in-game new game).
+  - REPLAY copies its post-movement snapshot one record off (records 0..159 and nations 0..10, where the stack
+    saves 1..160 and 1..11). So area record 160 and nation 11 are never shown as they were after movement, and
+    records 0 keep the snapshot's bytes afterwards.
+  - Text: "World State Stack has popped once to often." → "too often".
+- Noted (D, main's code, for later): every in-game RESTORE cuts the minimap sprite again without freeing the old one.
+- **Check (V), REPLAY** on the MOVEMENT save (the original keeps a round-3 snapshot there): the original was clicked
+  REPLAY from its first movement screen. The port replayed it from that state with slot 0 restored.
+  - "Map shows Round 3 post movement state.": map window and message box **0 px**;
+  - the area, territory-state and nation records, the replay flag, the message area and the button label equal
+    the original's (0 differing bytes; in both modes, because records 0/160 and nation 11 don't differ here).
+  - The stack depth is 1 in the original and 0 in the port. The movement phase had pushed one level before REPLAY
+    (for its RESTART), which the test hook does not copy.
+  - Not yet run against the original: SAVE GAME's file (its description is typed: needs keyboard input in both,
+    MAP_PLAN risk 4), and the in-game RESTORE and NEW GAME jumps (they need the game loop, M6, to land somewhere
+    the port can compare).
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 
