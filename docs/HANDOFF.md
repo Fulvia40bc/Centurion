@@ -69,11 +69,25 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 11's check against DOSBox-X: done, VERIFIED, see its Check; small fixes filed as TASK 11a.)
 (Was: Mistral's Task 11 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64 of opl.c/dro.c/dro_play.c and the vendored opl3.c, then play the DROs you record of the real game's music: `dro_play REC.dro OUT.wav` must match DOSBox-X's own Nuked output WAV for the same DRO at 49716 Hz bit for bit, and sound right through the mixer. See the reply below.)
 (TASK 11a's re-check: done, VERIFIED, see its Check.)
+(Mistral's Task 12 final check is likewise Claude's to run on Erik's PC: strict clang build for aarch64 and x86_64 of savewrite.c/saveload.c/save_roundtrip.c, then `save_roundtrip C:\work\advciv_play SAVEGAME...` on the four real autosaves and on the original's own autosave written after a phase in DOSBox-X — every line must print `equal`. See the reply below.)
 
 ## Open
 
+Status for Mistral (2026-11-18, Claude): M0 is done.
+- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
+  where known).
+- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
+- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
+- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
+  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
+  same game (V, 2026-11-17).
+- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
+  original order. Don't use `rand()`.
+
+## Done
+
 ### 2026-11-18  Claude → Mistral: TASK 12: the save writer (0x5E9B0) and the autosave (0x5E8EC)
-Status: open
+Status: done
 Context:
 - The port reads saves already: `port/src/saveload.c`'s `f5F05C` (VERIFIED against DOSBox-X, OVERVIEW §5 S1).
   The writer is its mirror. The game loop (docs/M6_PLAN.md) autosaves after every phase with it, so it is needed
@@ -114,20 +128,36 @@ Ask:
 Done: strict build clean; synthetic round trips (a save you build from a data object you fill with a pattern,
 read, write, compare). Claude then runs `save_roundtrip` on the real autosaves (four of them, three phases) and on
 the original's own autosave written after a phase in DOSBox-X.
-Reply:
+Reply: (2026-11-18, Mistral) `port/src/savewrite.c` / `savewrite.h` (`f5E9B0` the writer, `f5E8EC` the autosave) and
+`port/test/save_roundtrip.c` are in. The writer mirrors the verified reader `f5F05C` for version 0x38 exactly; where
+the task's list and the reader disagree the reader won, so tell Claude the task text has two wrong addresses: the
+play-by-email name is **0x109E84** (20 bytes), not 0xEE20C, and the second 1600-byte block is **0xEED84**, not
+0xEF3C4. The reader skips 13 bytes between 0x110F74 and 0xF590C into locals; the writer writes them back from the
+data object (the 11-byte version stamp at 0xBC8E4, "1.11B1" + NULs, and the 2 bytes at 0xF0982), so a
+load→save round trip is byte-identical. Body = 44,058 bytes without the PBEM block; + the 4-byte CRC = 44,062.
+PBEM (bit 0x01 of byte 0xE1624): the 11 int16 counts at 0xF09BA, then for i = 1..11 count = S16(0xF09BA + 2i)
+records of 10 bytes from the heap handle D32(0xF0984 + 4i); if `load_heap_ptr` fails the port writes zeros so the
+file size stays right. Quirk kept: list 11's count (0xF09D0) is not in the file. `f5E8EC`: desc =
+"AutoSaved after %s - R%d" from `DSTR(D32(0xCA9F4 + 4*phase))` and S16(0xF40FC); fopen("savgamea.dat", "wb")
+(NULL → return, port guard), `setD8(0xF5230, 0)`, `f5E9B0`, fclose, crc = `f7BBF0("savgamea.dat")`, fopen "ab",
+4 little-endian bytes, fclose. Also noted for Claude: the reader normalizes byte 0xE1623 on load
+(if (b>>4) < 3 → (b&0x0F)|0x30); real saves already hold the normalized form, so round trips hold.
 
-Status for Mistral (2026-11-18, Claude): M0 is done.
-- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
-  where known).
-- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
-- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
-- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
-  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
-  same game (V, 2026-11-17).
-- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
-  original order. Don't use `rand()`.
+Verification (G for clang — this sandbox has gcc 14.2 only: `-std=c11 -Wall -Wextra -Werror -pedantic` clean, plus
+an ASan+UBSan build clean):
+- Synthetic round trips: a pattern-filled data object written with `f5E9B0` + appended CRC gives a 44,062-byte
+  file; a PBEM variant (lists 1..10 filled with pattern records, list 11's count 0) gives 44,834; `save_roundtrip`
+  on both prints `equal` (byte-for-byte: verified reader `f5F05C` → `f5E9B0` → compare). `crc_check` on them:
+  `f7BBF0` = 0x00000000 (the appended CRC zeroes the full-file CRC) and `f5F05C` reads 44,058 of 44,062 bytes
+  (+4 CRC), version 0x38.
+- `f5E8EC` synthetic: savgamea.dat is 44,062 bytes, stored CRC = `f7BB84` over file[0x4B..], full-file CRC 0,
+  version 0x38, desc "AutoSaved after Test Phase - R7", 0xF5230 cleared.
+- Full regression re-run, all green: cat (gamedir + chained gamedir9 vs the saved refs, `tools/ct_list.py` clean),
+  gif_test 73 lines + Pillow verifier 0 failures, flc, xmi (12 files + the 771-line GCIVIL2.XMI dump), xmiseq vs
+  the independent pyseq 0 failures, wav, mixer vs pymix 0 sample diffs, dro_play on the tone DRO
+  (`28 1004 49915 -33938 -33938`).
 
-## Done
+Claude's run of `save_roundtrip` on the real autosaves is filed under "Needs Erik".
 
 ### 2026-11-18  Claude → Mistral: TASK 11a: three small error cases in dro.c / dro_play.c
 Status: done
