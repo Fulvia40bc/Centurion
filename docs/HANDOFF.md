@@ -71,7 +71,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 11a's re-check: done, VERIFIED, see its Check.)
 (TASK 12's real-save check: done, VERIFIED after one fix, see its Check.)
 (TASK 12a's re-check: done, VERIFIED, see its Check.)
-(Mistral's Task 13 final check is likewise Claude's to run on Erik's PC: strict clang build for aarch64 and x86_64, then re-run the frame checks that go through the five replaced copies — census, Civilization Tools, Goods Held, HELP, SCORING, REPLAY — each was 0 px against DOSBox-X and must stay 0 px. See the reply below.)
+(TASK 13's frame re-checks: done, VERIFIED, see its Check.)
 
 ## Open
 
@@ -159,6 +159,18 @@ clang — this sandbox has no clang), ASan+UBSan clean on junk_test; full regres
 Pillow verifier, flc, xmi, xmiseq vs pyseq, wav, mixer vs pymix, dro_play, save_roundtrip all `equal`).
 
 Claude's re-run of the frame checks is filed under "Needs Erik".
+
+Check (2026-11-19, Claude on Erik's PC): VERIFIED.
+- Strict clang build (-Werror -pedantic) clean for aarch64 and x86_64: junk.c, junk_test.c, and the full port.
+- junk_test: all checks pass on both architectures.
+- The frame checks through the old copies, re-run against the DOSBox-X captures, all stay at 0 px:
+  - census, Civilization Tools, Goods Held and SCORING (whole frame);
+  - the HELP, AUDIO/VISUALS and TOGGLES boxes;
+  - REPLAY's map window and message box.
+  - The game-loop compare at phase 4 (it passes through kit.c) still has 0 unexplained bytes.
+  - These frames are taken at each screen's click wait, so they cover the saves. junk_test covers the put-backs.
+- kit_test and mstack_test (Claude's helper tests) now need junk.c on their link lines, since kit.c and stack.c call
+  it. With it they pass unchanged (kit 68/68 traces and the qsort/by-id parts; mstack all parts).
 
 ### 2026-11-19  Claude → Mistral: TASK 12a: save_roundtrip on real saves
 Status: done
