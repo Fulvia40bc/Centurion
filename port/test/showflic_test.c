@@ -514,7 +514,7 @@ static int part_b(const char *gamedir)
     long catsize;
     FILE *f;
     catalog c;
-    int j, files = 0, badfiles = 0;
+    int j, files = 0, badfiles = 0, nprefix = 0;
 
     snprintf(path, sizeof path, "%s/ACIV.CT4", gamedir);
     f = fopen(path, "rb");
@@ -539,7 +539,7 @@ static int part_b(const char *gamedir)
         const uint8_t *d;
         size_t len;
         flc_anim a;
-        int w, h, x0, y0, rc, k, ncmp, mism;
+        int w, h, x0, y0, rc, k, ncmp, mism, prefix;
         uint32_t counts[17];
         uint32_t magic, frames, delay;
 
@@ -576,8 +576,21 @@ static int part_b(const char *gamedir)
         fg_set_input_hook(NULL);
         CHECK(rc == 0, "showflic rc 0 on catalog file");
 
-        /* compare with flc.c, frame by frame */
-        ncmp = g_cap_n < (int)a.frames ? g_cap_n : (int)a.frames;
+        /* compare with flc.c, frame by frame. fg_showflic counts a 0xF100 prefix frame as one of the header's frames
+           (D, LIBRARY_CALLS 0x92486 correction 6; flc.c skips it): with a prefix, capture 0 is the screen untouched
+           (all 0 here), capture k + 1 is flc.c's frame k, and the file's last frame is never shown. Every real
+           calamity FLC has a prefix (Claude, 19 Nov). */
+        prefix = len >= 0x86 && d[0x84] == 0x00 && d[0x85] == 0xF1;
+        if (prefix) {
+            int q, blank = 1;
+            for (q = 0; q < w * h; q++)
+                if (g_cap_pix[q] != 0)
+                    blank = 0;
+            CHECK(g_cap_n >= 1 && blank, "prefix frame draws nothing");
+            nprefix++;
+        }
+        ncmp = g_cap_n - prefix < (int)a.frames ? g_cap_n - prefix : (int)a.frames;
+        CHECK(g_cap_n == (int)a.frames, "header's frame count of captures");
         mism = 0;
         for (k = 0; k < ncmp; k++) {
             int r, cc, bad = 0;
@@ -586,13 +599,13 @@ static int part_b(const char *gamedir)
                 bad = 1;
             } else {
                 for (r = 0; r < h && !bad; r++) {
-                    if (memcmp(g_cap_pix + (size_t)k * w * h + (size_t)r * w, a.pixels + (size_t)r * w, (size_t)w) != 0)
+                    if (memcmp(g_cap_pix + (size_t)(k + prefix) * w * h + (size_t)r * w, a.pixels + (size_t)r * w, (size_t)w) != 0)
                         bad = 1;
                 }
                 for (cc = 0; cc < 256 && !bad; cc++)
-                    if ((g_cap_dac[k][cc][0] != (a.pal[cc][0] >> 2)) ||
-                        (g_cap_dac[k][cc][1] != (a.pal[cc][1] >> 2)) ||
-                        (g_cap_dac[k][cc][2] != (a.pal[cc][2] >> 2)))
+                    if ((g_cap_dac[k + prefix][cc][0] != (a.pal[cc][0] >> 2)) ||
+                        (g_cap_dac[k + prefix][cc][1] != (a.pal[cc][1] >> 2)) ||
+                        (g_cap_dac[k + prefix][cc][2] != (a.pal[cc][2] >> 2)))
                         bad = 2;
             }
             if (bad) {
@@ -629,7 +642,7 @@ static int part_b(const char *gamedir)
         g_cap_dac = NULL;
         flc_close(&a);
     }
-    printf("part b: %d FLC files, %d with mismatches\n", files, badfiles);
+    printf("part b: %d FLC files (%d with a prefix frame), %d with mismatches\n", files, nprefix, badfiles);
     free(catdata);
     return badfiles != 0;
 }
