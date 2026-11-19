@@ -15,7 +15,7 @@
    (f5CDE8, always with eax = 0: no animation) are conflict.c's; cal1.c's f207B4 (kind 0x1A) and f1E69C are called as
    they are. The animations are reached only through kit.c's f79270, which stops at them itself (not_ported): the
    calamity animation 0x7A0A0 for every message here (anim 2) when animations are on, and the BRPC picture 0x79C70
-   (anim -299) always, so a BRPC search stops the port at 0x79C70 until module ANIM lands. So no -DCAL5_TEST recorder
+   (anim -299) always (anim.c since 19 Nov). So no -DCAL5_TEST recorder
    is needed; port/test/cal5_test.c links stubs of the callees instead. No computer-player (M7) code is called: the
    barbarian routing runs for every victim (M6_PLAN), and a computer director's choice is inline (game_rand).
 

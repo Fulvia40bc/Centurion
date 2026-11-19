@@ -197,6 +197,11 @@ _Noreturn void not_ported(uint32_t addr)
     longjmp(g_np_jmp, 1);
 }
 
+/* module ANIM (anim.c, own test anim_test.c): recorded here as the not_ported stops they were before 19 Nov */
+void f7A0A0(int id) { (void)id; not_ported(0x7A0A0u); }
+void f79ADC(const char *n, const char *w) { (void)n; (void)w; not_ported(0x79ADCu); }
+void f79C70(const char *g, const char *w) { (void)g; (void)w; not_ported(0x79C70u); }
+
 static void reset_trace(void) { g_trace[0] = 0; g_last_color = -1000; }
 
 /* ---- snapshot helpers ------------------------------------------------------------------------------------------ */

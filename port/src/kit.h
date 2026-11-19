@@ -21,7 +21,7 @@
    of n, -300 / -250 the map as it is, t >= 0 centre on territory t with only t highlighted, other t < 0 centre on -t
    and add its highlight. text (ecx): printed with f3A9F4 unless empty. anim (stack, ret 4): 0 none; with animations
    on (bit 0x04 of [0xF097C]) -298 Zeus (f79ADC), -299 the BRPC (f79C70), any other the calamity [0xF783C] (f7A0A0);
-   with animations off only -299 (f79C70). The three are module ANIM's: here they stop with not_ported(their address).
+   with animations off only -299 (f79C70). The three are module ANIM's (anim.c).
    The message area's y / h (int16 0xBB3FC / 0xBB400) are 0x14C / 0x7B during the call and restored after (D). */
 void f79270(int wait, int n, int t, const char *text, int anim);
 /* 0x795A8: modal YES/NO question over the screen (dialog 0xBBFD8: YES id 0xCA code -0x61, NO id 0xCB code -0x62,

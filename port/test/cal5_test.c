@@ -40,7 +40,7 @@
    Build (from the repo root):
      clang -std=c11 -Wall -Wextra -Iport/src port/test/cal5_test.c port/src/cal5.c port/src/conflict.c
        port/src/move.c port/src/rules.c port/src/mapdata.c port/src/load.c port/src/saveload.c port/src/state.c
-       port/src/le_image.c port/src/anim.c -o cal5_test.exe */
+       port/src/le_image.c -o cal5_test.exe */
 
 #include <setjmp.h>
 #include <stdarg.h>
@@ -214,6 +214,10 @@ _Noreturn void not_ported(uint32_t addr)
     printf("FAIL not_ported(0x%X)\n", (unsigned)addr);
     exit(2);
 }
+
+/* module ANIM's 0x7A4C4 (anim.c, own test): conflict.c's f5CDE8 calls it only with an animation id, never from CAL5
+   (always eax = 0), so reaching it is a failure */
+void f7A4C4(int anim) { (void)anim; not_ported(0x7A4C4u); }
 void (*g_not_ported_hook)(uint32_t addr);
 int f3B9A4(uint32_t dlg, int id) { (void)dlg; (void)id; tr("UNEXPECTED 3B9A4"); return 0; }
 void f3B7CC(uint32_t dlg, int id) { (void)dlg; (void)id; tr("UNEXPECTED 3B7CC"); }

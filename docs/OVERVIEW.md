@@ -674,7 +674,8 @@ Pace: one module at a time, each with its own commit; ultracode workflows for th
    unable to add new cities to their portfolio."*
 4. The **Barbarian Ravaging and Plundering Committee** (BRPC): *"The BRPC is deadlocked. They decide to settle
    in %s."*, and *"…has been wiped out by the Barbarians. Satisfied with a job well done they settle in %s."*
-5. *"Zeus takes pity upon %s and discards …"* with its own Zeus picture, animation and sound.
+5. *"Zeus takes pity upon %s and discards …"* with its own Zeus animation and sound (`zeus.flc`, `zeus.wav`: the
+   iconoclasts', egg 13). `ACIV.CT1` also holds a still `ZEUS.GIF` that nothing in the game names (D, 19 Nov).
 6. **Two stills the game never shows.** `ACIV.CT1`'s second directory block lists a still **Avalon Hill logo**
    (sphere on a star field) and the **box-art title screen** as 640x480 GIFs (`AH_LOGO.GIF`, `ADVCIVIL.GIF`). The
    game plays `ah_logo.flc` and `advcivil.flc` instead and never names the GIFs.
@@ -735,6 +736,17 @@ Pace: one module at a time, each with its own commit; ultracode workflows for th
     consolidation" are printed on top of each other in Civilization Tools, then painted over: never visible.
 21. A colour-blind accommodation (G): the toggle "Alternate Tool Acquisition Colors" makes buyable advances blue
     instead of green.
+22. **Kaboom.** A 6-bit counter in `aciv.cfg` (bits 9..14 of the word at bytes 4..5) rations a special sound: while it
+    is 0, each calamity animation rolls 1 in 10, and on an Earthquake or a Volcano a hit plays `KABOOM3.WAV` instead
+    of the normal sound, waits for it to end, and sets the counter to 51; each later animation counts it down by one
+    and rewrites `aciv.cfg`. The counter outlives games and sessions; both copies of the installation hold 51 (D,
+    anim.c 0x7A0A0).
+23. **The Barbarian Ravaging and Plundering Committee** is what BRPC stands for (0xBDDB6): its picture `BRPC.GIF`
+    appears even with animations off.
+24. **An older calamity player left in the binary**: 0x79E7C..0x7A09F (and an empty stub at 0x79E64) is a sound-only
+    twin of 0x7A0A0 with the same counter, roll and kaboom, its own strings at 0xB95BA, and no caller (D).
+25. Every calamity FLC starts with a 0xF100 prefix frame, which Fastgraph's fg_showflic counts as one of the
+    header's frames: the first "frame" shows nothing new and the last frame of each animation is never shown (D).
 
 Text slips found in passing (to fix by default, `--original` keeps them): "converts %s by **Montheism**!" (twice),
 "popped once **to** often". A full text sweep is part of M4/M6.

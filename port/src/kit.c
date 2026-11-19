@@ -38,10 +38,8 @@
      0xFFC00 / 0xFFCA0 uint8[160] token / ship box colours (mapdata.c's f3F698 / f3F70C); 0xC2720 uint8[256] a colour map
    Heap pointers in data fields: none.
 
-   Not ported here (module ANIM, M6_PLAN: needs fg_showflic / fg_flicsize, not in fg.c, for 0x7A0A0 and 0x79ADC):
-     0x79270 with anim != 0 stops with not_ported(0x7A0A0) (a calamity animation, animations on), not_ported(0x79ADC)
-     (Zeus, -298, animations on) or not_ported(0x79C70) (the BRPC picture, -299, on or off). 0x79C70 itself needs no
-     FLC (cat_show of a GIF, a WAV, fg_makegif / fg_showgif), but it belongs to ANIM. Every other mode is complete.
+   Module ANIM (anim.c, anim.h): 0x79270 with anim != 0 calls f7A0A0 (a calamity animation, animations on), f79ADC
+     (Zeus, -298, animations on) or f79C70 (the BRPC picture, -299, on or off).
 
    1995 bugs: none that needed a g_original branch. Port guard (no g_original branch: the original's path cannot be
    reproduced):
@@ -66,6 +64,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "anim.h"
 #include "fg.h"
 #include "game.h"
 #include "junk.h"
@@ -147,17 +146,17 @@ void f79270(int wait, int n, int t, const char *text, int anim)
     if (anim != 0) {                                                /* 0x79434 cmp [ebp+8], 0; je */
         if (D8(CFG0) & 0x04) {                                      /* 0x7943E test dl, 4; je */
             if (anim != -299 && anim != -298) {                     /* 0x79450 cmp 0xFFFFFED5, 0x79457 0xFFFFFED6 */
-                not_ported(0x7A0A0u);                               /* 0x79465 f7A0A0([0xF783C] CALAMITY): ANIM (FLC) */
+                f7A0A0(S32(CALAMITY));                              /* 0x79465 f7A0A0([0xF783C]) (ANIM) */
             } else if (anim == -298) {                              /* 0x79472 */
                 snprintf(buf, sizeof buf, "%s", DSTR(0xB9558u));    /* 0x79486 sprintf(buf, "zeus.wav") */
-                not_ported(0x79ADCu);                             /* 0x79499 f79ADC("zeus.flc" 0xB9561, buf): ANIM (FLC) */
+                f79ADC(DSTR(0xB9561u), buf);                        /* 0x79499 f79ADC("zeus.flc", buf) (ANIM) */
             } else if (anim == -299) {                              /* 0x794A3 */
                 buf[0] = 0;                                         /* 0x794AD */
-                not_ported(0x79C70u);                               /* 0x794BE f79C70("brpc.gif" 0xB956A, buf): ANIM */
+                f79C70(DSTR(0xB956Au), buf);                        /* 0x794BE f79C70("brpc.gif", buf = "") (ANIM) */
             }
         } else if (anim != 1 && anim != 2) {                        /* 0x794C8 cmp 1, 0x794D0 cmp 2 */
             if (anim == -299)                                       /* 0x794D8 */
-                not_ported(0x79C70u);                               /* 0x794E9 f79C70("brpc.gif" 0xB9574, "" 0xB9573): ANIM */
+                f79C70(DSTR(0xB9574u), DSTR(0xB9573u));             /* 0x794E9 f79C70("brpc.gif", "") (ANIM) */
             /* 0x794F3: cmp 0xFFFFFED6 with nothing after it: -298 shows nothing with animations off */
         }
     }
