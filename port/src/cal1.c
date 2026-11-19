@@ -144,7 +144,12 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "anim.h"
 #include "cal1.h"
+#include "cal2.h"
+#include "cal3.h"
+#include "cal4.h"
+#include "cal5.h"
 #include "city.h"
 #include "fg.h"
 #include "game.h"
@@ -249,35 +254,6 @@ static void f27518(int n, int trader, int total, int kind)   /* M7 (AI): n assig
     not_ported(0x27518u);
 }
 
-static void f7A4A0(void)                        /* ANIM: [0xCAC60] = [0xCAC64] = -1 */
-{
-    not_ported(0x7A4A0u);
-}
-
-static void f7A4C4(int anim)                    /* ANIM: the calamity animation [0xF783C] when animations are on */
-{
-    (void)anim;
-    not_ported(0x7A4C4u);
-}
-
-static void f291D0(int a, int b, const char *text)   /* CAL2: the secondary losses 0xF547C shown */
-{
-    (void)a; (void)b; (void)text;
-    not_ported(0x291D0u);
-}
-
-static void f29550(int a, int b, int total, const char *text)   /* CAL2: the human victim assigns secondary losses */
-{
-    (void)a; (void)b; (void)total; (void)text;
-    not_ported(0x29550u);
-}
-
-static void f1E7A0(int k) { (void)k; not_ported(0x1E7A0u); }   /* CAL3: Volcano / Earthquake */
-static void f25A38(int k) { (void)k; not_ported(0x25A38u); }   /* CAL2: Famine */
-static void f29E34(int k) { (void)k; not_ported(0x29E34u); }   /* CAL4: Civil War */
-static void f2D4F0(int k) { (void)k; not_ported(0x2D4F0u); }   /* CAL2: Flood */
-static void f217A0(int k) { (void)k; not_ported(0x217A0u); }   /* CAL5: Barbarian Hordes */
-static void f2E59C(int k) { (void)k; not_ported(0x2E59Cu); }   /* CAL2: Epidemic */
 #endif
 
 /* ---- small shared pieces ------------------------------------------------------------------------------------------ */

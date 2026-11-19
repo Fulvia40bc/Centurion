@@ -81,6 +81,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "anim.h"
 #include "conflict.h"
 #include "fg.h"
 #include "game.h"
@@ -141,12 +142,6 @@ static void f5BF30(int n, int amount, int show)   /* M7 (AI): the computer's sto
 {
     (void)n; (void)amount; (void)show;
     not_ported(0x5BF30u);
-}
-
-static void f7A4C4(int anim)                      /* ANIM: the calamity animation [0xF783C] when animations are on */
-{
-    (void)anim;
-    not_ported(0x7A4C4u);
 }
 #endif
 

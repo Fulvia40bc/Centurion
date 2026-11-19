@@ -55,16 +55,16 @@
                             f136B0(3); not done: P 0, A(20) (no S); done: no autosave, the loop ends
    Phases 6, 12 (no session) and 14 ([0xF4090] set) skip the autosave, and so does the winning path of 20 (D).
 
-   Not ported yet (each call site calls not_ported(address), as dispatch.c's cases; the port stops there with the
-   address). In phase order, the work order of the next modules (module of docs/M6_PLAN.md in brackets):
+   Every phase routine is ported (19 Nov). The module that holds each (docs/M6_PLAN.md):
       0  0x66050 [TAX]                     1  0x673A8 [POP]                  2  0x13D44 [CENSUS]
       3  0x60AE0, 0x60BD8 [SHIP]           4  0x60AE0, 0x61940 [SHIP]        5  0x55574 [MOVE]
       7  0x5AAA4 [CONFLICT]                8  0x32214 [CITY]                 9  0x5C238 [CITY]
      10  0x5C62C [CITY]                   11  0x6BD98 [CARDS]               12  0x6F270 [TRADE]
      13  0x723DC [TRADE]                  14  0x734E4 [TRADE]               15  0x1E0A0 [CAL1]
      16  0x21914 [MONO]                   17  0x5C62C [CITY]                18  0x162D0, 0x1A3A0 [ADV]
-     19  0x6E770 [CARDS]                  20  (f136B0 and f55258 are ported)
+     19  0x6E770 [CARDS]                  20  f136B0, f55258 (here)
      game end: 0x14294 [END] (after the loop, and in f22F3C)
+   The computers' parts (M7) and the animation player (ANIM 0x7A0A0) still stop at not_ported inside them.
      elimination: 0x7784C (the player-button rows): newgame.c's, exported in game.h
      loop top, phases 15 / 16 with digital sound and a WAV in sample slot 0: AIL's 0x7D2E8 / 0x7CB9D, menu2.c's
        (exported 19 Nov). Slot 0 is loaded only by CAL5 0x1C6AF and ANIM 0x79B2E, 0x79DA2, 0x7A2BC, 0x7A47F (D: every
@@ -153,6 +153,7 @@
 #include "ship.h"
 #include "movephase.h"
 #include "conflict.h"
+#include "end.h"
 #include "city.h"
 #include "cards.h"
 #include "cal1.h"
@@ -163,6 +164,7 @@
 #include "saveload.h"
 #include "savewrite.h"
 #include "stack.h"
+#include "trade.h"
 #include "start.h"
 #include "state.h"
 #include "ui.h"
@@ -547,7 +549,7 @@ _Noreturn void f22F3C(void)
         setD8(0xF5500u, 0);                           /* 0x23091 */
         f44CAC();                                     /* 0x23097 */
     }
-    UNPORTED(0x14294u);                               /* 0x2309E Final Civilization Standings [END] */
+    PORTED(f14294(), 0x14294u);                               /* 0x2309E Final Civilization Standings [END] */
     f788AC();                                         /* 0x230A3 */
     port_longjmp(0xF58D4u);                           /* 0x230A8..0x230B2 */
 }
@@ -717,7 +719,7 @@ _Noreturn void f54824(void)
                     PBEM_DROPPED(0x762E0u);           /* 0x54CF6 */
                     f763FC();                         /* 0x54CFB */
                 }
-                UNPORTED(0x6F270u);                   /* 0x54D02 [TRADE] */
+                PORTED(f6F270(), 0x6F270u);                   /* 0x54D02 [TRADE] */
                 setD8(PHASE, 13);                     /* 0x54D07 */
                 f5E7B4();
                 f5E8EC(12);                           /* 0x54D19 */
@@ -740,7 +742,7 @@ _Noreturn void f54824(void)
                 break;
             }
             f553C0();
-            UNPORTED(0x723DCu);                       /* 0x54DC2 [TRADE] */
+            PORTED(f723DC(), 0x723DCu);                       /* 0x54DC2 [TRADE] */
             setD8(PHASE, 14);                         /* 0x54DC7 */
             f5E7B4();
             f5E8EC(13);                               /* 0x54DD7 */
@@ -756,7 +758,7 @@ _Noreturn void f54824(void)
             setD8(0x110F74u, 0);                      /* 0x54E16 (bh = 0) */
             setD16(0xF4090u, 0);                      /* 0x54E20 */
             setD16(0xF4100u, 0);                      /* 0x54E27 */
-            UNPORTED(0x734E4u);                       /* 0x54E2D [TRADE] */
+            PORTED(f734E4(), 0x734E4u);                       /* 0x54E2D [TRADE] */
             f5E7B4();
             if (S16(0xF4090u) == 0) {                 /* 0x54E37 dword [0xF408E] sar 16; jne 0x54F85 */
                 count = 0;                            /* 0x54E47 */
@@ -884,7 +886,7 @@ _Noreturn void f54824(void)
         }
         f22B00();                                     /* 0x55222 (and each case's own call) */
     }
-    UNPORTED(0x14294u);                               /* 0x5522C Final Civilization Standings [END] */
+    PORTED(f14294(), 0x14294u);                               /* 0x5522C Final Civilization Standings [END] */
     f55304();                                         /* 0x55231 */
     (void)remove("savgameb.dat");                     /* 0x5523D (0xB5A20) */
     setD8(0xF5500u, 0);                               /* 0x55242 */
