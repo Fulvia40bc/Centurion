@@ -15,13 +15,11 @@
    The 'junk' GIF (port design, as MAP_PLAN.md risk 7 proposes): 0x4290C saves the screen under the help box with
    fg_makegif(x, x + w - 1, y, y + h - 1, "junk") (0x42A8C) and puts it back with fg_move(x, y), fg_showgif("junk", 3)
    (0x42C2D: flag 2 = at the cursor, flag 1 = keep the palette) into the back buffer, which f3CC14 then shows. The
-   file is written only to be read back. The port keeps the rectangle in memory instead (junk_save / junk_show below):
-   the pixels come from the screen bytes (at 0x42A8C no virtual buffer is open: f3CC68 and f3CCBC in the dispatcher
-   case close theirs, and nothing between opens one, D) and go back with fg_vbcopy into the back buffer at the same
-   place, opaque and unclipped as fg_showgif writes them. GIF87a with 256 colours is lossless and the palette is kept,
-   so the back buffer and the screen end up identical. Differences: no file "junk" is left in the game folder, and
-   the port uses one Fastgraph virtual-buffer handle of its own for the copy (the game defines its three buffers at
-   start-up only: fg_vbdefine 0x82398 is called at 0x10A8A, 0x10EFA, 0x10F68 and nowhere else, D).
+   file is written only to be read back. The port keeps the rectangle in the shared slot of junk.c instead: the same
+   rectangle of the active surface (at 0x42A8C no virtual buffer is open, so the screen: f3CC68 and f3CCBC in the
+   dispatcher case close theirs, and nothing between opens one, D) is read with fg_getpixel and put back with
+   fg_point at the cursor into the open back buffer at 0x42C2D, opaque. GIF87a with 256 colours is lossless and the
+   palette is kept, so the back buffer and the screen end up identical. No file "junk" is left in the game folder.
      G, to check in DOSBox-X: fg_makegif at 0x42A8C is not bracketed by 0x78884/0x788AC (0x19C48 is), so in the
      original Fastgraph's SVGA pointer, if drawn into video memory, would be saved into "junk" and restored into the
      back buffer. Nothing of it can stay visible: the options menu's own f3CC68 (0x428EF) repaints the whole screen
@@ -66,32 +64,9 @@
 
 #include "fg.h"
 #include "game.h"
+#include "junk.h"
 #include "save.h"
 #include "menu1.h"
-
-/* ---- port: the "junk" GIF kept in memory ------------------------------------------------------------------------ */
-
-static uint8_t s_junk[640 * 480];               /* the rectangle at its screen position */
-static int s_junk_vb = -1;                      /* Fastgraph handle of s_junk, defined on first use */
-
-/* fg_makegif(minx, maxx, miny, maxy, "junk") of the screen (no virtual buffer open) */
-static void junk_save(int minx, int maxx, int miny, int maxy)
-{
-    const uint8_t *scr = fg_screen();
-    int r;
-
-    if (s_junk_vb < 0)
-        s_junk_vb = fg_vbdefine(s_junk, 640, 480);
-    for (r = miny; r <= maxy; r++)
-        memcpy(s_junk + r * 640 + minx, scr + r * 640 + minx, (size_t)(maxx - minx + 1));
-}
-
-/* fg_showgif("junk", 3) with the cursor at (minx, miny) in the back buffer [0xF52C8]: the saved rectangle, opaque */
-static void junk_show(int minx, int maxx, int miny, int maxy)
-{
-    if (s_junk_vb >= 0)
-        fg_vbcopy(minx, maxx, miny, maxy, minx, maxy, s_junk_vb, S32(0xF52C8u));
-}
 
 /* ---- 0x42754: the options menu ------------------------------------------------------------------------------------ */
 
@@ -219,7 +194,7 @@ void f4290C(void)
     y = (0x1E0 - h) / 2;                        /* 0x42A42 */
     bx = x + (w - 0x6E) / 2;                    /* 0x42A58 CONTINUE centred */
 
-    junk_save(x, x + w - 1, y, y + h - 1);      /* 0x42A8C fg_makegif(x, x + w - 1, y, y + h - 1, "junk") (port: memory) */
+    junk_makegif(x, x + w - 1, y, y + h - 1, "junk");  /* 0x42A8C fg_makegif(x, x + w - 1, y, y + h - 1, "junk") (port: junk.c) */
     saved = D32(0xF8E78u);                      /* 0x42A91 */
     fg_vbopen(S32(0xF52C8u));                   /* 0x42AA2 */
     f3C9D0(x, y, w, h, 3);                      /* 0x42AB8 */
@@ -243,7 +218,7 @@ void f4290C(void)
     f78884();                                   /* 0x42C02 */
     fg_vbopen(S32(0xF52C8u));                   /* 0x42C0E */
     fg_move(x, y);                              /* 0x42C1E */
-    junk_show(x, x + w - 1, y, y + h - 1);      /* 0x42C2D fg_showgif("junk", 3) (port: memory) */
+    junk_showgif("junk", 3);                    /* 0x42C2D fg_showgif("junk", 3) (port: junk.c) */
     f3CC14();                                   /* 0x42C35 back buffer -> screen */
     f788AC();                                   /* 0x42C3A */
     setD32(0xF8E78u, saved);                    /* 0x42C42 */

@@ -21,11 +21,10 @@
    fg_makegif / fg_showgif "junk" (port choice, as info.c and menu1.c): 0x795A8 and 0x7983C save the screen under the
    box with fg_makegif(x, x + w - 1, y, y + h - 1, "junk") (0x8CE50, not in fg.c) and put it back with fg_move(x, y),
    fg_showgif("junk", 3) on the same surface (no virtual buffer is open at either call: the box's fg_vbopen is closed
-   before, D). The port keeps the rectangle in memory (kit_makegif / kit_showgif below, the same method as info.c's:
-   fg_getpixel / fg_point on the active surface, colour and cursor left alone). The pixels end up the same (GIF87a is
-   lossless and the palette is kept). No file "junk" is left in the game folder. G, to check: the original shares ONE
-   file "junk" among 0x795A8, 0x7983C, 0x19C10, 0x4290C, 0x76798, 0x3FC75, 0x199AE...; a box opened while another
-   routine's "junk" is pending would overwrite it there, not here (each module keeps its own slot). No such nesting is
+   before, D). The port keeps the rectangle in the shared slot of junk.c (the same method as info.c's: fg_getpixel /
+   fg_point on the active surface, colour and cursor left alone). The pixels end up the same (GIF87a is lossless and
+   the palette is kept). No file "junk" is left in the game folder. The original shares ONE file "junk" among 0x795A8,
+   0x7983C, 0x19C10, 0x4290C, 0x76798, 0x3FC75, 0x199AE... exactly as the port now shares the one slot; no nesting is
    known (0x1A124 uses "junk2" for exactly that reason).
 
    Data (D, read in the code at the addresses given):
@@ -69,6 +68,7 @@
 
 #include "fg.h"
 #include "game.h"
+#include "junk.h"
 #include "kit.h"
 #include "map.h"
 #include "mapdata.h"
@@ -92,52 +92,6 @@
 #define PLAYERS   0xF40ECu   /* int32 players */
 #define PLAYER_NAT 0xF06B0u  /* int16[] nation of player p */
 #define CUR_NAT   0xF40F8u   /* int32 the current nation */
-
-/* ---- port: the "junk" GIF kept in memory (file comment) -------------------------------------------------------- */
-
-typedef struct {
-    int valid;
-    int32_t w, h;
-    uint8_t px[640 * 480];
-} kit_gif;
-
-static kit_gif s_junk;     /* "junk" (written as 0xB957D / 0xB958E, read as 0xB9589 / 0xB959C) */
-
-/* fg_makegif(minx, maxx, miny, maxy, name) (0x8CE50): the rectangle of the active surface */
-static void kit_makegif(int minx, int maxx, int miny, int maxy, kit_gif *g)
-{
-    int32_t w = maxx - minx + 1, h = maxy - miny + 1, r, c, v;
-
-    if (w <= 0 || h <= 0 || (int64_t)w * h > (int64_t)sizeof g->px) {
-        g->valid = 0;                         /* port guard (G): the boxes are at most 370 x 480 */
-        return;
-    }
-    for (r = 0; r < h; r++)
-        for (c = 0; c < w; c++) {
-            v = fg_getpixel(minx + c, miny + r);
-            g->px[r * w + c] = (uint8_t)(v < 0 ? 0 : v);
-        }
-    g->w = w;
-    g->h = h;
-    g->valid = 1;
-}
-
-/* fg_showgif(name, 3) (0x88F98): at the cursor, palette kept, opaque; colour and cursor unchanged. No file: nothing
-   drawn (the original returns 1). */
-static void kit_showgif(const kit_gif *g)
-{
-    int32_t x0 = fg_getxpos(), y0 = fg_getypos(), r, c;
-    int color = fg_getcolor();
-
-    if (!g->valid)
-        return;
-    for (r = 0; r < g->h; r++)
-        for (c = 0; c < g->w; c++) {
-            fg_setcolor(g->px[r * g->w + c]);
-            fg_point(x0 + c, y0 + r);
-        }
-    fg_setcolor(color);
-}
 
 /* ---- 0x79270: the game-screen message --------------------------------------------------------------------------- */
 
@@ -247,7 +201,7 @@ int f795A8(const char *text)
     Y = (0x1E0 - H) / 2;                                            /* 0x79642..0x79653 */
     bx = X + (W - 0xA0) / 2;                                        /* 0x79658..0x7966D */
     f78884();                                                       /* 0x79672 */
-    kit_makegif(X, X + W - 1, Y, Y + H - 1, &s_junk);               /* 0x79694 fg_makegif(.., "junk" 0xB957D) */
+    junk_makegif(X, X + W - 1, Y, Y + H - 1, DSTR(0xB957Du));       /* 0x79694 fg_makegif(.., "junk" 0xB957D) (port: junk.c) */
     f788AC();                                                       /* 0x7969C */
     saved = D32(CURDLG);                                            /* 0x796A1 */
     if (saved != 0)                                                 /* 0x796A9 test; je */
@@ -275,7 +229,7 @@ int f795A8(const char *text)
         f3C8C4(saved);                                              /* 0x797FA */
     f78884();                                                       /* 0x797FF */
     fg_move(X, Y);                                                  /* 0x7980C */
-    kit_showgif(&s_junk);                                           /* 0x7981B fg_showgif("junk" 0xB9589, 3) */
+    junk_showgif(DSTR(0xB9589u), 3);                                /* 0x7981B fg_showgif("junk" 0xB9589, 3) (port: junk.c) */
     f3CCBC();                                                       /* 0x79823 */
     f788AC();                                                       /* 0x79828 */
     return r;                                                       /* 0x7982D */
@@ -299,7 +253,7 @@ void f7983C(const char *text)
     X = (0x280 - W) / 2;                                            /* 0x798C0..0x798D1 */
     Y = (0x1E0 - H) / 2;                                            /* 0x798D6..0x798E7 */
     bx = X + (W - 0x6E) / 2;                                        /* 0x798EC..0x79900 */
-    kit_makegif(X, X + W - 1, Y, Y + H - 1, &s_junk);               /* 0x79920 fg_makegif(.., "junk" 0xB958E): no f78884 here */
+    junk_makegif(X, X + W - 1, Y, Y + H - 1, DSTR(0xB958Eu));       /* 0x79920 fg_makegif(.., "junk" 0xB958E) (port: junk.c): no f78884 here */
     saved = D32(CURDLG);                                            /* 0x79925 */
     if (saved != 0)                                                 /* port guard: the original has no test (file comment) */
         f3C940(saved);                                              /* 0x79930 */
@@ -328,7 +282,7 @@ void f7983C(const char *text)
         f3C8C4(saved);                                              /* 0x79A5F */
     f78884();                                                       /* 0x79A64 */
     fg_move(X, Y);                                                  /* 0x79A71 */
-    kit_showgif(&s_junk);                                           /* 0x79A80 fg_showgif("junk" 0xB959C, 3) */
+    junk_showgif(DSTR(0xB959Cu), 3);                                /* 0x79A80 fg_showgif("junk" 0xB959C, 3) (port: junk.c) */
     f3CCBC();                                                       /* 0x79A88 */
     f788AC();                                                       /* 0x79A8D */
 }

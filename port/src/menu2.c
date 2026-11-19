@@ -81,11 +81,10 @@
    The "junk" GIF (0x44A34): the original saves the whole screen with fg_makegif(0, 639, 0, 479, "junk") only to read
    it back at the end with fg_move(0, 0) + fg_showgif("junk", 3) into the back buffer (flags 3: at the cursor, palette
    kept). GIF87a with 8-bit LZW is lossless and the palette is not loaded, so the pair copies pixels. fg.c has no
-   fg_makegif; the port keeps the rectangle in memory (junk_save / junk_show below) and writes no file (MAP_PLAN risk
-   7: default "not"). junk_show puts the pixels into the active virtual buffer at the cursor, opaque, clipped only on
-   the right and bottom as fg_showgif (G: the surface is the 640x480 back buffer here), through the screen and
-   fg_vbcut, putting the screen's bytes back afterwards, so the screen, the cursor, the colour, the palette and the
-   clip region end up as with the GIF.
+   fg_makegif; the port keeps the rectangle in the shared slot of junk.c and writes no file (MAP_PLAN risk 7: default
+   "not"). junk.c reads the active surface at 0x44AA6 (no virtual buffer is open there, so the screen, D) and writes
+   the open back buffer at the cursor at 0x44C5B, opaque (G: the surface is the 640x480 back buffer there), so the
+   screen, the cursor, the colour, the palette and the clip region end up as with the GIF.
 
    1995 bugs (fixed unless g_original):
      - 0x44D5C stores the current score at column r of the 45-column history without the clamp to 44 that the AST
@@ -114,6 +113,7 @@
 
 #include "fg.h"
 #include "game.h"
+#include "junk.h"
 #include "map.h"
 #include "mapdata.h"
 #include "menu2.h"
@@ -304,61 +304,6 @@ static void f7CCFD(uint32_t handle, long size)
 {
     (void)handle;
     (void)size;
-}
-
-/* ---- The "junk" screen save (port stand-in for fg_makegif 0x8CE50 + fg_showgif 0x88F98, file comment) ---------- */
-
-#define SCR_W 640
-#define SCR_H 480
-
-static uint8_t s_junk[SCR_W * SCR_H];   /* the saved rectangle, row by row */
-static int s_junk_w, s_junk_h;          /* 0 = nothing saved (fg_showgif would find no file: returns 1) */
-static uint8_t s_junk_scr[SCR_W * SCR_H];
-
-/* fg_makegif(minx, maxx, miny, maxy, name) of the screen (no virtual buffer is open at the call site, D) */
-static int junk_save(int minx, int maxx, int miny, int maxy, const char *name)
-{
-    const uint8_t *scr = fg_screen();
-    int r;
-
-    (void)name;                                       /* "junk" */
-    if (minx < 0 || miny < 0 || maxx >= SCR_W || maxy >= SCR_H || maxx < minx || maxy < miny)
-        return 0;                                     /* port guard: only rectangles inside the screen */
-    s_junk_w = maxx - minx + 1;
-    s_junk_h = maxy - miny + 1;
-    for (r = 0; r < s_junk_h; r++)
-        memcpy(s_junk + (size_t)r * (size_t)s_junk_w, scr + (size_t)(miny + r) * SCR_W + (size_t)minx,
-               (size_t)s_junk_w);
-    return 0;
-}
-
-/* fg_showgif(name, flags) for the saved rectangle with flags 3 (at the cursor, palette kept) into the active virtual
-   buffer: min(x + w - 1, 639) - x + 1 columns and as many rows, opaque. The pixels go through the screen rectangle at
-   the cursor and fg_vbcut (screen -> the last opened virtual buffer, no clipping); the screen's own bytes are put back
-   afterwards. */
-static int junk_show(const char *name, int flags)
-{
-    uint8_t *scr = fg_screen();
-    int x0 = fg_getxpos(), y0 = fg_getypos();         /* flags & 2: the graphics cursor (0x8927D) */
-    int w, rows, r;
-
-    (void)name;                                       /* "junk" */
-    (void)flags;                                      /* 3 at the only call site */
-    if (s_junk_w == 0)
-        return 1;                                     /* no file */
-    w = (x0 + s_junk_w - 1 < SCR_W - 1 ? x0 + s_junk_w - 1 : SCR_W - 1) - x0 + 1;
-    rows = (y0 + s_junk_h - 1 < SCR_H - 1 ? y0 + s_junk_h - 1 : SCR_H - 1) - y0 + 1;
-    if (x0 < 0 || y0 < 0 || w <= 0 || rows <= 0)
-        return 0;                                     /* port guard (the original does not check negative x, y) */
-    for (r = 0; r < rows; r++) {
-        uint8_t *line = scr + (size_t)(y0 + r) * SCR_W + (size_t)x0;
-        memcpy(s_junk_scr + (size_t)r * (size_t)w, line, (size_t)w);
-        memcpy(line, s_junk + (size_t)r * (size_t)s_junk_w, (size_t)w);
-    }
-    fg_vbcut(x0, x0 + w - 1, y0, y0 + rows - 1, x0, y0 + rows - 1);
-    for (r = 0; r < rows; r++)
-        memcpy(scr + (size_t)(y0 + r) * SCR_W + (size_t)x0, s_junk_scr + (size_t)r * (size_t)w, (size_t)w);
-    return 0;
 }
 
 /* ---- 0x7B504: load a WAV into sample slot s ---------------------------------------------------------------------- */
@@ -806,7 +751,7 @@ void f44A34(void)
     setD8(0xEE168u, 3);                               /* 0x44A80 (before the call: mov ah, 3) */
     fg_vbcopy(0, 0x27F, 0, 0x1DF, 0, 0x1DF, S32(BGBUF), S32(BACKBUF));   /* 0x44A86 */
     f78884();                                         /* 0x44A8E */
-    junk_save(0, 0x27F, 0, 0x1DF, DSTR(0xB4580u));    /* 0x44AA6 fg_makegif(0, 639, 0, 479, "junk"): the screen */
+    junk_makegif(0, 0x27F, 0, 0x1DF, DSTR(0xB4580u)); /* 0x44AA6 fg_makegif(0, 639, 0, 479, "junk") (port: junk.c): the screen */
     f788AC();                                         /* 0x44AAE */
     f7876C();                                         /* 0x44AB3 the phase title */
     saved_dlg = D32(UI_CUR_DIALOG);                   /* 0x44AB8 */
@@ -838,7 +783,7 @@ void f44A34(void)
     setD32(UI_CUR_DIALOG, saved_dlg);                 /* 0x44C3B */
     fg_vbopen(S32(BACKBUF));                          /* 0x44C40 */
     fg_move(0, 0);                                    /* 0x44C4C */
-    junk_show(DSTR(0xB4585u), 3);                     /* 0x44C5B fg_showgif("junk", 3) into the back buffer */
+    junk_showgif(DSTR(0xB4585u), 3);                  /* 0x44C5B fg_showgif("junk", 3) (port: junk.c) into the back buffer */
     fg_vbclose();                                     /* 0x44C63 */
     f78884();                                         /* 0x44C68 */
     fg_vbpaste(0, 0x27F, 0, 0x1DF, 0, 0x1DF);         /* 0x44C82 (the back buffer, still the last opened) */

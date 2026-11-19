@@ -17,13 +17,12 @@
    fg_makegif / fg_showgif "junk" and "junk2" (port choice, MAP_PLAN.md risk 7): the original saves a screen rectangle
    to a GIF file in the current folder with fg_makegif (0x8CE50, not in fg.c) and reads it back with fg_showgif(name, 3)
    (at the cursor, palette kept) at the same top-left. The files are only written to be read back. The port keeps the
-   pixels in memory instead (info_makegif / info_showgif below, one slot per file name): the same rectangle of the
-   active surface is read with fg_getpixel and written back with fg_point, the colour put back afterwards (fg_showgif
-   leaves the colour and the cursor alone; so does this). The screen ends up identical: the GIF is lossless and keeps
-   the palette. Differences, all G and outside these call sites' use: fg_getpixel / fg_point clip to the clip region
-   (fg_showgif clips only right and bottom to the surface); every call site here runs with the full-surface clip
-   (map.c restores it after drawing the map). No junk / junk2 file is left on disk (the original leaves both in the
-   game folder). fg.c needs no new routine.
+   pixels in the shared slots of junk.c instead: the same rectangle of the active surface is read with fg_getpixel and
+   written back with fg_point at the cursor, the colour put back afterwards (fg_showgif leaves the colour and the
+   cursor alone; so does junk.c). The screen ends up identical: the GIF is lossless and keeps the palette. Differences,
+   all G and outside these call sites' use: fg_getpixel / fg_point clip to the clip region (fg_showgif clips only
+   right and bottom to the surface); every call site here runs with the full-surface clip (map.c restores it after
+   drawing the map). No junk / junk2 file is left on disk (the original leaves both in the game folder).
 
    Data (D, read in the code at the addresses given):
      nation n at 0xF14CC + 199n (game.h): +0x01..+0x12 int8 trade cards per commodity, +0x13 int8 calamity cards held,
@@ -91,6 +90,7 @@
 #include "fg.h"
 #include "game.h"
 #include "info.h"
+#include "junk.h"
 #include "state.h"
 #include "ui.h"
 
@@ -109,53 +109,6 @@
 static uint32_t nat(int32_t n, uint32_t off)
 {
     return GAME_NATION + 199u * (uint32_t)n + off;
-}
-
-/* ---- the "junk" / "junk2" GIF files, kept in memory (file comment) --------------------------------------------- */
-
-typedef struct {
-    int valid;
-    int32_t w, h;
-    uint8_t px[640 * 480];
-} info_gif;
-
-static info_gif s_junk;     /* "junk" (0xB161F, 0xB935F, 0xB400C, read as 0xB1681, 0xB9364, 0xB4011) */
-static info_gif s_junk2;    /* "junk2" (0xB1686, read as 0xB1695) */
-
-/* fg_makegif(minx, maxx, miny, maxy, name) (0x8CE50): the rectangle of the active surface */
-static void info_makegif(int minx, int maxx, int miny, int maxy, info_gif *g)
-{
-    int32_t w = maxx - minx + 1, h = maxy - miny + 1, r, c, v;
-
-    if (w <= 0 || h <= 0 || (int64_t)w * h > (int64_t)sizeof g->px) {
-        g->valid = 0;                         /* port guard (G): the game's rectangles are all inside the screen */
-        return;
-    }
-    for (r = 0; r < h; r++)
-        for (c = 0; c < w; c++) {
-            v = fg_getpixel(minx + c, miny + r);
-            g->px[r * w + c] = (uint8_t)(v < 0 ? 0 : v);
-        }
-    g->w = w;
-    g->h = h;
-    g->valid = 1;
-}
-
-/* fg_showgif(name, 3) (0x88F98): at the cursor, palette kept, opaque; colour and cursor unchanged. No file: nothing
-   drawn (the original returns 1). */
-static void info_showgif(const info_gif *g)
-{
-    int32_t x0 = fg_getxpos(), y0 = fg_getypos(), r, c;
-    int color = fg_getcolor();
-
-    if (!g->valid)
-        return;
-    for (r = 0; r < g->h; r++)
-        for (c = 0; c < g->w; c++) {
-            fg_setcolor(g->px[r * g->w + c]);
-            fg_point(x0 + c, y0 + r);
-        }
-    fg_setcolor(color);
 }
 
 /* ---- 0x76F14: cards held ---------------------------------------------------------------------------------------- */
@@ -403,7 +356,7 @@ void f1A124(int idx)
     Y = (0x1E0 - H) / 2;                                            /* 0x1A16B..0x1A17E signed */
     bx = X + 0x37;                                                  /* 0x1A184 */
     f78884();                                                       /* 0x1A18A */
-    info_makegif(X, X + 0xDB, Y, Y + H - 1, &s_junk2);              /* 0x1A1AD fg_makegif(.., "junk2") */
+    junk_makegif(X, X + 0xDB, Y, Y + H - 1, DSTR(0xB1686u));        /* 0x1A1AD fg_makegif(.., "junk2") (port: junk.c) */
     f788AC();                                                       /* 0x1A1B5 */
     saved = D32(CURDLG);                                            /* 0x1A1BA */
     f3C940(saved);                                                  /* 0x1A1C2 */
@@ -431,7 +384,7 @@ void f1A124(int idx)
     f3C8C4(saved);                                                  /* 0x1A365 */
     f78884();                                                       /* 0x1A36A */
     fg_move(X, Y);                                                  /* 0x1A377 */
-    info_showgif(&s_junk2);                                         /* 0x1A386 fg_showgif("junk2", 3) */
+    junk_showgif(DSTR(0xB1695u), 3);                                /* 0x1A386 fg_showgif("junk2", 3) (port: junk.c) */
     f788AC();                                                       /* 0x1A38E */
 }
 
@@ -451,7 +404,7 @@ void f19C10(void)
 
     saved = D32(CURDLG);                                            /* 0x19C28 */
     f78884();                                                       /* 0x19C30 */
-    info_makegif(0, 0x27F, 0, 0x1DF, &s_junk);                      /* 0x19C48 fg_makegif(.., "junk") */
+    junk_makegif(0, 0x27F, 0, 0x1DF, DSTR(0xB161Fu));               /* 0x19C48 fg_makegif(.., "junk") (port: junk.c) */
     f788AC();                                                       /* 0x19C50 */
     for (;;) {
         f3CD6C(0x14);                                               /* 0x19C5A */
@@ -524,7 +477,7 @@ void f19C10(void)
             if (r == -1) {                                          /* 0x1A0DA cmp -1; jne 0x1A036 */
                 fg_vbopen(S32(BACKBUF));                            /* 0x1A0EA */
                 fg_move(0, 0);                                      /* 0x1A0F6 */
-                info_showgif(&s_junk);                              /* 0x1A105 fg_showgif("junk", 3) */
+                junk_showgif(DSTR(0xB1681u), 3);                    /* 0x1A105 fg_showgif("junk", 3) (port: junk.c) */
                 f3CC14();                                           /* 0x1A10D */
                 setD32(CURDLG, saved);                              /* 0x1A115 */
                 return;
@@ -586,7 +539,7 @@ int f76798(void)
     Y = (0x1E0 - H) / 2;                                            /* 0x76889..0x7689C */
     bx = X + (W - 0x6E) / 2;                                        /* 0x7689F..0x768B3 */
     f78884();                                                       /* 0x768B6 */
-    info_makegif(X, X + W - 1, Y, Y + H - 1, &s_junk);              /* 0x768D8 fg_makegif(.., "junk") */
+    junk_makegif(X, X + W - 1, Y, Y + H - 1, DSTR(0xB935Fu));       /* 0x768D8 fg_makegif(.., "junk") (port: junk.c) */
     f788AC();                                                       /* 0x768E0 */
     saved = D32(CURDLG);                                            /* 0x768E5 */
     if (saved != 0)                                                 /* 0x768ED test; je */
@@ -615,7 +568,7 @@ int f76798(void)
         f3C8C4(saved);                                              /* 0x76A5B */
     f78884();                                                       /* 0x76A60 */
     fg_move(X, Y);                                                  /* 0x76A6D */
-    info_showgif(&s_junk);                                          /* 0x76A7C fg_showgif("junk", 3) */
+    junk_showgif(DSTR(0xB9364u), 3);                                /* 0x76A7C fg_showgif("junk", 3) (port: junk.c) */
     f3CCBC();                                                       /* 0x76A84 */
     f788AC();                                                       /* 0x76A89 */
     return r;                                                       /* 0x76A8E */
@@ -812,16 +765,16 @@ int dcase_103(int code)
 
     f78884();                                                       /* 0x3FC5D */
     if (g_original)
-        info_makegif(0, 0x27F, 0, 0x1DE, &s_junk);                  /* 0x3FC75 fg_makegif(0, 0x27F, 0, 0x1DE, "junk") */
+        junk_makegif(0, 0x27F, 0, 0x1DE, DSTR(0xB400Cu));           /* 0x3FC75 fg_makegif(0, 0x27F, 0, 0x1DE, "junk") (port: junk.c) */
     else
-        info_makegif(0, 0x27F, 0, 0x1DF, &s_junk);  /* BUG(1995): the original saves rows 0..478 only, so row 479 keeps
+        junk_makegif(0, 0x27F, 0, 0x1DF, DSTR(0xB400Cu));  /* BUG(1995): the original saves rows 0..478 only, so row 479 keeps
                                                        tradwrap.gif's row when the screen is put back. Fixed: 0..479. */
     f788AC();                                                       /* 0x3FC7D */
     pic = D8(0xEE168u);                                             /* 0x3FC82 */
     f763FC();                                                       /* 0x3FC8A */
     fg_vbopen(S32(BGBUF));                                          /* 0x3FC96 (no fg_vbclose: f3CC68 closes) */
     fg_move(0, 0);                                                  /* 0x3FCA2 */
-    info_showgif(&s_junk);                                          /* 0x3FCB1 fg_showgif("junk", 3) */
+    junk_showgif(DSTR(0xB4011u), 3);                                /* 0x3FCB1 fg_showgif("junk", 3) (port: junk.c) */
     f3CC68();                                                       /* 0x3FCB9 */
     f3CCBC();                                                       /* 0x3FCBE */
     setD8(BGPIC, 0);                                                /* 0x3FCC5 */

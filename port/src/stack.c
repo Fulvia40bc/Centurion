@@ -46,9 +46,9 @@
    (for a sprite record: f3AF54); 0x7DB3D sprintf -> snprintf bounded to the buffer (0xF5500: 0x1F4 as elsewhere in the
    port; 0x109E7C: 8 bytes) with the original's format from the data object; the inline rep movsd / movsb copies ->
    memcpy; the inline byte-pair strcpy (0x7ACFD) -> a bounded copy. __CHK dropped.
-   fg_makegif / fg_showgif "junk" (0x4049A / 0x406BA): kept in memory as in info.c / menu1.c / menu2.c (MAP_PLAN risk
-   7; this is a fourth copy of that helper, to merge later): the rectangle of the active surface is read with
-   fg_getpixel and put back with fg_point at the cursor, opaque, the colour restored. No junk file is written.
+   fg_makegif / fg_showgif "junk" (0x4049A / 0x406BA): kept in the shared slot of junk.c, as in info.c / menu1.c /
+   menu2.c (MAP_PLAN risk 7): the rectangle of the active surface is read with fg_getpixel and put back with
+   fg_point at the cursor, opaque, the colour restored. No junk file is written.
 
    1995 bugs (fixed unless g_original, each marked BUG(1995) below):
      1. 0x121A0 frees 28 kinds of game sprites but not three that 0x11A8C cuts: the 13 tokens2.gif sprites 0xF4D5C +
@@ -81,6 +81,7 @@
 
 #include "fg.h"
 #include "game.h"
+#include "junk.h"
 #include "map.h"
 #include "mapdata.h"
 #include "panel.h"
@@ -106,52 +107,6 @@
 #define LABEL      0x109E7Cu   /* 8-byte sprintf buffer, REPLAY's label */
 #define REPLAYING  0x107692u   /* int16 1 while a replay shows */
 #define BACKBUF    0xF52C8u    /* int32 virtual-buffer handle of the back buffer */
-
-/* ---- the "junk" GIF, kept in memory (file comment; as info.c's info_makegif / info_showgif) ------------------- */
-
-typedef struct {
-    int valid;
-    int32_t w, h;
-    uint8_t px[640 * 480];
-} stack_gif;
-
-static stack_gif s_junk;     /* "junk" (written as 0xB4016, read as 0xB4049) */
-
-/* fg_makegif(minx, maxx, miny, maxy, name) (0x8CE50): the rectangle of the active surface */
-static void stack_makegif(int minx, int maxx, int miny, int maxy, stack_gif *g)
-{
-    int32_t w = maxx - minx + 1, h = maxy - miny + 1, r, c, v;
-
-    if (w <= 0 || h <= 0 || (int64_t)w * h > (int64_t)sizeof g->px) {
-        g->valid = 0;                         /* port guard (G): the game's rectangles are all inside the screen */
-        return;
-    }
-    for (r = 0; r < h; r++)
-        for (c = 0; c < w; c++) {
-            v = fg_getpixel(minx + c, miny + r);
-            g->px[r * w + c] = (uint8_t)(v < 0 ? 0 : v);
-        }
-    g->w = w;
-    g->h = h;
-    g->valid = 1;
-}
-
-/* fg_showgif(name, 3) (0x88F98): at the cursor, palette kept, opaque; colour and cursor unchanged. No file: nothing
-   drawn (the original returns 1). */
-static void stack_showgif(const stack_gif *g)
-{
-    int32_t x0 = fg_getxpos(), y0 = fg_getypos(), r, c;
-    int color = fg_getcolor();
-
-    if (!g->valid)
-        return;
-    for (r = 0; r < g->h; r++)
-        for (c = 0; c < g->w; c++) {
-            fg_setcolor(g->px[r * g->w + c]);
-            fg_point(x0 + c, y0 + r);
-        }
-    fg_setcolor(color);
-}
 
 /* The block of slot field (a handle), n bytes. Port guard (G): the original copies through whatever the field
    holds (null if 0x7A8D0 never ran, or a freed block); the port quits with a message instead. */
@@ -391,8 +346,8 @@ int dcase_101(int code)                                             /* -> 0x4041
     f78884();                                                       /* 0x40467 the pointer hidden */
     w = S16(0xBB3FEu);                                              /* 0x40478 dword [0xBB3FC] sar 16 */
     x = S16(0xBB3FAu);                                              /* 0x40471 / 0x40491 dword [0xBB3F8] sar 16 */
-    stack_makegif(x, w + x - 1, 0x14C, 0x1C6, &s_junk);            /* 0x4049A fg_makegif(x, x + w - 1, 0x14C, 0x1C6,
-                                                                       "junk"): the message strip of the screen */
+    junk_makegif(x, w + x - 1, 0x14C, 0x1C6, DSTR(0xB4016u));      /* 0x4049A fg_makegif(x, x + w - 1, 0x14C, 0x1C6,
+                                                                       "junk") (port: junk.c): the message strip */
     f788AC();                                                       /* 0x404A2 */
     f3C828(PANEL_DLG);                                              /* 0x404AC every panel button disabled */
     snprintf((char *)DP(LABEL), 8, DSTR(0xB401Bu), (int)S32(0xEDF5Cu));   /* 0x404C9 sprintf(0x109E7C, "%d", round) */
@@ -448,7 +403,7 @@ int dcase_101(int code)                                             /* -> 0x4041
     f3D52C(0, 0);                                                   /* 0x40689 */
     fg_vbopen(S32(BACKBUF));                                        /* 0x40695 */
     fg_move(S16(0xBB3FAu), 0x14C);                                  /* 0x406AB dword [0xBB3F8] sar 16 */
-    stack_showgif(&s_junk);                                         /* 0x406BA fg_showgif("junk", 3) */
+    junk_showgif(DSTR(0xB4049u), 3);                               /* 0x406BA fg_showgif("junk", 3) (port: junk.c) */
     fg_vbclose();                                                   /* 0x406C2 */
     f3CBBC();                                                       /* 0x406C7 */
     code = -100;                                                    /* 0x406CC */
