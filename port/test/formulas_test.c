@@ -59,7 +59,7 @@ _Noreturn void f44CAC(void) { fprintf(stderr, "formulas_test: quit\n"); exit(2);
 
 /* ---- vector machinery ---------------------------------------------------------------------------------------- */
 
-#define MAXMEM 16
+#define MAXMEM 256   /* Claude, 19 Nov: the real-data vectors need up to 89 (f46A4C walks a whole territory list) */
 #define MAXBYTES 32
 
 typedef struct {

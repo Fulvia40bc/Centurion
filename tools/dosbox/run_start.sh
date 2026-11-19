@@ -35,15 +35,24 @@ k=0; last=$(echo $place | wc -w)
 for c in $place; do
   k=$((k + 1)); sleep 8                # the computers before this nation pick with 750 + 500 ms waits
   shot ${name}_p$k
-  if [ $k -eq $last ]; then NEXT_BP=$STOP bash $P 0x45705 ${c%,*} ${c#*,} > /dev/null || exit 1
+  if [ $k -eq $last ] && [ -z "$STEPS" ]; then NEXT_BP=$STOP bash $P 0x45705 ${c%,*} ${c#*,} > /dev/null || exit 1
   else bash $P 0x45705 ${c%,*} ${c#*,} > /dev/null || exit 1; fi
+done
+# STEPS="ADDR:X,Y ...": clicks after the placement, each at the click-wait check ADDR (link; 0x55FFD the human
+# movement loop, 0x78BD3 f78BA4's), a raw shot before each (capture/start/NAME_sK.png); the last one arms STOP
+k=0; last=$(echo $STEPS | wc -w)
+for st in $STEPS; do
+  k=$((k + 1)); addr=${st%%:*}; xy=${st#*:}
+  sleep 4; shot ${name}_s$k
+  if [ $k -eq $last ]; then NEXT_BP=$STOP bash $P $addr ${xy%,*} ${xy#*,} > /dev/null || { shot ${name}_s${k}_fail; exit 1; }
+  else bash $P $addr ${xy%,*} ${xy#*,} > /dev/null || { shot ${name}_s${k}_fail; exit 1; }; fi
 done
 for i in $(seq 1 240); do
   e=$(D dbgscreen | grep -o 'EIP=[0-9A-F]*' | head -1)
   if [ "$e" = "$WANT" ] && ! D dbgscreen | tail -2 | grep -q '(Running)'; then break; fi
   sleep 1
 done
-[ "$e" = "$WANT" ] || { echo "$name: no stop at $STOP ($e)"; exit 1; }
+[ "$e" = "$WANT" ] || { echo "$name: no stop at $STOP ($e)"; D dbgkey F5 > /dev/null; sleep 2; shot ${name}_nostop; exit 1; }
 rm -f /c/DOSBox-X/advciv/$name.bin
 D dbg "MEMDUMPBIN 0188:2A9000 72C00 $name.bin" > /dev/null; sleep 2
 rm -f /c/DOSBox-X/advciv/capture/ac_main_*.png

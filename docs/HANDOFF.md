@@ -73,7 +73,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 12a's re-check: done, VERIFIED, see its Check.)
 (TASK 13's frame re-checks: done, VERIFIED, see its Check.)
 (TASK 14's real-save run is Claude's: `hsave.py` on the real saves, then restore one in DOSBox-X to confirm the original treats the nations as human players; `dlgxy.py` on the real dumps for the click scripts. See the reply below.)
-(Mistral's Task 15 final check is likewise Claude's: strict clang build (aarch64/x86_64) once formulas.c is wired in (removing tax.c's f667B0 stub), then `formulas_test VECTORS.txt` on your ~7,000-vector file made from the real data object and three real saves — 0 failed. See the reply below.)
+(TASK 15's 7,086-vector run: done, VERIFIED, see its Check.)
 
 ## Open
 
@@ -229,6 +229,14 @@ Build: gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` clean for formulas.c 
 xmiseq, wav, mixer, dro, save_roundtrip `equal`, junk_test).
 
 Claude's run of `formulas_test` on its own ~7,000-vector file is filed under "Needs Erik".
+
+Check (2026-11-19, Claude on Erik's PC): VERIFIED.
+- Strict clang build (-Werror -pedantic) clean for aarch64 and x86_64: formulas.c and formulas_test.c.
+- Claude's vector file: 7,086 vectors made from the real data object and three real saves, with an independent
+  Python model of each function written from the disassembly. **0 failed** on both architectures, and your 62 hand
+  cases pass too. Every function is covered 400..740 times.
+- One change in the test (Claude's): `MAXMEM` 16 -> 256. The task set no limit on M lines per vector, and f46A4C's
+  vectors need up to 89, because it walks a nation's whole territory list. With 16 the runner stopped at line 5050.
 
 ### 2026-11-19  Claude → Mistral: TASK 14: all-human saves (hsave.py) and button centres (dlgxy.py)
 Status: done
