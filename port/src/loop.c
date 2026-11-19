@@ -65,12 +65,10 @@
      16  0x21914 [MONO]                   17  0x5C62C [CITY]                18  0x162D0, 0x1A3A0 [ADV]
      19  0x6E770 [CARDS]                  20  (f136B0 and f55258 are ported)
      game end: 0x14294 [END] (after the loop, and in f22F3C)
-     elimination: 0x7784C (the player-button rows): ported, but as a static of newgame.c; until it is exported (game.h)
-       f22B00 stops at not_ported(0x7784C)
-     loop top, phases 15 / 16 with digital sound and a WAV in sample slot 0: AIL's 0x7D2E8 / 0x7CB9D, ported only as
-       statics of menu2.c and newgame.c; stops at not_ported(0x7CB9D) until one copy is exported. Unreachable today:
-       only unported code loads slot 0 (CAL5 0x1C6AF; ANIM 0x79B2E, 0x79DA2, 0x7A2BC, 0x7A47F; D: every call of
-       0x7B504 with eax = 0).
+     elimination: 0x7784C (the player-button rows): newgame.c's, exported in game.h
+     loop top, phases 15 / 16 with digital sound and a WAV in sample slot 0: AIL's 0x7D2E8 / 0x7CB9D, menu2.c's
+       (exported 19 Nov). Slot 0 is loaded only by CAL5 0x1C6AF and ANIM 0x79B2E, 0x79DA2, 0x7A2BC, 0x7A47F (D: every
+       call of 0x7B504 with eax = 0).
    Play by e-mail is dropped (Erik's ruling, OVERVIEW §7.5). The bit-0x80 tests of byte [0xE1624] (and the byte
    [0xF408C], which only PBEM code sets: 0x51F0A, 0x53260..0x53558) are kept; each PBEM branch calls
    not_ported(its first PBEM routine) and its remaining statements are kept as in the original after that call. Left
@@ -569,9 +567,7 @@ static void loop_top_sound(void)
         ail_end_sample(D32(0xF6278u));                /* 0x54880 */
     ail_set_sample_loop_count(D32(0xF6278u), 1);      /* 0x54891 */
     if (strlen(DSTR(0xF6118u)) != 0) {                /* 0x548A3 repne scasb; je 0x548D0 */
-        /* 0x548B1 0x7D2E8(0xF6118) (AIL's file size), 0x548C0 0x7CB9D([0xF6260], size) (free the block): ported only
-           as statics of menu2.c / newgame.c (file comment) */
-        UNPORTED(0x7CB9Du);
+        PORTED(f7CB9D(D32(0xF6260u), f7D2E8(DSTR(0xF6118u))), 0x7CB9Du);   /* 0x548B1 file size, 0x548C0 free */
         setD8(0xF6118u, 0);                           /* 0x548CA */
     }
 }

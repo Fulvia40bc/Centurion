@@ -16,6 +16,11 @@ void f44D5C(void);                     /* D: Scoring History: the current round'
 void f44A34(void);                     /* D: panel button 8: background 3 (egypt5.gif) into the back buffer with [0xEE168] = 3, the screen saved ("junk": kept in memory in the port), the phase title, CONTINUE 0xBB800 appended to the panel 0xF596C at (265, 425), panel buttons 5, 3, 7, 6, 4, 0x101 disabled, f783B8, the status panel and the home view of nation [0xF40F8]; f78BA4(0xF596C, 0) until -1; then all undone and the saved screen shown again. One caller (case 8, 0x3FC4B), eax unused */
 void f7B504(int s, const char *name);  /* D: load the WAV name (a data string or a caller's stack buffer, hence a C pointer) into sample slot s (0..2) if digital sound is on ([0xF625C]): the slot's old block [0xF6260 + 4s] freed when its name 0xF6118 + 64s is set; the name copied there; the file from ACIV.CT5 [0xF40E4] (or the loose file when cat_size gives -2) into a new block (port: a load_heap handle); AIL_set_sample_file (port no-op: fails only without a block, then the "%s\nEffects file:%s,(%d) \n" quit), volume, loop count 1. Does not start the sample. 8 call sites, none reads eax */
 
+/* AIL's file helpers, exported for loop.c's sample-slot free (0x548B1 / 0x548C0); newgame.c and saveload.c keep
+   static copies bound to their own blocks (they do not include this header) */
+long f7D2E8(const char *name);         /* D: the file's size, or -1 ([0xCAC68] = 3 no file, 5 no length) */
+void f7CB9D(uint32_t handle, long size);   /* D: free a locked block (port: a load_heap handle; 0 = nothing) */
+
 /* Dispatcher cases (bodies of 0x3FB94's jump-table targets; code = the dispatcher's local [ebp-0x3C], -100 on entry;
    each returns what the case returns) */
 int dcase_8(int code);                 /* D: 0x3FC4B: f44A34, returns code (-100) */

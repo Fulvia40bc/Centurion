@@ -232,7 +232,7 @@ static void ail_set_sequence_volume(uint32_t seq, int32_t volume, int32_t ms)   
 /* 0x7D2E8: AIL's file size (as newgame.c's static f7D2E8): [0xCAC68] = 0; open the file (DOS open 0x93F92, mode 0x200:
    read, binary, G); if it does not open, [0xCAC68] = 3 and -1; else filelength (0x941E5; -1 -> [0xCAC68] = 5), close
    (0x941E0), the length. cdecl, one stack argument. */
-static long f7D2E8(const char *name)
+long f7D2E8(const char *name)
 {
     FILE *f;
     long size;
@@ -292,7 +292,7 @@ static uint32_t f7D334(const char *name)
 
 /* 0x7CB9D: AIL's free of a locked block: if p, unlock p..p+size (0x7CD14, DPMI, no data written) and free it through
    the hook [0xCAC70]. cdecl, stack: p, size. The port's p is a load_heap handle. */
-static void f7CB9D(uint32_t handle, long size)
+void f7CB9D(uint32_t handle, long size)
 {
     (void)size;                                       /* the unlock's range: nothing to unlock in the port */
     if (handle != 0)                                  /* 0x7CBA2 test esi,esi */

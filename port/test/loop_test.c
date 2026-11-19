@@ -298,6 +298,7 @@ void f3C284(uint32_t dlg, int id, uint32_t label)
 void f7B854(const char *name, int seq) { tr("music %s %d", name, seq); }
 void f7B504(int s, const char *name) { tr("wav %d %s", s, name); }
 void f763FC(void) { tr("wrapup"); }
+void f7784C(int n) { (void)n; loop_test_unported(0x7784Cu); }   /* recorded like a stubbed phase routine (the model expects it) */
 void f7983C(const char *text) { tr("box %s", text); }
 int f136B0(int mode)
 {
