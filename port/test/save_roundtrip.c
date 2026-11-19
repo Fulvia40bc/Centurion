@@ -4,7 +4,11 @@
    file byte for byte.
    Build: clang -std=c11 port/test/save_roundtrip.c port/src/savewrite.c port/src/saveload.c port/src/state.c port/src/le_image.c -Iport/src -o save_roundtrip.exe
    Run:   save_roundtrip GAMEDIR FILE...   (GAMEDIR holds AC_MAIN.EXE for the data object; without it a blank object
-          with the version stamp at 0xBC8E4 is used, enough for synthetic saves) */
+          with the version stamp at 0xBC8E4 is used, enough for synthetic saves. If GAMEDIR/aciv.cfg exists, the
+          word at 0xF0982 is computed from it as the game's start-up does, main 0x107D7..0x10813: with w7c = the
+          word at aciv.cfg+0 and w80 = the word at +4, (w7c >> 9) + (((w80 & 0xFF) >> 5) << 7); the reader f5F05C
+          skips those 2 file bytes, so the rewrite writes this value and real saves match. The CRC table at
+          0x11260C is built as title.c's f7BB14 does.) */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,7 +72,8 @@ void load_heap_free(uint32_t h)
     s_blk[slot - 1] = NULL;
 }
 
-/* f7BB14's table (title.c) at 0x11260C, and the mode string "rb" f7BBF0 passes from the data object (0xB976D) */
+/* f7BB14's table (title.c) at 0x11260C, reflected CRC-32, polynomial 0xEDB88320, and the mode string "rb"
+   f7BBF0 passes from the data object (0xB976D) */
 static void crc_table(void)
 {
     int32_t i, k;
@@ -80,6 +85,27 @@ static void crc_table(void)
             c = (c & 1) ? (c >> 1) ^ 0xEDB88320u : c >> 1;
         setD32(0x11260Cu + 4u * (uint32_t)i, c);
     }
+}
+
+/* main 0x107D7..0x10813: start-up computes the word at 0xF0982 from aciv.cfg, and the save's 2 skipped bytes at
+   0xF0982 hold it. w7c = the word at aciv.cfg+0, w80 = the word at aciv.cfg+4. No aciv.cfg (or a short one):
+   the data object's value is left as it is (0 in a blank object). */
+static void cfg_word(const char *gamedir)
+{
+    char path[1024];
+    FILE *f;
+    uint8_t b[6];
+
+    snprintf(path, sizeof path, "%s/aciv.cfg", gamedir);
+    f = fopen(path, "rb");
+    if (f == NULL)
+        return;
+    if (fread(b, 1, sizeof b, f) == sizeof b) {
+        uint16_t w7c = (uint16_t)(b[0] | b[1] << 8);
+        uint16_t w80 = (uint16_t)(b[4] | b[5] << 8);
+        setD16(0xF0982u, (uint16_t)((w7c >> 9) + (uint16_t)(((w80 & 0xFFu) >> 5) << 7)));
+    }
+    fclose(f);
 }
 
 /* A fresh data object per file: the real one from <gamedir>/AC_MAIN.EXE if present, else a blank one with the
@@ -94,6 +120,7 @@ static void fresh_ds(const char *gamedir)
         memcpy(DP(0xBC8E4u), "1.11B1", 7);           /* 6 chars + NUL, as the EXE's data object holds it */
     }
     crc_table();
+    cfg_word(gamedir);
 }
 
 int main(int argc, char **argv)
