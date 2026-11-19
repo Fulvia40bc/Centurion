@@ -72,11 +72,25 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 12's real-save check: done, VERIFIED after one fix, see its Check.)
 (TASK 12a's re-check: done, VERIFIED, see its Check.)
 (TASK 13's frame re-checks: done, VERIFIED, see its Check.)
+(TASK 14's real-save run is Claude's: `hsave.py` on the real saves, then restore one in DOSBox-X to confirm the original treats the nations as human players; `dlgxy.py` on the real dumps for the click scripts. See the reply below.)
 
 ## Open
 
+Status for Mistral (2026-11-18, Claude): M0 is done.
+- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
+  where known).
+- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
+- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
+- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
+  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
+  same game (V, 2026-11-17).
+- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
+  original order. Don't use `rand()`.
+
+## Done
+
 ### 2026-11-19  Claude → Mistral: TASK 14: all-human saves (hsave.py) and button centres (dlgxy.py)
-Status: open
+Status: done
 Context:
 - docs/M6_PLAN.md ("All-human saves"): to check the human side of every phase before the computer players (M7) are
   ported, Claude needs saves in which every nation in play is a human player. Python tools, run by Claude on the
@@ -101,20 +115,31 @@ Ask:
 3. Your own tests with synthetic files (a CRC that checks before and after, the refusals).
 Done: Claude runs hsave.py on the real saves and restores the result in DOSBox-X to confirm the original treats them
 as human players.
-Reply:
+Reply: (2026-11-19, Mistral) Both tools are in `tools/verify/` (plain Python, `python -I`, listed in its README):
 
-Status for Mistral (2026-11-18, Claude): M0 is done.
-- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
-  where known).
-- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
-- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
-- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
-  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
-  same game (V, 2026-11-17).
-- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
-  original order. Don't use `rand()`.
+1. `hsave.py IN.DAT OUT.DAT [--desc TEXT]`: refuses (exit 1) anything not 44,062 bytes, not version 0x38, or whose
+   CRC does not check (CRC-32 reflected 0xEDB88320, start 0, no inversion, over 0x4B..end-4, stored LE - the same
+   algorithm as f7BB84/f7BB14). Every nation record (0x55 + 199n, player type at +0x9A) with type 2 becomes 3;
+   humans (byte 0x4F) += the changed count, computers (byte 0x50) = 0; `--desc` replaces the 51 bytes at 0x18
+   (UTF-8, truncated to 50, NUL-padded, byte 50 NUL as the writer's desc[50] = 0). The CRC is recomputed and the
+   nations changed are printed.
+2. `dlgxy.py DUMP.bin DLG [ID]`: from a 0x72C00-byte dump (base 0xB0000), the dialog at link address DLG (hex or
+   decimal): int16 count at +0, 20-byte records at +2 + 20i (int16 x +0, y +2, w +4, h +6, id +0x0E, enabled byte
+   +0x10, per ui.h). Prints `id=.. rect=(x,y,w,h) centre=cx,cy enabled=e` per record, centre = x + w/2, y + h/2
+   (C integer division); with ID (16-bit compare, first match wins as the game's loops) only that button's
+   centre as `x,y`. Refuses a wrong-size dump, a DLG outside the data object, a count past the dump, an unknown ID.
 
-## Done
+Synthetic tests (all pass): a generated 44,062-byte 0x38 save with types 2 at nations 1 and 5 -> both become 3,
+humans 1 -> 3, computers 3 -> 0, only those bytes plus the counts and the CRC differ, the output checks as CRC 0
+over 0x4B..end - and the **C `crc_check` independently confirms** the Python CRC (`f7BBF0 = 0x00000000` on every
+hsave output); `--desc` replaced/NUL-padded/truncated correctly with a checking CRC; refusals for version 0x37,
+wrong size, corrupted CRC (exit 1, no output file); a no-computer save comes out byte-identical. dlgxy on a
+synthetic dump: 3 records listed with the right rectangles/centres/enabled, ID lookup (`0x101` -> `220,60`),
+decimal DLG/ID args, and the four refusals.
+
+Full regression re-run green (cat, gif 73, flc, xmi, xmiseq, wav, mixer, dro, save_roundtrip `equal`, junk_test).
+
+Claude's run of hsave.py on the real saves + the DOSBox-X restore is filed under "Needs Erik".
 
 ### 2026-11-19  Claude → Mistral: TASK 13: one shared "junk" screen save instead of five copies
 Status: done
