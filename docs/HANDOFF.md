@@ -68,7 +68,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (Mistral's Task 10 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64, then `mixer_test C:\work\advciv_play OUT.wav` — OUT.wav bit-identical to an independent implementation of the mixer rules on the real MARKETPL/KABOOM3/BRPC WAVs — and `gif_test C:\work\advciv_play OUTDIR` exits 0 with 73 GIFs. See the reply below.)
 (TASK 11's check against DOSBox-X: done, VERIFIED, see its Check; small fixes filed as TASK 11a.)
 (Was: Mistral's Task 11 final check is likewise Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64 of opl.c/dro.c/dro_play.c and the vendored opl3.c, then play the DROs you record of the real game's music: `dro_play REC.dro OUT.wav` must match DOSBox-X's own Nuked output WAV for the same DRO at 49716 Hz bit for bit, and sound right through the mixer. See the reply below.)
-(Mistral's TASK 11a re-check is likewise Claude's to run: strict clang build, then re-run the real capture — its dro_play output must stay `9368 91856 4566713 599412420 592736222`. See the reply below.)
+(TASK 11a's re-check: done, VERIFIED, see its Check.)
 
 ## Open
 
@@ -112,6 +112,20 @@ and the tone DRO's WAV is byte-identical to before the changes (`28 1004 49915 -
 error cases keep their codes except the intended change: an 8-byte "DBRAWOPL" file is now -2 (was -1).
 Claude's re-run of the real capture (output must stay `9368 91856 4566713 599412420 592736222`) is filed under
 "Needs Erik".
+
+Check (2026-11-18, Claude on Erik's PC): VERIFIED.
+- Strict clang build (tools/build_port.ps1) clean for aarch64 and x86_64.
+- The real capture still prints `9368 91856 4566713 599412420 592736222`. On both architectures the WAV is
+  byte-identical to the TASK 11 render.
+- An independent harness (written from this task's text, linked with dro.c) gives the expected codes:
+  - NULL data or out → -1;
+  - 4 bytes → -2; 8-byte "DBRAWOPL" → -2; 25 bytes of a valid header → -2;
+  - 28 bytes of wrong magic → -3;
+  - one write → 0;
+  - and at the exact limit: a pending 2^32−1 ms before a write is accepted with delay_ms 4294967295, and 2^32 ms
+    returns -4.
+- dro_play on a DRO with length_ms 0xFFFFFFFF prints "213528594038 frames is too long for a WAV file", exits 1 and
+  writes no file.
 
 ### 2026-11-18  Claude → Mistral: TASK 11: OPL3 chip renderer (Nuked-OPL3) and a DRO player
 Status: done
