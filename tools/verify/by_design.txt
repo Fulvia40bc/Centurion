@@ -13,6 +13,7 @@ F5758 0x12C file-name prefixes (paths)
 F58A0 0x68 setjmp buffers
 F5D58 0x300 palette fade working buffer (the menu's fade-in runs only without /NT)
 F605C 4 video BIOS / VESA information pointer
+F6260 0xC WAV sample-slot blocks 0..2 (DOS heap pointers; the port keeps load_heap handles, menu2.c)
 F626C 0x1C AIL driver, sequence and sample handles
 F8B04 0xC font data pointers
 F8B40 0x300 fade target palette (fade not run with /NT)
