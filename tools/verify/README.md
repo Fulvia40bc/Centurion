@@ -18,6 +18,8 @@ Run with `python -I`. None of them contain game data; they read the game copy or
 | `fontfind.py CAP.png FONTDIR "text"...` | finds text in a capture by rendering it with the FGF fonts (exact match, no stray pixels) |
 | `rows.py CAP.png COLOUR X0 X1 Y0 Y1` | per row, the span of one colour (underlines, lines) |
 | `palcrop.py CAP.png` | searches PAL.PAL's picture for pieces of a capture |
+| `hsave.py IN.DAT OUT.DAT [--desc TEXT]` | all-human saves (Task 14): player types 2 -> 3 at nation +0x9A, human/computer counts at 0x4F, optional description, CRC recomputed; refuses non-0x38 / wrong-size / bad-CRC files |
+| `dlgxy.py DUMP.bin DLG [ID]` | a dialog's button rectangles and centres from a data-object dump (Task 14); with ID, only that button's centre "x,y" |
 
 Captures come from DOSBox-X's **Take raw screenshot** (`tools/dosbox/drive.ps1 menu "Take raw screenshot"`): the
 emulated 640x480 frame as an indexed PNG with the palette widened to 8 bits (`v << 2 | v >> 4`), before any window
