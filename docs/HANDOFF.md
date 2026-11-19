@@ -76,6 +76,121 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
+### 2026-11-19  Claude → Mistral: TASK 15: small pure formulas (formulas.c)
+Status: open
+Context:
+- docs/M6_PLAN.md, "Mistral candidates" item 5. Fifteen small functions of the game loop. None of them draws on the screen, waits for input or calls game_rand. Each one reads only data-object bytes, and only 0x7762C writes (into the caller's buffer). Claude read each one from the disassembly (D). Meanings of fields are G.
+- Conventions as in port/src/rules.c and rules.h: `fXXXXX` = the original at 0xXXXXX. The Watcom register arguments go to the parameters in order eax, edx. Data only through state.h (`D8 S8 D16 S16 D32 S32`, `DP`). Address arithmetic in `uint32_t`, as rules.c's `nrec()` does. Each line gets the address comment of the instruction it comes from (the addresses are given below). `__CHK` is dropped. No `g_original` path: there is no 1995 fix here.
+- Notation: `rec = 0xF14CC + 199n` (nation record n, uint32_t). "S8(a)" means the code reads `dword [a - 3] sar 24`, or `movsx` (a signed byte). "D8(a)" means `mov al` or `and 0xFF`, or a byte equality test (signedness does not matter). "S16(a)" means `dword [a - 2] sar 16`. All arithmetic is int32 unless a step says otherwise. Division is C `/` and `%` (truncates toward zero, like idiv).
+- Before you start, grep port/src for each name. Only `tax.c` has one: a static stub `f667B0`. Leave tax.c alone. Claude removes the stub when it wires formulas.c into the game.
+
+Ask:
+1. `port/src/formulas.c` and `formulas.h` (C11, the port's style), with these prototypes:
+```c
+int  f1B4D4(int n);         int  f1B538(int n);         int  f1C2DC(int n);
+int  f193AC(void);          int  f19448(void);          int  f176BC(int n, int k);
+int  f2AC94(int n, int x);  int  f6B928(int a, int b);  int  f7CAB4(int n);
+int  f6DB00(int n);         void f7762C(int v, char *buf);
+int  f46A4C(int n);         int  f46B34(int n);         int  f690AC(int c, int n);
+int  f667B0(int n);
+```
+   The one ported helper they may call is `f78D08(t, n)` from rules.h (the population limit of territory t for n). Do not copy it.
+
+   **f1B4D4(n)** (D). tax = S8(rec+0x51) * S8(rec+0x3F) (0x1B4FD, 0x1B506, imul 0x1B50C). Return 1 if S8(rec+0x99) < tax, else 0 (0x1B515, setl 0x1B521). G: cities × tax rate is more than the stock; the stock cannot pay the tax.
+
+   **f1B538(n)** (D). For i = 1..18, in order: if D8(rec+i) == D8(0xBD540+i), return 1 (0x1B57D..0x1B58C, `cmp al, ah`). After the loop, return 0. The table is constant (no store in the code). Bytes 0xBD541..0xBD552: 7 7 7 8 8 9 7 8 6 7 5 6 5 6 4 5 4 5. G: n holds exactly a full set of commodity i.
+
+   **f1C2DC(n)** (D). tax = S8(rec+0x51) * S8(rec+0x3F) (0x1C30C..0x1C31B). need = 0. Loop i = 0, 1, ... while S8(rec+0x60) > i. Re-read the count each time (0x1C366):
+   - t = D8(rec+0x61+i) (0x1C377). Do not subtract 1: t is the area record index.
+   - v = S8(0xE31B8 + 69t + 0x0E + n) (0x1C38F; the code reads `dword [69t + (n-1) + 0xE31C4] sar 24`).
+   - If v >= 2, need += 2 (0x1C39D). Else if v == 1, need += 1 (0x1C352). Else add nothing (0 or negative).
+   After the loop: total = tax + need (0x1C3A9), and s = S8(rec+0x99) (0x1C3B1). Return 0 if s >= total, else total - s (0x1C3C6). G: the token shortfall.
+
+   **f193AC()** and **f19448()** (D). They are the same code with a different base: 0xF67E4 for f193AC, 0xF14CC for f19448 (nation record 0). sum = 0. For i = 1..18:
+   - c = S8(base+i) (0x193D8 / 0x19474).
+   - If c != 0 (0x19407), and D8(0xF6754) != 0 (0x1940B), and S8(0xF68B8 + D32(0xF68B0)) == i (0x19419): then c = c + 1 (0x19439). Read 0xF6754 only when c != 0, and read the selection only when the flag is also set. The selection address is 32-bit arithmetic.
+   - sum += ((i + 1) >> 1) * c * c (0x193E4 imul, 0x193EB sar, 0x193F0 add). The weights are 1 1 2 2 ... 9 9.
+   Return sum. G: the value of the goods; the flag at 0xF6754 is the Mining bonus for the chosen commodity 0xF68B8[sel].
+
+   **f176BC(n, k)** (D). p = 0xF6E12 + 10n + 2k. a = S16(p) (0x176E5). cost = S16(0xBD480 + 2a) (0x176EF). credit = S32(0xF6764 + 4a) (0x17729). If cost > credit, return credit (0x1773B). Else return cost (0x1774D). a may be negative: keep the 32-bit address arithmetic (-1 reads 0xBD47E and 0xF6760). The table at 0xBD480 is constant, int16, a = 0..23: 45 45 80 110 140 180 140 80 110 140 230 60 60 120 110 170 200 180 240 50 80 150 220 250. G: advance a's cost, credit already earned, purchase slot k of nation n.
+
+   **f2AC94(n, x)** (D).
+   - q = x / 5, r = x % 5 (0x2ACBA, 0x2ACC8).
+   - c = S8(rec+0x51) (0x2ACD4).
+   - If r == 0 and q <= c, return 0 (0x2ACE3, 0x2ACEA).
+   - m = (c < q) ? c : q (0x2ACFA).
+   - b = S8(rec+0x98) (0x2AD10).
+   - If x - 5m <= b, return 0 (0x2AD2A).
+   - Else return x - 5(m + 1) (0x2AD32).
+   The two subtractions wrap at 32 bits, as on the 386. Compute them in uint32_t, then cast to int32_t (x near INT_MAX with c = -128 must wrap). A negative result is normal. G: what is left after removing x unit points, cities counting 5.
+
+   **f6B928(a, b)** (D). turn = S16(0xF40FC) (0x6B93F). off = 90 * (turn - 1) (0x6B947..0x6B95A). sa = S16(0xEE9F0 + off + 2a) (0x6B961). sb = S16(0xEE9F0 + off + 2b) (0x6B971). If sa > sb, return 0 (0x6B981). Else return (sb - sa) / 50 (0x6B99D). Keep the index exactly like this. It reads [turn-1][nation], while the table is written [nation][turn] (G: a 1995 slip). After turn 10 it reads past the 900-byte table (M6_PLAN risk 8: keep it literal, no guard).
+
+   **f7CAB4(n)** (D). For j = 1..9: if S32(0xF52E0 + 40n + 4j) < 0, return 0 (0x7CAF4, 0x7CAFB). Return 1. j = 0 is not read.
+
+   **f6DB00(n)** (D). flag = bit 5 of D8(0xE1624) (0x6DB15: a 16-bit read, shl 10, shr ax 15). t = S8(rec+0x3E) (0x6DB30).
+   - flag == 0: return 1 if t >= 18, else 0 (0x6DB39; the 1 comes through 0x6DB42/0x6DB9F).
+   - flag == 1: for s = 0..8, if S16(0xF06D0 + 25s) != 0 and t >= 2s + 2, return 1 (0x6DB75, 0x6DB9B). After the loop, return 0. A negative count counts as non-empty.
+   G: whether n can buy a card; +0x3E is the treasury.
+
+   **f7762C(v, buf)** (D). Writes v with thousands commas into buf. It returns nothing (the callers do not read eax). The callers pass 0xF5500, so in the port that is `(char *)DP(0xF5500)`. Keep the loop exactly:
+```
+p = buf; i = 0; had = 0; d[32] (int8 digits), d[0] = 0
+if v < 0: v = -v (wraps: compute as (int32_t)(0u - (uint32_t)v); INT_MIN stays INT_MIN); *p++ = '-'   (0x7765C)
+while v != 0: had = 1; d[i] = v % 10 (C remainder, negative when v is); v = v / 10; i++   (0x7766D..0x776A6)
+first = 0; if had == 1: i = i - 1                                                     (0x776AE)
+do { if i % 3 == 2 and first == 1: *p++ = ','                                          (0x776C7)
+     *p++ = (uint8_t)(d[i] + '0'); first = 1; i = i - 1 } while i >= 0                (0x776E7, 0x77702)
+*p = 0                                                                                 (0x7770C)
+```
+   So 0 gives "0", 1234 gives "1,234", and -1234567 gives "-1,234,567". INT_MIN gives '-' and then digits '0' - 2, '0' - 1, ... (negative remainders). The bytes are 2D 2E 2C 2F 2C 29 2C 2C 28 2D 2C 2A 2C 28 00.
+
+   **f46A4C(n)** (D). sum = 0. Loop i = 0, 1, ... while S8(rec+0x60) > i (0x46A8E):
+   - s = D8(rec+0x61+i) - 1 (0x46AA3).
+   - lim = f78D08(s, n) (0x46AB5).
+   - If D8(0xE2C18 + 3s + 2) & 2 is set, skip to the next i (0x46AC9).
+   - A = 0xE31B8 + 69(s+1). If S8(A+1) != 1, skip (0x46ADD).
+   - tok = S8(A + 0x0E + n) (0x46B00).
+   - If lim < tok: sum += tok - lim (0x46B12, 0x46B20).
+   Return sum. G: tokens over the population limits where n is alone.
+
+   **f46B34(n)** (D). sum = 0. Loop i = 0, 1, ... while S8(rec+0x60) > i: sum += f78D08(D8(rec+0x61+i) - 1, n) (0x46B8D). Return 1 if sum >= S32(0xF4898), else 0 (0x46B9A, setge). G: 0xF4898 is the token supply (47 or 55).
+
+   **f690AC(c, n)** (D). This is a switch through the jump table at 0x6907C (0x690CC..0x690E6). If (uint32_t)c - 0x13 > 0xB, return 0. "+x" below means D8(rec+x) != 0 (a byte test against 0):
+   - 0x13, 0x15, 0x17, 0x19: return 0.
+   - 0x14: return -5.
+   - 0x1A: return -12.
+   - 0x1E: return -10.
+   - 0x16: return -1 if +0x39; else -5 if +0x38; else -10 if +0x37; else -15.
+   - 0x18: v = -15. If +0x29, v -= 5. If +0x39, v += 5. Return v.
+   - 0x1B: v = -16. If +0x2D, v += 8. If +0x28, v -= 5. Return v.
+   - 0x1C: v = S8(rec+0x51) - 3. Then v -= 1 for each of +0x30, +0x2F, +0x33, +0x34, and v += 1 for each of +0x28, +0x35. Then the tail.
+   - 0x1D: v = 4. If +0x33, v -= 1. If +0x36, v -= 1. If +0x3B, v -= 3. If +0x3A, v += 1. If +0x28, v += 1. Then the tail.
+   - The tail (0x6929D / 0x69347): if v < 0, v = 0. v = -(5v). Return -1 if v == 0, else v.
+   G: the harm a calamity card c would do to n (advances at +0x24.., e.g. +0x39 Enlightenment, +0x28 Roadbuilding).
+
+   **f667B0(n)** (D). c = S8(rec+0x51) (0x667D9). s = S8(rec+0x99) (0x667E9).
+   - If 2c > s, rate = 1 (0x667F2).
+   - Else, if S16(0xF40FC) >= 9 and s >= 25 and c <= 6, rate = 3. Otherwise rate = 2 (0x667FF..0x66820).
+   - Then, while rate > 1 and c * rate > s: rate-- (0x66827..0x6684D).
+   Return rate. G: the computer's tax rate.
+
+2. `port/test/formulas_test.c VECTORS.txt`. It does not need the game folder and never calls state_init. It sets `g_ds = calloc(DS_SIZE + 0x1000, 1)` itself.
+   - Link it like rules_test: formulas_test.c formulas.c rules.c move.c mapdata.c load.c state.c le_image.c. Copy rules_test.c's stub block (move.c references them; none is reached).
+   - The vector file is ASCII text, one item per line. Accept LF and CRLF. Lines are at most 200 characters. `#` starts a comment that runs to the end of the line. Blank lines are skipped.
+     - `N <count>`: once, before the first vector.
+     - `T <func> [<arg> ...]`: starts a vector. func is one of the 15 names. Args are signed decimal int32, in register order (eax, edx). For f7762C the second arg is a link address: pass `(char *)DP(arg)`.
+     - `M <addr> <hex>`: addr is a hex link address (no 0x). The hex is 1..32 bytes, two digits each. Store them at addr.. before the call.
+     - `R <int>` or `R void`: the expected return.
+     - `C <addr> <hex>`: after the call, these bytes must hold these values.
+     - `E`: end of the vector. Run it.
+   - For each vector: zero all DS_SIZE bytes, apply its M lines, and take a copy. Call the function and compare the return. Apply the C lines to the copy. Then memcmp the whole data object with the copy, so every byte outside the C lines must be unchanged.
+   - Print `FAIL <the T line> ...` with what differs (ret got/want, or the first differing address got/want), at most 20 in detail. Then print a count per function and `formulas_test: <run> vectors, <failed> failed`. Exit 0 only if nothing failed and run == N.
+   - Also add your own hand cases inside the test: at least 3 per function, worked out by hand from this text, including the edge cases named above. Put no vector file in the repo.
+
+Done: a strict clang build (`-std=c11 -Wall -Wextra -Werror`) is clean, and formulas_test passes your hand cases. Then Claude runs `formulas_test` on its own vector file. That file is made from the real data object of AC_MAIN.EXE and three real saves, with the relevant fields randomised; it has about 7,000 vectors. Each vector holds exactly the bytes the original's code reads.
+Reply:
+
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
   where known).
