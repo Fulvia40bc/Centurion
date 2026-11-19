@@ -589,6 +589,25 @@ Translated in one workflow (three translators, three reviewers):
     MAP_PLAN risk 4), and the in-game RESTORE and NEW GAME jumps (they need the game loop, M6, to land somewhere
     the port can compare).
 
+**M6 begins (2026-11-19): the save writer, the helpers, the game loop.** Plan: docs/M6_PLAN.md, inventory:
+docs/INVENTORY_M6.json (383 functions, 309 KB).
+- `savewrite.c` (Mistral, Task 12; one fix by Claude): the save writer 0x5E9B0 and the autosave 0x5E8EC. The port's
+  autosave reproduces five autosaves the original wrote, byte for byte.
+- Helpers, each with unit tests against an independent implementation:
+  - `rules.c` (16 shared rule helpers);
+  - `kit.c` (message boxes, YES/NO, button-by-id);
+  - `wqsort.c` (Watcom's own qsort, literal: its order of equal keys is not stable, and the AI depends on it);
+  - `mstack.c` (the move stacks and snapshots);
+  - `route.c` (ship routes over N.RL).
+- `loop.c`: the game loop 0x54824 with all 21 phase cases, the restored game's set-up 0x14AA4, the end-of-round and
+  end-of-game saves, the elimination check and the end screens, the AI's score matrix 0x7C960.
+  - Each phase routine not ported yet stops the port with its address. `--play` runs a restored or new game into
+    the loop; `not_ported` then dumps the data object and frame (`--dump-ds`, `--headless-frame`).
+- **Check (V):** R4 restored in both:
+  - at the loop's entry (port `--stop-at-loop`, original BP 0x54824): **0 unexplained bytes**;
+  - at phase 4's first routine 0x60AE0 (port `--play`, original BP 0x549D5): **0 unexplained bytes**, after the
+    score matrix, the round label and the phase music.
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 

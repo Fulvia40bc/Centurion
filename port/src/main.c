@@ -24,6 +24,7 @@
 #include "panel.h"
 #include "start.h"
 #include "stack.h"
+#include "loop.h"
 
 static const char *s_frame_path;
 static int s_pointer_x = -1, s_pointer_y = -1;
@@ -86,7 +87,18 @@ static int stop_at(uint32_t addr, const char *how)
    window as the game does (f3D52C(0, 0): clamp, map picture, borders, markers, cities, tokens, ships, mini-map).
    The frame is then compared with the DOSBox-X capture in the map window and the mini-map only. */
 static const char *s_map_state;
-static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview, s_through_start;
+static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview, s_through_start, s_play, s_stop_at_loop;
+
+/* not_ported's hook: with --dump-ds the data object (and with --headless-frame the frame) where the port stops, the
+   comparison point with the original at the same call */
+static void dump_at_not_ported(uint32_t addr)
+{
+    (void)addr;
+    if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
+        fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
+    if (s_dump_path != NULL && s_frame_path != NULL)
+        (void)save_frame();
+}
 static const struct { uint32_t addr, len; } MAP_STATE[] = {
     { 0xF4884u, 8 },        /* scroll column, row */
     { 0xF6110u, 4 },        /* int16 min, max column */
@@ -252,6 +264,11 @@ int main(int argc, char **argv)
         }
         else if (strcmp(argv[i], "--settle") == 0 && i + 1 < argc)
             s_settle = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--play") == 0)
+            s_play = 1;                               /* go on into the game loop (M6); a phase not ported yet stops
+                                                         the run there (not_ported, with --dump-ds: dump and frame) */
+        else if (strcmp(argv[i], "--stop-at-loop") == 0)
+            s_stop_at_loop = 1;                       /* restore: 0x14AA4, then stop at main 0x118C9 */
         else if (strcmp(argv[i], "--through-start") == 0)
             s_through_start = 1;                      /* new game: go on through the starting territories to 0x1188C */
         else if (strcmp(argv[i], "--overview") == 0)
@@ -291,6 +308,7 @@ int main(int argc, char **argv)
     fg_set_gamedir(gamedir);
     if (s_frame_path != NULL || s_dump_path != NULL)
         fg_set_headless(1);
+    g_not_ported_hook = dump_at_not_ported;
     rc = title_boot(gamedir);
     if (rc != 0) {
         fprintf(stderr, "advciv: start-up failed (%d)\n", rc);
@@ -338,12 +356,20 @@ int main(int argc, char **argv)
         if (rc == -1) {                               /* a restored game: main goes on at 0x1188C (0x14AA4, M6) */
             if (s_map_state != NULL && map_state_draw(s_map_state) != 0)
                 return 1;
+            if (s_stop_at_loop) {                     /* --stop-at-loop: 0x14AA4, then stop at the call of the loop */
+                f14AA4();
+                return stop_at(0x118C9u, "after a restore");
+            }
+            if (s_play)
+                game_loop_restored();                 /* 0x1188C..: 0x14AA4, the game loop 0x54824 (never returns) */
             return stop_at(0x1188Cu, "after a restore");
         }
         if (!s_dump_early)
             f2EFA0();                                 /* 0x1184F: the nation choice; returns to 0x11854 */
-        if (!s_dump_early && s_through_start)
+        if (!s_dump_early && (s_through_start || s_play))
             start_slice();                            /* 0x11854..0x11884: the starting territories (START) */
+        if (!s_dump_early && s_play)
+            game_loop_new();                          /* 0x1188C..: the game loop 0x54824 (never returns) */
         return stop_at(s_dump_early ? 0x1184Fu : s_through_start ? 0x1188Cu : 0x11854u, "in a new game");
     }
     fprintf(stderr, "advciv: the title menu returned %d (the game itself is not ported yet)\n", rc);

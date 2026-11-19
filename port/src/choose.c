@@ -48,9 +48,13 @@ extern uint8_t *ui_heap_F522C;
 /* ---- Port helpers ------------------------------------------------------------------------------------------------ */
 
 /* not_ported: a call into code that is not translated yet. Prints the original's address and ends the program. */
+void (*g_not_ported_hook)(uint32_t addr);   /* main.c: with --dump-ds, the data object and frame at this point */
+
 _Noreturn void not_ported(uint32_t addr)
 {
     fprintf(stderr, "advciv: 0x%X is not ported yet\n", (unsigned)addr);
+    if (g_not_ported_hook != NULL)
+        g_not_ported_hook(addr);
     plat_shutdown();
     exit(3);
 }

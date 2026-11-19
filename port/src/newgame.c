@@ -461,7 +461,7 @@ static void f7784C_dialog(uint32_t dlg, int32_t base, int32_t n, int32_t q, cons
      0xF596C  <- 0xBB414   9   template's      0x111594 <- 0xC95E4  9  0      0x111980 <- 0xC99D0  9  0
      0x111D6C <- 0xC9DD0   9   0               0x112158 <- 0xCA1BC  0x12  1   0x1106D8 <- 0xC8E00  9  0
      0x110ADC <- 0xC91EC   9   0               0xF634C  <- 0xBD554  9  0 */
-static void f7784C(int n)
+void f7784C(int n)
 {
     int32_t q, r;                                     /* [ebp-0x18], [ebp-0x14] */
     int32_t fix[4] = { 0, 0, 0, 0 };                  /* A [ebp-0x10], B [ebp-0xC], C [ebp-8], E [ebp-4] (0x77887) */

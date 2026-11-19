@@ -486,4 +486,7 @@ int  f3FB94(int id);                   /* D: the button dispatcher: id -> code t
 void f30174(int n);                    /* D: nation n to the computer: byte +0x9A = 2; f78884; its token (sprite 0xF4A5C + 8n at int16 0xC076C[n], 0xC0780[n], f3AF8C); f3C9D0(0x109, 0x185, 0x6E, 0x13, 5); fg_setcolor(5); the name [0xC768C + 4n] centred (f3A0B0(0x109, 0x189, 0x6E)); f788AC; f78A20(750). Called only from 0x302C4 (50 call sites); eax unused (each is followed by mov eax,[rem]) */
 void f302C4(void);                     /* D: the computer takes the nations the humans left, by [0xF40F0] = 3..8, with rem = [0xF40F0] - (nations 1..9 with +0x9A == 3), fixed orders, pairs by game_rand*2 >> 15 and triples by a switch on which of them are human (game_rand*3 >> 15); f30174 for each. One caller, 0x2EFA0 at 0x2F9DE (eax unused: 0x2F9E3 mov eax,0xC08D0). BUG(1995) A (rem++ after Africa in every block, Iberia with 4 and 5 players, Asia with 5) and B (unguarded takes in the 7-player (3,4,5) switch) fixed unless g_original */
 
+void f7784C(int n);                    /* D: the player buttons for n players (dialogs 0xF596C and 0x111594); newgame.c, also called by the elimination check f22B00 */
+extern void (*g_not_ported_hook)(uint32_t addr);   /* port: called by not_ported before it exits (main.c: --dump-ds there) */
+
 #endif
