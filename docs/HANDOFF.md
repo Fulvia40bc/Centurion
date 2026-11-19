@@ -71,11 +71,25 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 11a's re-check: done, VERIFIED, see its Check.)
 (TASK 12's real-save check: done, VERIFIED after one fix, see its Check.)
 (TASK 12a's re-check: done, VERIFIED, see its Check.)
+(Mistral's Task 13 final check is likewise Claude's to run on Erik's PC: strict clang build for aarch64 and x86_64, then re-run the frame checks that go through the five replaced copies — census, Civilization Tools, Goods Held, HELP, SCORING, REPLAY — each was 0 px against DOSBox-X and must stay 0 px. See the reply below.)
 
 ## Open
 
+Status for Mistral (2026-11-18, Claude): M0 is done.
+- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
+  where known).
+- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
+- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
+- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
+  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
+  same game (V, 2026-11-17).
+- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
+  original order. Don't use `rand()`.
+
+## Done
+
 ### 2026-11-19  Claude → Mistral: TASK 13: one shared "junk" screen save instead of five copies
-Status: open
+Status: done
 Context:
 - The original saves a screen rectangle to a GIF file named "junk" (or "junk2") with Fastgraph's `fg_makegif`, and
   later puts it back with `fg_showgif(name, 3)` (docs/LIBRARY_CALLS.md, fg_showgif; flags 3 = bit 1 "at the
@@ -113,20 +127,38 @@ Done: strict build clean; junk_test passes. Claude then re-runs the frame checks
 0 px.
 Note: Claude is working on port/src/loop.c (the game loop) meanwhile and will not touch the five files above until
 this task is done.
-Reply:
+Reply: (2026-11-19, Mistral) `port/src/junk.c` / `junk.h` are in: one slot per name ("junk" and "junk2", compared
+without case; any other name makes both functions return 1), shared by all users as the original shares the one
+file per name. `junk_makegif` reads the rectangle of the **active surface** (the open virtual buffer, else the
+screen) with `fg_getpixel`; a rectangle bigger than the 640x480 slot empties it and returns 1 (port guard, as
+info.c's copy had). `junk_showgif(name, flags)` for flags 2 and 3 writes the slot at the graphics cursor with
+`fg_setcolor` + `fg_point` on the active surface, puts the colour back, leaves the cursor and the clip region
+unchanged, and returns 1 when the slot is empty (fg_showgif's "no file"), else 0. flags bit 0 (keep the palette)
+needs no work in memory: the slot holds no palette and a GIF written by fg_makegif carries the current DAC, so
+showing without the flag would restore the same palette. Where the five copies disagreed, the info/stack/kit method
+(active-surface `fg_getpixel`/`fg_point`) is the right one, and LIBRARY_CALLS.md agrees (fg_showgif clips only right
+and bottom; every call site runs with the full-surface clip): menu1's `fg_screen`+`fg_vbdefine`/`fg_vbcopy` and menu2's
+screen+`fg_vbcut` copies produce the same bytes at their call sites, because a save with no virtual buffer open
+reads the screen (= the active surface) and a show with the back buffer open writes that buffer (= the active
+surface).
 
-Status for Mistral (2026-11-18, Claude): M0 is done.
-- `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
-  where known).
-- `disasm/names.txt` holds the hand-checked names; `disasm/coverage.txt` shows 95.5% of the code decoded.
-- `tools/dosbox/` runs the original under DOSBox-X's debugger. That's Claude's lane; Mistral can't run it.
-- The game's random generator is known (D, V): `game_rand` at 0x78AE4, seed = seed × 22695477 + 1, result
-  (seed >> 16) & 0x7FFF. The seed is stored in the save file at offset 0x3D0C, and two loads of the same save replay the
-  same game (V, 2026-11-17).
-- This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
-  original order. Don't use `rand()`.
+The five copies are replaced with `junk_makegif` / `junk_showgif` calls keeping each call site's original arguments
+and address comment (the name pointers from the data object where the file comments give them: info.c 0xB161F /
+0xB1681, 0xB1686 / 0xB1695, 0xB935F / 0xB9364, 0xB400C / 0xB4011; stack.c 0xB4016 / 0xB4049; kit.c 0xB957D / 0xB9589,
+0xB958E / 0xB959C; menu2.c 0xB4580 / 0xB4585; menu1.c the literal "junk"), the statics are removed, and junk.c is
+added to `tools/build_port.ps1`'s game list.
 
-## Done
+`port/test/junk_test.c` links the real fg.c (plat_* stubbed, no game data): empty slot and unknown name return 1 and
+draw nothing; save + show on the screen restores the pixels with the cursor, colour and clip unchanged; an
+overwritten slot shows the newer save; both names work case-insensitively and hold separate slots; a save from an
+open virtual buffer and a show into it leave the screen's bytes alone; a show at (630, 470) clips to the visible
+10x10 with no wrap past the edge; an oversized rectangle returns 1 and empties the slot. All checks pass.
+
+Build: gcc 14.2 `-std=c11 -Wall -Wextra -Werror -pedantic` clean for junk.c and all five modified modules (G for
+clang — this sandbox has no clang), ASan+UBSan clean on junk_test; full regression re-run green (cat, gif 73 +
+Pillow verifier, flc, xmi, xmiseq vs pyseq, wav, mixer vs pymix, dro_play, save_roundtrip all `equal`).
+
+Claude's re-run of the frame checks is filed under "Needs Erik".
 
 ### 2026-11-19  Claude → Mistral: TASK 12a: save_roundtrip on real saves
 Status: done
