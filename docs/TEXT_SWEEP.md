@@ -93,3 +93,8 @@ Not in the EXE's own strings, so not in the sweep above. None is changed yet: ea
 **A missing help title** (needs a ruling with the fix): the City Support phases show Ship Construction's help (1995
 bug, fixed by default). The help file CITYSUP.HLP exists, but the game has no title string for it. The port uses
 "City Support" (the phase table spells it "CITY SUPPORT").
+
+**Found 2026-11-19 (module RULES review), for the calamity module CAL1:** at 0x2110B the article for "replaced by
+%s %s city." is chosen the wrong way round, so the game says "replaced by a African city" / "an Thracian city"
+(0x21021's "A/An ... city in %s was" is right). Obvious error under the 19 Nov ruling: fixed by default when CAL1 is
+translated.
