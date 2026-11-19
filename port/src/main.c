@@ -35,7 +35,7 @@ static int s_dump_early;
 
 /* --click X Y (repeatable, headless): each is a press for one input poll, then a release; after the last one the
    frame is saved once the game has polled input a few more times (its screen is drawn before it waits) */
-enum { MAX_CLICKS = 32 };
+enum { MAX_CLICKS = 512 };
 static int s_settle = 4;   /* --settle N: input polls after the last click before the frame is saved */
 static int s_clicks[MAX_CLICKS][2], s_nclicks, s_click, s_pressed, s_idle;
 
