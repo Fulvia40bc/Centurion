@@ -149,6 +149,10 @@
 #include "info.h"
 #include "kit.h"
 #include "loop.h"
+#include "tax.h"
+#include "pop.h"
+#include "census.h"
+#include "ship.h"
 #include "menu2.h"
 #include "rules.h"
 #include "saveload.h"
@@ -164,8 +168,10 @@
 #ifdef LOOP_TEST
 void loop_test_unported(uint32_t addr);
 #define UNPORTED(addr) loop_test_unported(addr)
+#define PORTED(call, addr) loop_test_unported(addr)   /* the test stubs every phase routine, ported or not */
 #else
 #define UNPORTED(addr) not_ported(addr)
+#define PORTED(call, addr) call                        /* a ported phase routine */
 #endif
 /* A play-by-e-mail routine (dropped by Erik's ruling): not_ported in every build */
 #define PBEM_DROPPED(addr) not_ported(addr)
@@ -586,37 +592,37 @@ _Noreturn void f54824(void)
         case 0:                                       /* 0x5491E TAXATION */
             f553C0();
             f7BCD4();                                 /* 0x54923 the AI's random table: 300 game_rand */
-            UNPORTED(0x66050u);                       /* 0x5492A [TAX] */
+            PORTED(f66050(), 0x66050u);                       /* 0x5492A [TAX] */
             setD8(PHASE, 1);                          /* 0x5492F */
             f5E7B4();
             f5E8EC(0);                                /* 0x5493C */
             break;
         case 1:                                       /* 0x5494B POPULATION EXPANSION */
             f553C0();
-            UNPORTED(0x673A8u);                       /* 0x54952 [POP] */
+            PORTED(f673A8(), 0x673A8u);                       /* 0x54952 [POP] */
             setD8(PHASE, 2);                          /* 0x54957 */
             f5E7B4();
             f5E8EC(1);                                /* 0x54967 */
             break;
         case 2:                                       /* 0x54976 CENSUS */
             f553C0();
-            UNPORTED(0x13D44u);                       /* 0x5497D [CENSUS] */
+            PORTED(f13D44(), 0x13D44u);                       /* 0x5497D [CENSUS] */
             setD8(PHASE, 3);                          /* 0x54982 */
             f5E7B4();
             f5E8EC(2);                                /* 0x54992 */
             break;
         case 3:                                       /* 0x549A1 SHIP MAINTENANCE */
             f553C0();
-            UNPORTED(0x60AE0u);                       /* 0x549A6 [SHIP] */
-            UNPORTED(0x60BD8u);                       /* 0x549AB [SHIP] */
+            PORTED(f60AE0(), 0x60AE0u);                       /* 0x549A6 [SHIP] */
+            PORTED(f60BD8(), 0x60BD8u);                       /* 0x549AB [SHIP] */
             setD8(PHASE, 4);                          /* 0x549B0 */
             f5E7B4();
             f5E8EC(3);                                /* 0x549C1 */
             break;
         case 4:                                       /* 0x549D0 SHIP CONSTRUCTION */
             f553C0();
-            UNPORTED(0x60AE0u);                       /* 0x549D5 [SHIP] */
-            UNPORTED(0x61940u);                       /* 0x549DA DoShipContruction [SHIP] */
+            PORTED(f60AE0(), 0x60AE0u);                       /* 0x549D5 [SHIP] */
+            PORTED(f61940(), 0x61940u);                       /* 0x549DA DoShipContruction [SHIP] */
             setD8(PHASE, 5);                          /* 0x549DF */
             f5E7B4();
             f5E8EC(4);                                /* 0x549F0 */

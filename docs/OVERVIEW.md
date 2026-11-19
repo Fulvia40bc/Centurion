@@ -608,6 +608,24 @@ docs/INVENTORY_M6.json (383 functions, 309 KB).
   - at phase 4's first routine 0x60AE0 (port `--play`, original BP 0x549D5): **0 unexplained bytes**, after the
     score matrix, the round label and the phase music.
 
+**M6, the first phases (2026-11-19): TAX, POP, CENSUS, SHIP.** Translated in one workflow, a reviewer each, with
+unit tests against independent models (tax 18,925 checks, and deliberately broken copies caught; pop, census, ship
+likewise). The computers' parts (M7) stop with `not_ported`.
+- `tax.c` TAXATION 0x66050 with the human Coinage screen, tax revolts and the human's city removal; `pop.c`
+  POPULATION EXPANSION 0x673A8 with the manual screen 0x67758; `census.c` CENSUS 0x13D44 (Watcom's qsort, its
+  comparator); `ship.c` SHIP MAINTENANCE 0x60BD8 and CONSTRUCTION 0x61940 with their human screens.
+- **BUG(1995) fixes (`--original` keeps each):** "Democrary" (text); a tax revolt highlights the wrong nation's
+  player button; removing the last city in a revolt writes into a heap pointer and shows "PIRACY" as the territory;
+  POP's DISTRIBUTE ALL can loop for ever; maintaining a ship on a second coast by levy leaves the land territory
+  marked; two latent errors in the computers' extra ships.
+- **Check (V): round 1 of a new 3-human game, played by the port itself from the title menu** (`--play`; the same
+  setup, seed and token clicks in DOSBox-X, `tools/dosbox/run_start.sh` with `STOP=0x54A51`):
+  - TAXATION, POPULATION EXPANSION, CENSUS, SHIP MAINTENANCE, SHIP CONSTRUCTION run on their own;
+  - the port's autosave "AutoSaved after SHIP CONSTRUCTION - R1" is **byte-identical** to the original's
+    (44,062 bytes, the CRC included);
+  - the data object at the call of the movement phase: **0 unexplained bytes**.
+  - The R4 game (seven computers) stops at the computers' ship planning 0x62840 (M7).
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 

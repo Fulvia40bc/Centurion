@@ -13,7 +13,10 @@ shot() { rm -f /c/DOSBox-X/advciv/capture/ac_main_*.png; D menu "Take raw screen
          mv /c/DOSBox-X/advciv/capture/ac_main_000.raw1.png /c/DOSBox-X/advciv/capture/start/$1.png; }
 R=/c/work/advciv_run; B=$(mktemp -d)   # the original autosaves once it runs on past the stop: keep the saves
 cp -p $R/SAVGAMEA.DAT $R/savgameb.dat $B/ || exit 1
-trap 'taskkill //IM dosbox-x.exe //F > /dev/null 2>&1; sleep 1; cp -p $B/SAVGAMEA.DAT $B/savgameb.dat $R/; rm -rf $B' EXIT
+# STOP=LINK_ADDR: stop there instead of main 0x1188C (e.g. 0x54A51, the loop's call of the movement phase, to play
+# round 1's first phases); KEEP_SAVES_TO=DIR: keep the saves the original wrote (its autosaves) before restoring
+STOP=${STOP:-0x1188C}; WANT=$(printf 'EIP=00%X' $(( STOP + 0x202000 )))
+trap 'taskkill //IM dosbox-x.exe //F > /dev/null 2>&1; sleep 1; [ -n "$KEEP_SAVES_TO" ] && mkdir -p "$KEEP_SAVES_TO" && cp -p $R/SAVGAMEA.DAT $R/savgameb.dat "$KEEP_SAVES_TO"/; cp -p $B/SAVGAMEA.DAT $B/savgameb.dat $R/; rm -rf $B' EXIT
 taskkill //IM dosbox-x.exe //F > /dev/null 2>&1; sleep 2
 mkdir -p /c/DOSBox-X/advciv/capture/start
 powershell.exe -NoProfile -Command "Start-Process -FilePath 'C:\DOSBox-X\dosbox-x.exe' -ArgumentList '-conf','C:\work\AdvCiv\tools\dosbox\advciv_nt.conf' -WorkingDirectory 'C:\DOSBox-X\advciv'"
@@ -32,15 +35,15 @@ k=0; last=$(echo $place | wc -w)
 for c in $place; do
   k=$((k + 1)); sleep 8                # the computers before this nation pick with 750 + 500 ms waits
   shot ${name}_p$k
-  if [ $k -eq $last ]; then NEXT_BP=0x1188C bash $P 0x45705 ${c%,*} ${c#*,} > /dev/null || exit 1
+  if [ $k -eq $last ]; then NEXT_BP=$STOP bash $P 0x45705 ${c%,*} ${c#*,} > /dev/null || exit 1
   else bash $P 0x45705 ${c%,*} ${c#*,} > /dev/null || exit 1; fi
 done
-for i in $(seq 1 60); do
+for i in $(seq 1 240); do
   e=$(D dbgscreen | grep -o 'EIP=[0-9A-F]*' | head -1)
-  if [ "$e" = "EIP=0021388C" ] && ! D dbgscreen | tail -2 | grep -q '(Running)'; then break; fi
+  if [ "$e" = "$WANT" ] && ! D dbgscreen | tail -2 | grep -q '(Running)'; then break; fi
   sleep 1
 done
-[ "$e" = "EIP=0021388C" ] || { echo "$name: no stop at 0x1188C ($e)"; exit 1; }
+[ "$e" = "$WANT" ] || { echo "$name: no stop at $STOP ($e)"; exit 1; }
 rm -f /c/DOSBox-X/advciv/$name.bin
 D dbg "MEMDUMPBIN 0188:2A9000 72C00 $name.bin" > /dev/null; sleep 2
 rm -f /c/DOSBox-X/advciv/capture/ac_main_*.png
