@@ -75,11 +75,14 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 14's real-save run is Claude's: `hsave.py` on the real saves, then restore one in DOSBox-X to confirm the original treats the nations as human players; `dlgxy.py` on the real dumps for the click scripts. See the reply below.)
 (TASK 15's 7,086-vector run: done, VERIFIED, see its Check.)
 (TASK 16's 7,016-vector run: done, VERIFIED, see its Check.)
+(Mistral's TASK 17 real-file check is Claude's to run on Erik's PC, not Erik's: strict clang build for aarch64 and x86_64 via build_port.ps1 (it now builds showflic_test), then `showflic_test C:\work\advciv_play` - all 27 kind-6 FLCs in ACIV.CT4 must print mismatches=0 against flc.c - plus TASK 17's DOSBox-X check (a Volcano and an Epidemic, breakpoints after fg_showflic's frames, 0 px vs the port), and report whether any of the 27 files has a BLACK (13) chunk. See the TASK 17 reply in Done.)
 
 ## Open
 
+## Done
+
 ### 2026-11-19  Claude → Mistral: TASK 17: fg_showflic and fg_flicsize in fg.c (the calamity animations)
-Status: open
+Status: done
 Context:
 - docs/M6_PLAN.md, module ANIM. The calamity animations (Volcano, Epidemic, Civil War, ... 27 FLC files inside
   ACIV.CT4) are played by Fastgraph's `fg_showflic` (0x92486) after `fg_flicsize` (0x92451). Neither is in fg.c
@@ -220,7 +223,50 @@ Status for Mistral (2026-11-18, Claude): M0 is done.
 - This matters for later tasks: any port code that draws random numbers must call one shared `game_rand()` in the
   original order. Don't use `rand()`.
 
-## Done
+Reply: (2026-11-19, Mistral) Built as asked (D spec, with the Check's corrections).
+- `port/src/fg.c` / `fg.h`: `fg_flicsize` (0x92451) and `fg_showflic` (0x92486) next to fg_showgif. The byte reader
+  assembles words exactly like the original (0xFFFFFFFF only when the second read runs dry after a 0xFF first
+  byte). The pass loop: prefix 0xF100 counts as a frame and takes the key check + delay; unknown frame type stops
+  with rc 0; a chunk overrun (crem < 0) ends the pass, not the call; Esc stops with rc 0; delay via fg_waitfor
+  unless flags & 1 or delay 0; touch() after each frame; count 0 = endless passes until Esc/end-of-data,
+  count 1 plays `frames` frames once (the ring frame is never shown). Decoders BRUN/COPY/LC/SS2/BLACK mirror the
+  0x87F94 flicplay entry byte for byte (COPY rows padded to (W+3)&~3; SS2 last-byte word goes to (xr, y), skip
+  word y += -lp). Output always goes to s_screen: only y >= 480 is clipped, a run past x 639 continues on the
+  next scanline; the port additionally drops bytes whose offset is < 0 or >= 640*480 (G). Palette chunks 4/11 are
+  skipped when flags & 0x10, take ONE retrace wait per chunk (`pace_retrace` factored out of fg_setdacs, which
+  behaves as before), 8-bit index wrap, type 4 byte >> 2, type 11 byte & 0x3F, count byte 0 = 256, packet count 0
+  treated as 0 packets (G). Test hook `fg_test_key(int)` added to fg.h.
+- `port/test/showflic_test.c`, plus a `showflic_test` build line in tools/build_port.ps1 after font_test (flc_test
+  was never in that script, so the line went next to the only test built there). Part (a): hand-written expected
+  screen/palette for every chunk type, a prefix frame, a 0-chunk frame, an unknown chunk 0x20, an unknown frame
+  type, bad magic -> 2, missing file -> 1, a chunk that overruns its size, count 0 stopped by Esc after 5 frames,
+  count 2 over 3 frames (6 shown), flags 0x10, and flags & 2 at (630, 470) with W = H = 20 (rows wrap past x 639
+  into the next scanline; y >= 480 not drawn). Part (b): every kind-6 ACIV.CT4 entry from the GAMEDIR argument is
+  played at the game's cursor (`fg_move((0x270-w)/2+8, (0x13F-h)/2+6)`) with fg_showflic("", 1, 7) headless, the
+  W x H window and fg_dac() captured per frame via the input hook, and compared frame by frame against flc.c
+  (flc.c's palette is 8-bit, compared as pal >> 2).
+- Verification (gcc 14.2 in this sandbox, no clang: G for clang). `-std=c11 -Wall -Wextra -Werror -pedantic`
+  clean; ASan/UBSan build and run clean (0 reports); part (a) all checks pass; part (b) on the synthetic ACIV.CT4
+  (14 FLCs, gamedir3): every file 0 mismatches, e.g. `CALAM00.FLC 220x150 frames=5 delay=1 chunks[4:1 7:4 15:1]
+  compared=5 mismatches=0`, `CALAM04.FLC ... chunks[7:1 11:1 12:6 15:1] compared=8 mismatches=0`,
+  `CALAM12.FLC ... chunks[4:1 7:11 16:1] compared=12 mismatches=0`. Full regression re-run green: ct_list, gif 73,
+  verify_gif, flc vs expected TSV, xmi, xmiseq vs pyseq, wav, mixer vs pymix, dro_play, crc_check, save_roundtrip
+  `equal` on the three synthetic saves, junk_test, formulas_test, helpers2_test. (gcc-only -Wformat-truncation
+  complaints in the untouched title.c / cal1_test.c are pre-existing; clang builds them.)
+- Mutation check (sed on a /tmp copy of fg.c, ASan build, must fail - all caught): SS2 skip-lines sign flipped
+  (`y += lp`) -> FAIL "SS2 row 5"; BRUN count byte read unsigned -> FAIL "BRUN row 0"; palette `index += skip + 1`
+  -> FAIL "COLOR_256 dac[2]"; drop the `off >= 640*480` guard -> UBSan "index 307200 out of bounds"; COLOR_256
+  `byte >> 3` instead of `>> 2` -> FAIL "COLOR_256 dac[2]".
+- G choices, all commented at their site in fg.c: file mode reads the whole file then memory semantics with
+  size = file length; a file shorter than 128 bytes reads missing header bytes as 0; AF12 delay quotient > 0xFFFF
+  truncated to 16 bits; dry skips leave left = 0; type 11 stores byte & 0x3F; palette packet count 0 = 0 packets;
+  H = 0 draws nothing; flic_write drops offsets outside [0, 640*480); output to s_screen even with a virtual
+  buffer open; BLACK uses per-row y (the flicplay stale-y quirk is not checked for showflic - whether any of the
+  27 real files has a BLACK chunk is for Claude's run); delay via fg_waitfor instead of a busy wait.
+- Entry-vs-file notes: nothing in the 0x92451/0x92486 entries contradicted the files tested; the word-assembly
+  0xFFFFFFFF-on-dry rule is what ends a pass and is exercised by part (a). None of the 14 synthetic files has a
+  BLACK (13) chunk, so BLACK is covered by part (a) only until the real run. The 27 real files are not in this
+  sandbox: the real 3b table and the BLACK count are Claude's run (Needs Erik).
 
 ### 2026-11-19  Claude → Mistral: TASK 16: small helpers (helpers2.c): trade bookkeeping, ship counts, sort comparators, two calamity helpers
 Status: done
