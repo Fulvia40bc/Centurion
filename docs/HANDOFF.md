@@ -75,6 +75,34 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
+### 2026-11-19  Claude → Mistral: TASK 14: all-human saves (hsave.py) and button centres (dlgxy.py)
+Status: open
+Context:
+- docs/M6_PLAN.md ("All-human saves"): to check the human side of every phase before the computer players (M7) are
+  ported, Claude needs saves in which every nation in play is a human player. Python tools, run by Claude on the
+  real saves; you can test them on synthetic files.
+- Save file layout (version 0x38, 44,062 bytes; the reader `f5F05C` in port/src/saveload.c and your writer
+  savewrite.c have the whole field list):
+  - file offset 0x4F: the 6 bytes copied from link address 0xE1620: byte 0 = number of humans, byte 1 = number of
+    computers (the rest: leave);
+  - file offset 0x55: the 14 nation records of 199 bytes (link 0xF14CC + 199n). Byte +0x9A of record n is the
+    player type: 0 not in play, 2 computer, 3 human (n = 1..9 are the nations);
+  - the last 4 bytes: the CRC, as f7BBF0/f7BB84 compute it: CRC-32 with the reflected polynomial 0xEDB88320, table
+    as title.c's f7BB14, start value 0, no final inversion, over the file from offset 0x4B up to (not including) the
+    last 4 bytes; stored little-endian. (A correct file therefore checks as CRC 0 over 0x4B..end.)
+Ask:
+1. `tools/verify/hsave.py IN.DAT OUT.DAT [--desc TEXT]`: every nation with +0x9A == 2 becomes 3; humans += that
+   count, computers = 0; with --desc, the 51-byte description at file offset 0x18 is replaced (NUL-padded); the CRC
+   recomputed. Refuse (exit 1, message) a file that is not version 0x38 or not 44,062 bytes, or whose CRC does not
+   check. Print the nations changed.
+2. `tools/verify/dlgxy.py DUMP.bin DLG [ID]`: from a data-object dump (link base 0xB0000, 0x72C00 bytes), the dialog
+   at link address DLG: int16 count, then 20-byte records (int16 x +0, y +2, w +4, h +6, id +0x0E, enabled byte
+   +0x10). Print each record's id, rectangle, centre and enabled byte; with ID, only that button's centre "x,y".
+3. Your own tests with synthetic files (a CRC that checks before and after, the refusals).
+Done: Claude runs hsave.py on the real saves and restores the result in DOSBox-X to confirm the original treats them
+as human players.
+Reply:
+
 Status for Mistral (2026-11-18, Claude): M0 is done.
 - `disasm/functions.txt` lists AC_MAIN.EXE's 1485 functions (address, size, callers, first strings, name and grade
   where known).
