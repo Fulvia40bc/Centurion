@@ -87,7 +87,8 @@ static int stop_at(uint32_t addr, const char *how)
    window as the game does (f3D52C(0, 0): clamp, map picture, borders, markers, cities, tokens, ships, mini-map).
    The frame is then compared with the DOSBox-X capture in the map window and the mini-map only. */
 static const char *s_map_state;
-static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview, s_through_start, s_play, s_stop_at_loop;
+static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview, s_through_start, s_play, s_stop_at_loop,
+           s_stop_at_wait;
 
 /* not_ported's hook: with --dump-ds the data object (and with --headless-frame the frame) where the port stops, the
    comparison point with the original at the same call */
@@ -199,7 +200,8 @@ static void script_hook(void)
         }
         return;
     }
-    if (s_in_press && ++s_idle >= s_settle) {   /* the pressed button's screen waits for input: dump and frame there */
+    if ((s_in_press || s_stop_at_wait) && ++s_idle >= s_settle) {   /* the pressed button's screen (or, with
+                                         --stop-at-wait, the game) waits for input: dump and frame there */
         if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
             fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
         fprintf(stderr, "advciv: the screen of button 0x%X waits for input; stopped there\n", (unsigned)s_press);
@@ -267,6 +269,9 @@ int main(int argc, char **argv)
         else if (strcmp(argv[i], "--play") == 0)
             s_play = 1;                               /* go on into the game loop (M6); a phase not ported yet stops
                                                          the run there (not_ported, with --dump-ds: dump and frame) */
+        else if (strcmp(argv[i], "--stop-at-wait") == 0)
+            s_stop_at_wait = 1;                       /* after the last scripted click: stop where the game next
+                                                         waits for input (--settle polls), with the dump and frame */
         else if (strcmp(argv[i], "--stop-at-loop") == 0)
             s_stop_at_loop = 1;                       /* restore: 0x14AA4, then stop at main 0x118C9 */
         else if (strcmp(argv[i], "--through-start") == 0)

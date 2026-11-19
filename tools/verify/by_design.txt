@@ -28,3 +28,5 @@ DB300 0x631D library data: Fastgraph/Image (the 16 KB GIF code table at 0xDCA51)
 F6058 1 the DOS video mode at start-up (0x7E044; the port skips it)
 11AF00 0x200 AIL 3.03 and Watcom runtime BSS (AIL's last-error text 0x11AF7C, which the game only prints; heap bookkeeping)
 11B100 0x320 AIL 3.03, Fastgraph and Watcom runtime BSS (the XMIDI driver state with its "TIMB" tag, the program path argv[0]); referenced only by library code
+EED74 0x10 heap handles: the RESTART snapshots [0xEED74], [0xEED78], [0xEED7C], [0xEED80] (port load_heap handles vs malloc addresses)
+F5240 0x78 heap handles: the World State Stack's 30 blocks [0xF5240+4i], [0xF5268+4i], [0xF5290+4i] (port handles vs malloc addresses)

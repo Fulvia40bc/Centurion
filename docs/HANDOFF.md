@@ -1216,3 +1216,16 @@ Erik's game folder — filed under "Needs Erik".
 Check (2026-11-17, Claude on Erik's PC): VERIFIED. Strict clang build clean (aarch64 and x86_64, -pedantic too);
 `cat_test C:\work\advciv_play` exits 0 and its 139 lines (32+32+32+14+29) are identical to `tools/ct_list.py`'s
 entries for the real five catalogs (apart from CRLF line ends). Code read: bounds checks right. Good work.
+Check (2026-11-19, Claude on Erik's PC): VERIFIED.
+- `hsave.py` on the R4 autosave: nations 2, 3, 4, 5, 7, 8, 9 turned from computer to human; humans 1 -> 8, computers
+  7 -> 0; description "R4 all human".
+  - The port's reader and writer round-trip the result: equal, so the CRC is right.
+  - A file with one flipped byte is refused ("CRC does not check", exit 1).
+- **The original accepts it:** restored in DOSBox-X as slot 1, it shows Iberia the human ship-construction screen
+  (candidate sites, BELGICA), where a computer would have planned by itself.
+- The port, restoring the same slot with `--play --stop-at-wait`, reaches the same wait. The whole frame is **0 px**
+  against the original's, and the data object has **0 unexplained bytes** (two heap-handle ranges added to
+  by_design.txt).
+- `dlgxy.py` on a real dump gives the panel's button centres as found by hand before (SYSTEM 28,347, CENSUS
+  28,395, ...).
+

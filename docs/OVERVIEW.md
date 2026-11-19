@@ -625,6 +625,10 @@ likewise). The computers' parts (M7) stop with `not_ported`.
     (44,062 bytes, the CRC included);
   - the data object at the call of the movement phase: **0 unexplained bytes**.
   - The R4 game (seven computers) stops at the computers' ship planning 0x62840 (M7).
+- **All-human saves** (Mistral's `tools/verify/hsave.py`): the R4 autosave with every computer turned human is
+  accepted by the original (Iberia gets the human ship-construction screen). The port restores it (slot 1 in the run
+  copy, savgame1.dat) and with `--play --stop-at-wait` stops at the same wait: whole frame **0 px**, data object **0
+  unexplained bytes**. This is how the human side of every later phase gets checked before the AI is ported.
 
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
