@@ -111,18 +111,18 @@ in protected mode after int 21h AH=2Ch. Data dumps go through tools/verify/dscom
   - Data: BP at the end of case 0x28 in 0x3FB94: the area records 0xE31B8, the nation +0x40..+0x61 bytes.
   - Mistral's versions are checked first against unit vectors Claude takes from those dumps.
   - Full: M6 movement phase, next autosave byte-exact.
-- **INFO.** Restore R4 and press, in both:
+- **INFO.** Screens DONE 2026-11-18 (V, OVERVIEW §5); clicks inside them and Trading Wrapup follow. Restore R4 and press, in both:
   - 4: census, full frame.
   - 6: Civilization Tools, full frame; then click an advance for the 0x1A124 pop-up, box rectangle.
   - 7: Goods Held, full frame. With more than one human, the "Select Nation To Show" pop-up comes first, box
     rectangle.
   - 0x103: Trading Wrapup, full frame. Needs a save with trades: the autosave after TRADE.
   - Data: Goods Held calls 0x194E4, which writes 0xF68B0..0xF68C0. Compare at the return of 0x76A9C.
-- **MENU1.** Restore R4, press 5: options box. Then:
+- **MENU1.** Screens DONE 2026-11-18 (V, OVERVIEW §5); the toggle click and aciv.cfg follow. Restore R4, press 5: options box. Then:
   - HELP (0x53): help box of the save's phase, rectangle compare. Plus a table test of 0x42CEC over phases
     0..21 and calamities 0..12, against the strings.
   - TOGGLES (0x52): toggles box. Click a row, CONTINUE: aciv.cfg bytes equal.
-- **MENU2.**
+- **MENU2.** SCORING and AUDIO/VISUALS screens DONE 2026-11-18 (V, OVERVIEW §5); button 8 needs the AST phase.
   - SCORING (0x56): full frame. Data: 0xEE9F0 written by opening it.
   - AUDIO/VISUALS (0xE2): box frame plus aciv.cfg. Sound by ear (Erik).
   - Button 8: frame of the nation's full-map view.

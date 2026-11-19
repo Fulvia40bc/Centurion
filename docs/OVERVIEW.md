@@ -497,6 +497,39 @@ takes, by player count 3..8: fixed orders, pairs and triples drawn with `game_ra
     identical.
   - The original autosaves once it runs on past the stop; `run_start.sh` keeps and restores the run copy's saves.
 
+**M4, modules INFO, MENU1, MENU2: the information screens and the menus (2026-11-18 night).**
+Translated in one workflow (three translators, three reviewers):
+- `info.c`: census 0x13E50, Civilization Tools 0x19C10 with the advance pop-up 0x1A124, Goods Held 0x76A9C with
+  "Select Nation To Show" 0x76798 and the hands, the Mining list and hand value, Trading Wrapup 0x763FC/0x764A8.
+- `menu1.c`: the options menu 0x42754, HELP 0x4290C with its file/title table 0x42CEC, TOGGLES 0x436FC.
+- `menu2.c`: AUDIO/VISUALS 0x43E88, the Scoring History graph 0x44D5C, the full-map view 0x44A34, the WAV loader
+  0x7B504.
+- The original writes the screen to a GIF file "junk" (or "junk2") only to read it back; the port keeps those
+  pixels in memory (three copies of the helper for now, to merge later). No junk files are left in the game folder.
+- Sound: the Miles calls in 0x7B504 and 0x43E88 are port no-ops for now; every data write of the original is kept.
+- title.c now writes "volcano.wav" into 0xF549C at start-up, as main 0x10752 does. It is the sound the volume arrows
+  play, not the intro's, so the range left by_design.txt.
+- **BUG(1995) fixes (`--original` keeps each):**
+  - **City Support help.** The City Support phases show Ship Construction's help, because a copied case kept its
+    strings. CITYSUP.HLP (416 bytes, the city-support rules) is in ACIV.CT3, but the game never names it. The port
+    shows it, under the title "City Support" (port text, for Erik's ruling: TEXT_SWEEP.md).
+  - **Civilization Tools clicks.** A click in the 4-px strip under a row, or one dragged off a row before release,
+    gives an index past the 24-entry advance tables, so the description pop-up reads a wild pointer. The port keeps
+    the index inside the clicked row's grid.
+  - **Scoring History.** It stores this round's score without the column clamp the AST phase uses. From round 45 it
+    writes into the next nation's row, and for Egypt over a heap pointer.
+  - **The "R O U N D S" label** is drawn in the grid's grey with 37..43 rounds and an odd count.
+  - **Trading Wrapup** saves rows 0..478 of the screen, leaving the background's last row.
+- Kept, for Erik (D): Trading Wrapup cannot scroll. Its dialog has only CONTINUE, so only the first 6 trades are
+  ever shown.
+- **Check (V):** each screen pressed in DOSBox-X from the restored R4 screen (`run_map_states.sh`) and replayed in
+  the port (`--map-state BEFORE --press ID`; the port now stops when the pressed button's screen waits for input):
+  - CENSUS, CIVILIZATION TOOLS, GOODS HELD, SCORING HISTORY: **0 px over the whole frame**;
+  - the options menu, AUDIO/VISUALS, TOGGLES and HELP ("Ship Construction", 825 bytes of help text): **0 px** in
+    their boxes. Their rounded corners show the screen underneath, which the port's test hook does not redraw.
+  - Not yet checked: clicks inside these screens (a toggle and its aciv.cfg write, the advance pop-up, the volume
+    arrows), Trading Wrapup (needs a save after TRADE) and the full-map view (button 8, AST phase only).
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 
@@ -557,6 +590,20 @@ Pace: one module at a time, each with its own commit; ultracode workflows for th
       name is missing from ACIV.CT3, it looks like the developers' way to try edited maps without rebuilding the
       catalogue.
 15. Clicking outside your own starting territories rings the PC speaker bell (`printf("\a")`).
+16. **Turning the volume up erupts a volcano.** Each click on the sound-effects volume arrows (AUDIO/VISUALS) plays
+    `volcano.wav` as the test sound.
+17. **The help texts tell stories.** Trading is "a crowded bazaar before the first millennium" where you shout "I
+    have Salt and need Grain. Who has Grain for Salt?"; making offers is "baiting several hooks at once. Remember,
+    you are only allowed to land the first fish to bite - not necessarily the biggest"; accepting opens "The moment
+    of truth has arrived." The PBEM-only help VIEWMOVE sells blind simultaneous moves as "calculated gambles".
+18. **A help page the game never shows**: CITYSUP.HLP (City Support), because of the copied help case (bug above).
+19. **A dead "show all hands" switch.** int16 [0xF40C2] is never set (BSS, 0), but Goods Held, three trade screens
+    and the save-version check still test it: set, Goods Held would show every nation's hand face up with its
+    points. G: a developers' debug flag, like the opening-map override of egg 14.
+20. Two identical copies of the PBEM line "This data is invalid and will remain so until the next PBEM
+    consolidation" are printed on top of each other in Civilization Tools, then painted over: never visible.
+21. A colour-blind accommodation (G): the toggle "Alternate Tool Acquisition Colors" makes buyable advances blue
+    instead of green.
 
 Text slips found in passing (to fix by default, `--original` keeps them): "converts %s by **Montheism**!" (twice),
 "popped once **to** often". A full text sweep is part of M4/M6.

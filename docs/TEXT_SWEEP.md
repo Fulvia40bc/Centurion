@@ -54,3 +54,35 @@ One line per slip: address — the text — proposed fix — why.
 - 0x000B4C14 etc. — pkzip command lines with ">NUL:" (trailing colon) and "del *.pl? >NUL" — PBEM plumbing (OVERVIEW §7 question 5)
 - 0x000B0949 — "requires a 640x480 256 color graphics mode. " — trailing space before \n (cosmetic only)
 - Library region from ~0x000B9AAB (AIL debug traces, Watcom runtime, Fastgraph banners) — not game texts, skipped; includes its own typos like "oCould not allocate..." which are Miles/Watcom's, not ours
+
+## Added 2026-11-18 (Claude, modules INFO / MENU1 / MENU2): help files and advance descriptions
+
+Not in the EXE's own strings, so not in the sweep above. None is changed yet: each waits for Erik's ruling.
+
+**Help files** (`*.HLP` in ACIV.CT3, shown by HELP):
+- BUYCIV: "Alternate Tool Acquistion Color toggle". The word is misspelled, and the toggle's real name is
+  "Alternate Tool Acquisition Colors".
+- CIVILWAR: "replaced by a F (first faction) piece" should be "an F".
+- SUPERSTN: "Deism limits the affect to one city" should be "effect".
+- "less" for "fewer": SHOWAST "A nation with less cities", CITYCNST "less than nine cities", PIRACY "having less than
+  two coastal cities".
+- "amount of Tokens" for "number of Tokens": EPIDEMIC and FAMINE "the amount of Tokens which replace it", SLAVERVT
+  "the maximum amount of Tokens".
+- TRADOFFR: "RESPOND TO OFFER button , only one" (space before the comma); "respond to any and all of the offers by
+  clicking on its" ("its" for "their").
+- TRADWANT: "Who has Grain for Salt?"." (a question mark followed by a full stop).
+- MOVEMENT says "MOVE TOKENS button", then "MOVE TOKEN button" in the same text; MOVESHIP also says "MOVE TOKEN".
+- VIEWMOVE (PBEM only): "Not only does this serve as a refresher course on your just completed move since the time
+  which has elapsed between moves" is garbled.
+- Capitals not used consistently: "population limit" (SUPERSTN, TREACHRY) vs "Population Limit"; "Scroll arrow"
+  (SHIPCNST); "Tool" (EXCESS) vs "tool".
+- START: "tan dots" where the other texts say "tan circle"; "Any excess are removed".
+- ACQRGOOD: the chained sum "(3 x 3 = 9 x 2 = 18)".
+
+**Advance descriptions** (Civilization Tools pop-up; in the EXE, but missed above):
+- "Allow" for "Allows": Roadbuilding "Allow movement through two areas", Military "Allow the holder to build ships",
+  Monotheism "Allow the conversion". The other descriptions say "Allows purchase".
+
+**A missing help title** (needs a ruling with the fix): the City Support phases show Ship Construction's help (1995
+bug, fixed by default). The help file CITYSUP.HLP exists, but the game has no title string for it. The port uses
+"City Support" (the phase table spells it "CITY SUPPORT").

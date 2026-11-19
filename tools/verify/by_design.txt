@@ -7,7 +7,6 @@ F422C 4 _dos_gettime result (the clock)
 F48A4 0x98C sprite records: the +0 pixel pointers are port handles
 F52B8 0xC virtual-buffer heap pointers
 F52D8 4 FILE * of aciv.cfg
-F549C 0x20 the intro sound's file name (volcano.wav; intro not ported yet)
 F5500 0x1F4 message buffer (holds a path)
 F56F4 0x64 current directory string
 F5758 0x12C file-name prefixes (paths)

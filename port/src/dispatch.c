@@ -32,9 +32,9 @@
    ends the run with that address instead of returning -100. The comment in each such case says what the body does
    and which module of MAP_PLAN.md will bring it:
      N2, needs S1's 0x3CCBC : 3 (f3CCBC, f136B0(2), f3CC14; everything else of it is ported or in N2)
-     INFO  : 4, 6, 7, 0x103
-     MENU1 : 5, 0x52, 0x53
-     MENU2 : 8, 0x56, 0xE2
+     INFO  : 4, 6, 7, 0x103 DONE (2026-11-18, info.c)
+     MENU1 : 5, 0x52, 0x53 DONE (2026-11-18, menu1.c)
+     MENU2 : 8, 0x56, 0xE2 DONE (2026-11-18, menu2.c)
      PANEL : 9..0x10, 0x25 and DETAIL while zoomed DONE (2026-11-18, panel.c)
      MAP1  : 0x1B..0x24 DONE (2026-11-18)
      MOVE  : 0x26, 0x27, 0x28, 0x2B..0x32, 0xC4..0xC8
@@ -58,6 +58,9 @@
 #include "mapdata.h"
 #include "panel.h"
 #include "save.h"
+#include "info.h"
+#include "menu1.h"
+#include "menu2.h"
 
 /* 0x3FB94: the button dispatcher. id = the button's int16 +0x0E, sign-extended by the callers. Returns the code for
    the caller's loop, -100 = nothing to do. */
@@ -79,44 +82,32 @@ int f3FB94(int id)
         f3CC14();                               /* 0x3FBDF */
         return code;                            /* 0x3FBE4 mov eax, [ebp-0x3C] (still -100) */
     case 0x04:  /* -> 0x3FBF1 */
-        /* f3CCBC, 0x13E50 (census screen), f3CC14; -100 (INFO) */
-        not_ported(0x3FBF1u);
+        return dcase_4(code);                   /* census (info.c) */
     case 0x05:  /* -> 0x3FC0D */
-        /* 0x42754 (options menu; ebx = -100 kept across the call, 0x3FC0D/0x3FC17); -100 (MENU1) */
-        not_ported(0x3FC0Du);
+        return dcase_5(code);                   /* options menu (menu1.c) */
     case 0x06:  /* -> 0x3FC27 */
-        /* 0x19C10 (Civilization Tools); -100 (INFO) */
-        not_ported(0x3FC27u);
+        return dcase_6(code);                   /* Civilization Tools (info.c) */
     case 0x07:  /* -> 0x3FC39 */
-        /* 0x76A9C (Goods Held); -100 (INFO) */
-        not_ported(0x3FC39u);
+        return dcase_7(code);                   /* Goods Held (info.c) */
     case 0x08:  /* -> 0x3FC4B */
-        /* 0x44A34 (G: the nation's full-map view); -100 (MENU2) */
-        not_ported(0x3FC4Bu);
+        return dcase_8(code);                   /* the nation's full-map view (menu2.c) */
     case 0x103: /* -> 0x3FC5D */
-        /* Trading Wrapup: f78884, fg_makegif(0, 0x27F, 0, 0x1DE, "junk"), f788AC; save byte [0xEE168]; 0x763FC;
-           fg_vbopen([0xF52CC]), fg_move(0, 0), fg_showgif("junk", 3) (vbclose not called here); f3CC68, f3CCBC;
-           [0xF52D0] = 0; restore [0xEE168]; -100 (INFO) */
-        not_ported(0x3FC5Du);
+        return dcase_103(code);                 /* Trading Wrapup (info.c) */
     case 0x107: /* -> 0x3FCE0 */
         /* SHOW PBEM: f3CC68, 0x545AC, byte [0xF52D0] = 0; -1 (PBEM is dropped by Erik's ruling: stays not_ported)
            (PBEM) */
         not_ported(0x3FCE0u);
     case 0x56:  /* -> 0x3FD07 */
-        /* SCORING: f3CC68, 0x44D5C (scoring history, writes 0xEE9F0); -1 (MENU2) */
-        not_ported(0x3FD07u);
+        return dcase_56(code);                  /* SCORING (menu2.c) */
     case 0x52:  /* -> 0x3FD26 */
-        /* TOGGLES: f3CC68, f3CCBC, 0x436FC, then falls into 0x3FD35: -1 (MENU1) */
-        not_ported(0x3FD26u);
+        return dcase_52(code);                  /* TOGGLES (menu1.c); falls into 0x3FD35 there: -1 */
     case 0x2A:  /* -> 0x3FD35 */
         code = -1;                      /* 0x3FD35 mov [ebp-0x3C], 0xFFFFFFFF */
         break;
     case 0xE2:  /* -> 0x3FD49 */
-        /* AUDIO/VISUALS: f3CC68, f3CCBC, 0x43E88; -1 (MENU2) */
-        not_ported(0x3FD49u);
+        return dcase_E2(code);                  /* AUDIO/VISUALS (menu2.c) */
     case 0x53:  /* -> 0x3FD6D */
-        /* HELP: f3CC68, f3CCBC, 0x4290C; -1 (MENU1) */
-        not_ported(0x3FD6Du);
+        return dcase_53(code);                  /* HELP (menu1.c) */
     case 0x57:  /* -> 0x3FD91 */
         setD8(0xF5500u, 0);                 /* 0x3FD91 xor dh, dh; 0x3FD93 mov [0xF5500], dh: no quit message */
         f44CAC();                           /* 0x3FD99 quit to DOS; does not return */

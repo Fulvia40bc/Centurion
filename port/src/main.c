@@ -45,7 +45,7 @@ static void save_frame_and_exit(void);
    window as the game does (f3D52C(0, 0): clamp, map picture, borders, markers, cities, tokens, ships, mini-map).
    The frame is then compared with the DOSBox-X capture in the map window and the mini-map only. */
 static const char *s_map_state;
-static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview, s_through_start;
+static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview, s_through_start, s_in_press;
 static const struct { uint32_t addr, len; } MAP_STATE[] = {
     { 0xF4884u, 8 },        /* scroll column, row */
     { 0xF6110u, 4 },        /* int16 min, max column */
@@ -95,7 +95,10 @@ static int map_state_draw(const char *path)
             setD32(0xE1628u, (uint32_t)s_mouse_x);
             setD32(0xE162Cu, (uint32_t)s_mouse_y);
         }
+        s_in_press = 1;      /* a screen this opens may wait for clicks: the input hook stops there (script_hook) */
+        s_idle = 0;
         fprintf(stderr, "advciv: f3FB94(0x%X) = %d\n", (unsigned)s_press, f3FB94(s_press));
+        s_in_press = 0;
     } else
         f3D52C(0, 0);
     return 0;
@@ -119,6 +122,14 @@ static void script_hook(void)
             s_click++;
         }
         return;
+    }
+    if (s_in_press && ++s_idle >= s_settle) {   /* the pressed button's screen waits for input: dump and frame there */
+        if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
+            fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
+        fprintf(stderr, "advciv: the screen of button 0x%X waits for input; stopped there\n", (unsigned)s_press);
+        if (s_frame_path != NULL)
+            save_frame_and_exit();
+        exit(0);
     }
     if (s_frame_path != NULL && s_dump_path == NULL && ++s_idle >= s_settle)   /* with --dump-ds the program runs
                                                                                      on and saves the frame at the dump */

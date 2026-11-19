@@ -219,7 +219,7 @@ static void boot_vbuffer(uint8_t **heap, uint32_t size, int w, int h, uint32_t h
 
 /* The start-up (main 0x10010) up to the menu, as far as the menu needs it. G: the choice of steps; each step D at its
    address. Skipped: the DOS banner and the XMS check (0x1003F..0x100F3), the command line (0x100F3..0x10572; the port
-   starts as with /NT, see below), the CD check (0x10572..0x1061A), "volcano.wav" (0x10752), 0x4FADC ([0xBB3EE]), the
+   starts as with /NT, see below), the CD check (0x10572..0x1061A), 0x4FADC ([0xBB3EE]), the
    banner delay 0x78A20 (0x1078D), the debug log 0x78B0C/0x78B24 (no-ops), reading aciv.cfg (0x107A4..0x10826), clearing
    0xF5240/0xF5268/0xF5290 (0x10826), 0x7DD37, the DOS video mode (0x7E044 -> [0xF6058]) and the chipset (0x7E121),
    fg_testmode (0x109BC), the 1.6 MB intro trans_buffer (0x10AAB..0x10B0A, freed again at 0x10F98), all of the sound (0x10B4D..0x10E7F; the
@@ -354,6 +354,8 @@ int title_boot(const char *gamedir)
             snprintf((char *)DP(0xF5820u), 0x64, DSTR(0xB0823u), DSTR(0xF40CCu));
         }
     }
+    /* 0x10752..0x1075C: sprintf(0xF549C, "volcano.wav"): the sound the AUDIO/VISUALS volume arrows play (menu2.c) */
+    snprintf((char *)DP(0xF549Cu), 0x20, "%s", DSTR(0xB0828u));
 
     /* 0x107A4..0x10826: the settings file aciv.cfg (6 bytes) into 0xF097C, if it is there (cwd = the game folder) */
     f = fopen(DSTR(0xB0849u), "rb");                  /* 0x107A9 fopen("aciv.cfg") -> [0xF52D8] (FILE *: port-side) */
