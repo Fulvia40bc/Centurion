@@ -104,6 +104,12 @@
 #include "mapdata.h"
 #include "panel.h"
 #include "pop.h"
+#ifdef POP_TEST
+#define POP_F28CFC(n, kind, s) not_ported(0x28CFCu)   /* pop_test runs without CAL1 */
+#else
+#include "cal1.h"
+#define POP_F28CFC(n, kind, s) f28CFC(n, kind, s)
+#endif
 
 #define POP_PANEL     0xF596Cu   /* the map screen's panel dialog */
 #define POP_PLAYERS   0xF06AEu   /* int16 count; int16 0xF06B0[] */
@@ -331,7 +337,7 @@ void f67758(int n_)
     f7853C(POP_DLG);                                                /* 0x679F6 the buttons onto the panel dialog */
     f3B05C(POP_PANEL);                                              /* 0x67A00 */
     f7844C(POP_PANEL, S32(0xF5940u));                               /* 0x67A10 */
-    not_ported(0x28CFCu);                                           /* 0x67A1F f28CFC(n, 3, 0): the list (CAL1) */
+    POP_F28CFC(n, 3, 0);                                            /* 0x67A1F f28CFC(n, 3, 0): the list (cal1.c) */
     redraw = 1;                                                     /* 0x67A24 */
     sel = 0;                                                        /* 0x67A2D */
     remove = 0;                                                     /* 0x67A30 */
@@ -425,7 +431,7 @@ void f67758(int n_)
                     for (i = 0; i < 0xA0; i++)                      /* 0x67EAD */
                         from_block(POP_SNAP_TS, 3u * (uint32_t)i, GAME_TSTATE + 3u * (uint32_t)i, 3);   /* 0x67EDC */
                     allowances(nm1);                                /* 0x67EE1..0x67F61 */
-                    not_ported(0x28CFCu);                           /* 0x67F6D f28CFC(n, 3, 0) (CAL1) */
+                    POP_F28CFC(n, 3, 0);                            /* 0x67F6D f28CFC(n, 3, 0) (cal1.c) */
                     sel = 0;                                        /* 0x67F74 */
                     redraw = 1;                                     /* 0x67F77 */
                 }
@@ -447,7 +453,7 @@ void f67758(int n_)
             setD32(POP_LIST_N, (uint32_t)(S32(POP_LIST_N) - 1));    /* 0x68065 */
             f79A9C(&sel);                                           /* 0x6806B */
             remove = 0;                                             /* 0x68070 (ecx = 0) */
-            not_ported(0x28CFCu);                                   /* 0x6807D f28CFC(n, 3, 0) (CAL1) */
+            POP_F28CFC(n, 3, 0);                                    /* 0x6807D f28CFC(n, 3, 0) (cal1.c) */
         }
     }
 

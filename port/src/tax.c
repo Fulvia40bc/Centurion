@@ -143,17 +143,7 @@ static void f66C2C(int n, int k)                /* M7 (AI): computer n removes k
     not_ported(0x66C2Cu);
 }
 
-static void f2468C(int c, int v, int k, int mode)   /* CAL1: ChooseCitiesToLoseToPirates (human chooser c, victim v) */
-{
-    (void)c; (void)v; (void)k; (void)mode;
-    not_ported(0x2468Cu);
-}
-
-static void f28CFC(int n, int kind, int x)      /* CAL1: the choice list 0xF7CA0 / [0xF7C9C] for n by kind */
-{
-    (void)n; (void)kind; (void)x;
-    not_ported(0x28CFCu);
-}
+#include "cal1.h"                               /* f2468C, f28CFC: the city choosers (CAL1, cal1.c) */
 #endif
 
 /* ---- 0x66050 TAXATION -------------------------------------------------------------------------------------------- */

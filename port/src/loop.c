@@ -156,6 +156,10 @@
 #include "movephase.h"
 #include "conflict.h"
 #include "city.h"
+#include "cards.h"
+#include "cal1.h"
+#include "mono.h"
+#include "adv.h"
 #include "menu2.h"
 #include "rules.h"
 #include "saveload.h"
@@ -696,7 +700,7 @@ _Noreturn void f54824(void)
             break;
         case 11:                                      /* 0x54C64 ACQUIRE GOODS (0x6BD98 plays the music itself) */
             setD16(0xF5478u, 0);                      /* 0x54C66 */
-            UNPORTED(0x6BD98u);                       /* 0x54C6D DrawTradingCards [CARDS] */
+            PORTED(f6BD98(), 0x6BD98u);                       /* 0x54C6D DrawTradingCards [CARDS] */
             setD8(PHASE, 12);                         /* 0x54C72 */
             f5E7B4();
             f5E8EC(11);                               /* 0x54C83 */
@@ -812,7 +816,7 @@ _Noreturn void f54824(void)
             setD16(0xF4094u, 0);                      /* 0x54FEA */
             setD16(0xF7AFCu, 0);                      /* 0x54FF3 */
             setD16(0xF7AFEu, 0);                      /* 0x54FFA */
-            UNPORTED(0x1E0A0u);                       /* 0x55000 [CAL1] */
+            PORTED(f1E0A0(), 0x1E0A0u);                       /* 0x55000 [CAL1] */
             setD16(0xF7AFCu, 0);                      /* 0x55005 */
             setD16(0xF7AFEu, 0);                      /* 0x5500C */
             setD8(PHASE, 16);                         /* 0x55013 */
@@ -825,7 +829,7 @@ _Noreturn void f54824(void)
                 }
             break;
         case 16:                                      /* 0x55096 MONOTHEISM (0x21914 plays the music itself) */
-            UNPORTED(0x21914u);                       /* 0x55098 [MONO] */
+            PORTED(f21914(), 0x21914u);                       /* 0x55098 [MONO] */
             setD8(PHASE, 17);                         /* 0x5509D */
             f5E7B4();
             f5E8EC(16);                               /* 0x550AD */
@@ -843,7 +847,7 @@ _Noreturn void f54824(void)
         case 18:                                      /* 0x550FE ACQUIRE CIVILIZATION ADVANCES */
             f553C0();
             setD16(0xF4092u, 0);                      /* 0x5510C */
-            UNPORTED(0x162D0u);                       /* 0x55113 Acquire Civ [ADV] */
+            PORTED(f162D0(), 0x162D0u);                       /* 0x55113 Acquire Civ [ADV] */
             setD32(0xF09E4u, 0);                      /* 0x55118 */
             for (n = 1; n <= 9; n++)                  /* 0x5511E; 0x55129 cmp 9; jg 0x5514A */
                 if (D8(NATION(n) + 0x28u) != 0) {     /* 0x55136 byte [199n + 0xF14F4] (in play or not) */
@@ -851,7 +855,7 @@ _Noreturn void f54824(void)
                     break;
                 }
             if ((D8(FLAGS) & PBEM_BIT) == 0)          /* 0x5514A */
-                UNPORTED(0x1A3A0u);                   /* 0x55153 Tool Acquisition Wrapup [ADV] */
+                PORTED(f1A3A0(), 0x1A3A0u);                   /* 0x55153 Tool Acquisition Wrapup [ADV] */
             setD8(PHASE, 19);                         /* 0x55158 */
             f5E7B4();
             f5E8EC(18);                               /* 0x55169 */
@@ -859,7 +863,7 @@ _Noreturn void f54824(void)
         case 19:                                      /* 0x55178 DISCARD EXCESS */
             f553C0();
             setD16(0xF4096u, 0);                      /* 0x5517F */
-            UNPORTED(0x6E770u);                       /* 0x55186 [CARDS] */
+            PORTED(f6E770(), 0x6E770u);                       /* 0x55186 [CARDS] */
             setD8(PHASE, 20);                         /* 0x5518B */
             f5E7B4();
             f5E8EC(19);                               /* 0x5519C */
@@ -872,7 +876,7 @@ _Noreturn void f54824(void)
             copy_file("savgamea.dat", "savgameb.dat");   /* 0x551E5 system("copy savgamea.dat savgameb.dat >NUL:") */
             f55258();                                 /* 0x551EA */
             if ((D8(FLAGS) & PBEM_BIT) != 0)          /* 0x551EF */
-                UNPORTED(0x1A3A0u);                   /* 0x551F8 [ADV] */
+                PORTED(f1A3A0(), 0x1A3A0u);                   /* 0x551F8 [ADV] */
             done = f136B0(3);                         /* 0x55202 */
             if (done == 0) {                          /* 0x5520A; jne 0x55222 */
                 setD8(PHASE, 0);                      /* 0x55217 */

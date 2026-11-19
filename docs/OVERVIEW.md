@@ -640,6 +640,27 @@ likewise). The computers' parts (M7) stop with `not_ported`.
   copy, savgame1.dat) and with `--play --stop-at-wait` stops at the same wait: whole frame **0 px**, data object **0
   unexplained bytes**. This is how the human side of every later phase gets checked before the AI is ported.
 
+**M6 milestone (2026-11-19): a full round, identical to the original.** CARDS (`cards.c`: ACQUIRE GOODS, BUY,
+DISCARD EXCESS, the reshuffle), CAL1 (`cal1.c`: the calamity phase driver, Zeus, the city-loss calamities and city
+choosers), MONO (`mono.c`) and ADV (`adv.c`: ACQUIRE CIVILIZATION, Tool Acquisition Wrapup), each reviewed, with unit
+tests against independent models and mutation checks.
+- **Check (V):** a new 3-human game, set up, placed and played by the port from the title menu (`--play`, each human
+  clicking FINISHED in movement, FINISHED on the AST screen), against the same game in DOSBox-X (seed 1C090C2D):
+  - "AutoSaved at end of Round 1" and "AutoSaved after SHIP CONSTRUCTION - R2": **byte-identical** files;
+  - the data object at round 2's first movement wait: **0 unexplained bytes**;
+  - the whole screen there: **0 px** (the original's pointer had been moved to the right edge by the host mouse; the
+    port drawn with its pointer at the same place).
+- **BUG(1995) fixes (`--original` keeps each), among them:**
+  - ADV: the treasury a human put toward advances carries over to the next human (hot seat!); the recomputation
+    with the raw credit turns credit above the cost into extra excess; the last store clears the low-memory flag;
+  - CARDS: BUY's stack choice between columns takes a card from 2,500 bytes before the stacks and pays 58; the first
+    unaffordable column still sells; CANCEL still counts as a buy; buying from an empty stack 8 costs 18 for nothing;
+  - CAL1: Zeus's discard leaves the givers of the following cards shifted (wrong Treachery beneficiary, Piracy
+    chooser, Iconoclasm exclusion; for Erik's ruling); uninitialised list indexes; the text "replaced by a African
+    city" (now "an African");
+  - MONO: "Montheism" (fixed in the text helper the computers' conversion will use).
+- Left: TRADE (round 1 has no trade session), the end of the game (END) and the computers (M7).
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 
