@@ -271,7 +271,7 @@ int f65C4C(const void *a, const void *b)
 
 /* 0x2EC38: the Epidemic helper when n has no spare tokens. c = S8(rec + 0x51) (n's cities), re-read at every loop
    test; L = the losses. v[i] = 5 - f78D08(t1, n) with t1 = D8(rec + 0x52 + i) passed as it is (no -1: a 1995 slip
-   reading the next territory's limit, kept). v is bubble-sorted ascending; then a = b = L is paid down city by
+   reading the next territory's limit; fixed by default, see BUG(1995) below). v is bubble-sorted ascending; then a = b = L is paid down city by
    city: every difference wraps, "x - y >= 0" tests the sign of the wrapped difference. */
 int f2EC38(int n, int L)
 {
@@ -286,7 +286,10 @@ int f2EC38(int n, int L)
         return 0;
     for (i = 0; (int32_t)S8(rec + 0x51u) > i; i++) {                    /* 0x2EC75, 0x2EC78 */
         uint32_t t1 = D8(rec + 0x52u + (uint32_t)i);                    /* 0x2EC8C and 0xFF */
-        v[i] = 5 - f78D08((int)t1, n);                                  /* 0x2EC94, 0x2EC99 */
+        /* BUG(1995): the city list holds territory + 1 (0x78ECD), and every other reader subtracts 1 (0x233B8,
+           0x242F8); 0x2EC94 passes the entry as it is, so the limit is that of the next territory. Fixed by default
+           (Claude, 19 Nov, Erik's standing rule); --original keeps it. */
+        v[i] = 5 - f78D08(g_original ? (int)t1 : (int)t1 - 1, n);      /* 0x2EC94, 0x2EC99 */
     }
     for (i = 1; (int32_t)S8(rec + 0x51u) > i; i++)                      /* 0x2ECAB..0x2ED10 bubble sort ascending */
         for (j = (int32_t)S8(rec + 0x51u) - 1; j >= i; j--)             /* 0x2ECBD */

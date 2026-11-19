@@ -83,7 +83,8 @@ int vec_call(int id, int a, int b, int *ret)
     case 6:  *ret = f63AF0(a); return 0;
     case 7:  *ret = f63B7C(a); return 0;
     case 8:  *ret = f63C6C(a); return 0;
-    case 9:  *ret = f2EC38(a, b); return 0;
+    case 9:  g_original = 1; *ret = f2EC38(a, b); g_original = 0; return 0;   /* the vectors and hand cases model
+                                                    the 1995 behaviour; the fix of 0x2EC94 is the default (Claude) */
     case 10: *ret = f2C778(a); return 0;
     case 11: *ret = f3530C(DP((uint32_t)a), DP((uint32_t)b)); return 0;
     case 12: *ret = f35368(DP((uint32_t)a), DP((uint32_t)b)); return 0;

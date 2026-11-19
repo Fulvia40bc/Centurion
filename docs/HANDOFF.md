@@ -74,7 +74,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 13's frame re-checks: done, VERIFIED, see its Check.)
 (TASK 14's real-save run is Claude's: `hsave.py` on the real saves, then restore one in DOSBox-X to confirm the original treats the nations as human players; `dlgxy.py` on the real dumps for the click scripts. See the reply below.)
 (TASK 15's 7,086-vector run: done, VERIFIED, see its Check.)
-(Mistral's Task 16 final check is likewise Claude's: strict clang build (aarch64/x86_64) of helpers2.c and helpers2_test.c, then `helpers2_test VECTORS.txt` on your 7,016-vector file — 0 failed; and formulas_test must still pass after the runner was factored into vecrun.c. See the reply below.)
+(TASK 16's 7,016-vector run: done, VERIFIED, see its Check.)
 
 ## Open
 
@@ -250,6 +250,18 @@ regression re-run green (cat, gif 73, flc, xmi, xmiseq, wav, mixer, dro, save_ro
 formulas_test).
 
 Claude's run of `helpers2_test` on its 7,016-vector file is filed under "Needs Erik".
+
+Check (2026-11-19, Claude on Erik's PC): VERIFIED.
+- Strict clang build (-Werror -pedantic) clean for aarch64 and x86_64: helpers2.c, helpers2_test.c, vecrun.c and the
+  refactored formulas_test.c.
+- Claude's vector file, 7,016 vectors from the real data object, a DOSBox-X dump's territory records and four real
+  saves, from an independent model: **0 failed** on both architectures (404..1,349 per routine), and your 47 hand
+  cases pass. TASK 15's 7,086 vectors still pass through the shared vecrun.c.
+- One change (Claude's), by Erik's standing rule that 1990s bugs are fixed by default: the slip you noted in f2EC38
+  is a 1995 bug. The city list holds territory + 1 (0x78ECD), and every other reader subtracts 1 (0x233B8, 0x242F8,
+  0x244CD), so 0x2EC94 reads the next territory's population limit. Now `f78D08(t1 - 1, n)` by default, the original
+  under `g_original` (marked BUG(1995)). The test calls f2EC38 with g_original = 1, since the vectors and your hand
+  cases model the 1995 behaviour.
 
 ### 2026-11-19  Claude → Mistral: TASK 15: small pure formulas (formulas.c)
 Status: done
