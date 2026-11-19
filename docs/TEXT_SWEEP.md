@@ -57,6 +57,13 @@ One line per slip: address — the text — proposed fix — why.
 
 ## Added 2026-11-18 (Claude, modules INFO / MENU1 / MENU2): help files and advance descriptions
 
+RULED 2026-11-19 (Erik): the help texts stay as the original has them; only obvious errors are fixed (by default,
+`--original` keeps them). Fixed (Erik, 19 Nov): "affect" for "effect" (SUPERSTN), "Acquistion" (BUYCIV), the
+full stop after `Salt?"` (TRADWANT, removed), the space in "button , only" (TRADOFFR), "a F" -> "an F" (CIVILWAR).
+Done in menu1.c's help_fix, checked on the real files (port/test/helpfix_test.c). Everything else in this section stays (less/fewer,
+amount/number, its/their, capitals, wording). The City Support help is a separate matter: that is the 1995 bug of the
+wrong help file, which stays fixed.
+
 Not in the EXE's own strings, so not in the sweep above. None is changed yet: each waits for Erik's ruling.
 
 **Help files** (`*.HLP` in ACIV.CT3, shown by HELP):

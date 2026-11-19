@@ -141,6 +141,41 @@ void f42754(void)
 
 /* ---- 0x4290C: HELP -------------------------------------------------------------------------------------------- */
 
+/* Port: the obvious errors in the help files, fixed by default (Erik's ruling of 19 Nov 2026: the help texts stay
+   as written, only obvious errors are corrected; --original shows the files unchanged; docs/TEXT_SWEEP.md). Each
+   phrase occurs once in its file (checked on ACIV.CT3); the replacement may be up to HELP_FIX_ROOM bytes longer. */
+enum { HELP_FIX_ROOM = 8 };
+static const struct { const char *file, *from, *to; } HELP_FIXES[] = {
+    { "buyciv.hlp",   "Tool Acquistion Color", "Tool Acquisition Color" },
+    { "tradwant.hlp", "Grain for Salt?\".",     "Grain for Salt?\"" },
+    { "tradoffr.hlp", "OFFER button , only",   "OFFER button, only" },
+    { "civilwar.hlp", "replaced by a F (",     "replaced by an F (" },
+    { "superstn.hlp", "limits the affect to",  "limits the effect to" },
+};
+
+void help_fix(const char *name, char *text)
+{
+    size_t i;
+
+    for (i = 0; i < sizeof HELP_FIXES / sizeof HELP_FIXES[0]; i++) {
+        const char *f = HELP_FIXES[i].file, *n = name;
+        char *at;
+        size_t lf, lt;
+
+        while (*f != 0 && (*n | 0x20) == *f)  /* the catalogue lookup ignores case */
+            f++, n++;
+        if (*f != 0 || *n != 0)
+            continue;
+        at = strstr(text, HELP_FIXES[i].from);
+        if (at == NULL)
+            continue;
+        lf = strlen(HELP_FIXES[i].from);
+        lt = strlen(HELP_FIXES[i].to);
+        memmove(at + lt, at + lf, strlen(at + lf) + 1);
+        memcpy(at, HELP_FIXES[i].to, lt);
+    }
+}
+
 void f4290C(void)
 {
     char name[0x24] = "";                       /* [ebp-0x54] (port guard: see the file comment) */
@@ -161,9 +196,11 @@ void f4290C(void)
         text = msg;                             /* 0x4296E */
     }
     if (size > 0) {                             /* 0x42971 cmp [ebp-0x30], 0; jle */
-        text = malloc((size_t)size + 1);        /* 0x4297B */
+        text = malloc((size_t)size + 1 + HELP_FIX_ROOM);   /* 0x4297B (port: room for the text fixes) */
         cat_load(name, (uint8_t *)text, S32(0xF40DCu));    /* 0x42992 */
         text[size] = 0;                         /* 0x429A0 */
+        if (!g_original)
+            help_fix(name, text);               /* port: Erik's text ruling of 19 Nov */
     }
 
     w = 0xFF;                                   /* 0x429A3 */

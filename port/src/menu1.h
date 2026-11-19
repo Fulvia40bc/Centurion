@@ -32,4 +32,7 @@ int  dcase_E7(int code);               /* 0x424DA: -0x8B (toggle: Calamity AI Pa
 int  dcase_E8(int code);               /* 0x424EE: -0x8C (toggle: City Support AI Pause) */
 int  dcase_E9(int code);               /* 0x42502: -0xAC (toggle: Alternate Tool Acquisition Colors) */
 
+void help_fix(const char *name, char *text);   /* port: the obvious help-text errors fixed (19 Nov ruling); the
+                                                 caller leaves room for slightly longer text */
+
 #endif
