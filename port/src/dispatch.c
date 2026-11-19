@@ -37,7 +37,7 @@
      MENU2 : 8, 0x56, 0xE2 DONE (2026-11-18, menu2.c)
      PANEL : 9..0x10, 0x25 and DETAIL while zoomed DONE (2026-11-18, panel.c)
      MAP1  : 0x1B..0x24 DONE (2026-11-18)
-     MOVE  : 0x26, 0x27, 0x28, 0x2B..0x32, 0xC4..0xC8
+     MOVE  : 0x26, 0x27, 0x28, 0x2B..0x32, 0xC4..0xC8 DONE (2026-11-18, move.c)
      STACK : 0x4F, 0x51, 0x101
      S1    : 0x50
      PBEM  : 0x107 (SHOW PBEM, 0x545AC; PBEM is dropped by Erik's ruling, so it stays not_ported)
@@ -61,6 +61,7 @@
 #include "info.h"
 #include "menu1.h"
 #include "menu2.h"
+#include "move.h"
 
 /* 0x3FB94: the button dispatcher. id = the button's int16 +0x0E, sign-extended by the callers. Returns the code for
    the caller's loop, -100 = nothing to do. */
@@ -301,38 +302,21 @@ int f3FB94(int id)
         code = -100;                            /* 0x407C8 mov [ebp-0x3C], 0xFFFFFF9C */
         return code;                            /* 0x407CF */
     case 0x26:  /* -> 0x407DC */
-        /* LAND: f3B9A4(0xF596C, 0x26) != 0 -> -100; else 0x26 pressed (f3B7CC), byte [0x108804] = 1, [0xF06CC] =
-           0, 0x572CC([0x109E10]) (count buttons), 0x27 up (f3B870), f3CBBC; -3 (MOVE) */
-        not_ported(0x407DCu);
+        return dcase_26(code);                  /* MOVE TOKENS (move.c) */
     case 0xC4:  /* -> 0x40858 */
-        /* count 1: f3B9A4(0xF596C, id) != 0 -> -100; else id pressed, the other four of 0xC4..0xC8 up (back
-           buffer), f3CBBC, int16 [0xF09E0] = 1; -100 (MOVE) */
-        not_ported(0x40858u);
+        return dcase_C4(code);                  /* count 1 (move.c) */
     case 0xC5:  /* -> 0x408E9 */
-        /* count 2: f3B9A4(0xF596C, id) != 0 -> -100; else id pressed, the other four of 0xC4..0xC8 up (back
-           buffer), f3CBBC, int16 [0xF09E0] = 2; -100 (MOVE) */
-        not_ported(0x408E9u);
+        return dcase_C5(code);                  /* count 2 (move.c) */
     case 0xC6:  /* -> 0x4097C */
-        /* count 3: f3B9A4(0xF596C, id) != 0 -> -100; else id pressed, the other four of 0xC4..0xC8 up (back
-           buffer), f3CBBC, int16 [0xF09E0] = 3; -100 (MOVE) */
-        not_ported(0x4097Cu);
+        return dcase_C6(code);                  /* count 3 (move.c) */
     case 0xC7:  /* -> 0x40A10 */
-        /* count 4: f3B9A4(0xF596C, id) != 0 -> -100; else id pressed, the other four of 0xC4..0xC8 up (back
-           buffer), f3CBBC, int16 [0xF09E0] = 4; -100 (MOVE) */
-        not_ported(0x40A10u);
+        return dcase_C7(code);                  /* count 4 (move.c) */
     case 0xC8:  /* -> 0x40AA4 */
-        /* count 5: f3B9A4(0xF596C, id) != 0 -> -100; else id pressed, the other four of 0xC4..0xC8 up (back
-           buffer), f3CBBC, int16 [0xF09E0] = 5; -100 (MOVE) */
-        not_ported(0x40AA4u);
+        return dcase_C8(code);                  /* count 5 (move.c) */
     case 0x27:  /* -> 0x40B38 */
-        /* SEA: f3B9A4(0xF596C, 0x27) != 0 -> -100; else 0x27 pressed, byte [0x108804] = 2, [0xF06CC] = 0, 0x26 up,
-           0xC4..0xC8 disabled (f3BFBC 0) and drawn up, f3CBBC; -2 (MOVE) */
-        not_ported(0x40B38u);
+        return dcase_27(code);                  /* MOVE SHIPS (move.c) */
     case 0x28:  /* -> 0x40C4A */
-        /* MOVE: [0x108810] == 1: tokens from [0x10880C] to [0x108808] (0x57CE8, area +0x24 add, 0x3F698, 0x57E28,
-           f3C3D0(0x28), 0x572CC, f3D52C(0, 0)); else the selected ship (0x580CC, 0x576F8, 0x3F70C, f3C3D0(0x28),
-           0x3F670, 0x3F624, 0x426D0, 0x3DA60); then f3CBBC, PBEM counter int16 [0xF09B8] - 1; -4 (MOVE) */
-        not_ported(0x40C4Au);
+        return dcase_28(code);                  /* UNDO MOVE (move.c) */
     case 0x29:  /* -> 0x40E1D */
         code = -0x79;                   /* 0x40E1D mov [ebp-0x3C], 0xFFFFFF87 */
         break;
@@ -340,33 +324,21 @@ int f3FB94(int id)
         code = -0xF;                    /* 0x40E31 mov [ebp-0x3C], 0xFFFFFFF1 */
         break;
     case 0x2F:  /* -> 0x40E45 */
-        /* LOAD one token of [0xF40F8] from territory [0x109E10] onto its selected ship: 0x57CE8, 0x3E89C, nation
-           +0x4D+k + 1, 0x426D0, PBEM log at [0xF09B4], f3C3D0, f3CBBC; -100 (MOVE) */
-        not_ported(0x40E45u);
+        return dcase_2F(code);                  /* EMBRK, second coast (move.c) */
     case 0x2B:  /* -> 0x40F80 */
-        /* as 0x2F (load one token) with 0x3E8FC for the territory; -100 (MOVE) */
-        not_ported(0x40F80u);
+        return dcase_2B(code);                  /* EMBARK (move.c) */
     case 0x30:  /* -> 0x410AE */
-        /* UNLOAD one token from the selected ship: 0x57E28, 0x3E89C, nation +0x4D+k - 1, 0x426D0, PBEM log,
-           f3C3D0, f3CBBC; -100 (MOVE) */
-        not_ported(0x410AEu);
+        return dcase_30(code);                  /* DSMBRK, second coast (move.c) */
     case 0x2C:  /* -> 0x41223 */
-        /* as 0x30 (unload one) with 0x3E8FC; -100 (MOVE) */
-        not_ported(0x41223u);
+        return dcase_2C(code);                  /* DISEMBARK (move.c) */
     case 0x31:  /* -> 0x41380 */
-        /* UNLOAD ALL tokens from the selected ship (loop of 0x57E28), 0x426D0, PBEM log, f3C3D0, f3CBBC; -100
-           (MOVE) */
-        not_ported(0x41380u);
+        return dcase_31(code);                  /* DSMBRK-A, second coast (move.c) */
     case 0x2D:  /* -> 0x4152E */
-        /* as 0x31 (unload all) with 0x3E8FC; -100 (MOVE) */
-        not_ported(0x4152Eu);
+        return dcase_2D(code);                  /* DISEMBARK ALL (move.c) */
     case 0x32:  /* -> 0x416C6 */
-        /* NEXT SHIP: area byte +0x2D+n = (k + 1) % 4 (0x3E89C), PBEM log, 0x576F8, 0x426D0; -100 (MOVE) */
-        not_ported(0x416C6u);
+        return dcase_32(code);                  /* NXT SHP, second coast (move.c) */
     case 0x2E:  /* -> 0x417A5 */
-        /* NEXT SHIP (no alias): area +0x2D+n = (k + 1) % 4, PBEM log, [0xF06CC] = 0, 0x576F8, 0x426D0, 0x576A8,
-           0x3F70C; -2 (MOVE) */
-        not_ported(0x417A5u);
+        return dcase_2E(code);                  /* NEXT SHIP (move.c) */
     case 0x33:  /* -> 0x418A7 */
         code = -8;                      /* 0x418A7 mov [ebp-0x3C], 0xFFFFFFF8 */
         break;

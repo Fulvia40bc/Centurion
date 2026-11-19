@@ -60,7 +60,12 @@ static const struct { uint32_t addr, len; } MAP_STATE[] = {
     { 0xF40F8u, 4 },        /* current player */
     { 0xF4102u, 1 },        /* phase */
     { 0xC1A34u, 1 },        /* detail level */
-    { 0x108804u, 1 },       /* land/sea mode */
+    { 0x108804u, 0x1C },    /* land/sea mode, the last move (0x108808..0x10881C, UNDO MOVE) */
+    { 0xF06CCu, 4 },        /* movement: source chosen */
+    { 0x109E10u, 6 },       /* movement: the selected territory, int16 [0x109E14] */
+    { 0xF09E0u, 2 },        /* int16 the count buttons' value */
+    { 0xF09B4u, 6 },        /* the PBEM move log (handle, 0 outside PBEM) and its int16 counter */
+    { 0xF8E44u, 0x32 },     /* the dialog helpers' saved enabled bytes */
     { 0x107690u, 2 },       /* int16 zoomed (the dispatcher's DETAIL and ZOOM test it) */
     { 0xEE168u, 1 },        /* the background picture of the game screen (f3CD6C, the status panel) */
     { 0xF06B0u, 0x10 },     /* int16[8] the nation of each player button */
@@ -87,6 +92,17 @@ static int map_state_draw(const char *path)
     }
     for (i = 0; i < sizeof MAP_STATE / sizeof MAP_STATE[0]; i++)
         memcpy(DP(MAP_STATE[i].addr), dump + (MAP_STATE[i].addr - 0xB0000u), MAP_STATE[i].len);
+    {   /* the panel dialog 0xF596C (int16 count, 20-byte records up to the fade buffer 0xF5D58): its label pointers
+           (+0x08) are run-time addresses in a DOSBox-X dump; DOS/4GW put the data object at 0x2A9000 (link + 0x1F9000) */
+        uint32_t r, cnt;
+        memcpy(DP(0xF596Cu), dump + (0xF596Cu - 0xB0000u), 0xF5D58u - 0xF596Cu);
+        cnt = D16(0xF596Cu);
+        for (r = 0; r < cnt && 0xF596Eu + 20u * r + 20u <= 0xF5D58u; r++) {
+            uint32_t at = 0xF596Eu + 20u * r + 8u, v = D32(at);
+            if (v >= 0x2A9000u && v < 0x2A9000u + 0x72C00u)
+                setD32(at, v - 0x1F9000u);
+        }
+    }
     setD8(0xF52D0u, 0xFF);   /* the port's background buffer holds the restore's picture: let f3CD6C reload */
     if (s_overview)          /* --overview: the ZOOM view of the current player (f3E374, as case 0x25 draws it) */
         f3E374(S32(0xF40F8u));

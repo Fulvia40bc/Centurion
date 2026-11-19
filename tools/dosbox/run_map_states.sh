@@ -9,7 +9,11 @@ P=/c/work/AdvCiv/tools/dosbox/pokeclick.sh
 D() { powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\work\AdvCiv\tools\dosbox\drive.ps1' "$@" 2>&1; }
 R=/c/work/advciv_run; B=$(mktemp -d)
 cp -p $R/SAVGAMEA.DAT $R/savgameb.dat $B/ || exit 1
-finish() { taskkill //IM dosbox-x.exe //F > /dev/null 2>&1; sleep 1; cp -p $B/SAVGAMEA.DAT $B/savgameb.dat $R/; rm -rf $B; }
+# KEEP_SAVES_TO=DIR: copy the saves the original wrote during the run (its autosaves) there before the run copy's
+# own are put back, e.g. to get a save at the start of a later phase
+finish() { taskkill //IM dosbox-x.exe //F > /dev/null 2>&1; sleep 1
+           [ -n "$KEEP_SAVES_TO" ] && mkdir -p "$KEEP_SAVES_TO" && cp -p $R/SAVGAMEA.DAT $R/savgameb.dat "$KEEP_SAVES_TO"/
+           cp -p $B/SAVGAMEA.DAT $B/savgameb.dat $R/; rm -rf $B; }
 wait_stop() {   # wait for the debugger to stop at 0x78BD3 (run time 0x27ABD3)
   for i in $(seq 1 90); do
     e=$(D dbgscreen | grep -o 'EIP=[0-9A-F]*' | head -1)
