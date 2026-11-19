@@ -30,10 +30,12 @@ int dro_parse(const uint8_t *data, size_t len, dro_file *out)
     if (out == NULL)
         return -1;
     memset(out, 0, sizeof *out);
-    if (data == NULL || len < 26)
+    if (data == NULL)
         return -1;
-    if (memcmp(data, "DBRAWOPL", 8) != 0)
-        return -3;
+    if (len >= 8 && memcmp(data, "DBRAWOPL", 8) != 0)
+        return -3;                              /* not a DRO file */
+    if (len < 26)
+        return -2;                              /* truncated header */
     major = rd_u16le(data + 8);
     minor = rd_u16le(data + 10);
     if (major != 2 || minor != 0)
@@ -69,6 +71,10 @@ int dro_parse(const uint8_t *data, size_t len, dro_file *out)
             unsigned ci = index & 0x7Fu;
             if (ci >= map_len)
                 goto bad_map;
+            if (pending_ms > 0xFFFFFFFFull) {    /* delay_ms is u32: refuse instead of wrapping */
+                free(ev);
+                return -4;
+            }
             if (n == cap) {
                 uint32_t ncap = cap == 0 ? 256 : cap * 2;
                 dro_event *nev = realloc(ev, (size_t)ncap * sizeof *nev);

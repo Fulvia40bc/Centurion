@@ -119,6 +119,15 @@ int main(int argc, char **argv)
         return 1;
     }
     target_frames = ((uint64_t)dro.length_ms * OPL_RATE + 500u) / 1000u;
+    if (target_frames > (uint64_t)((0xFFFFFFFFu - 36u) / 4u)) {
+        /* above this the WAV header's 32-bit sizes wrap and the frame count casts truncate */
+        fprintf(stderr, "%s: %llu frames is too long for a WAV file\n", argv[1],
+                (unsigned long long)target_frames);
+        opl_free(o);
+        dro_free(&dro);
+        free(buf);
+        return 1;
+    }
     out = malloc((size_t)(target_frames > 0 ? target_frames : 1) * 2u * sizeof(int16_t));
     if (out == NULL) {
         fprintf(stderr, "out of memory\n");
