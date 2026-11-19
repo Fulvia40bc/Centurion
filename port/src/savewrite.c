@@ -147,13 +147,16 @@ void f5E9B0(char *desc, FILE *fp)
 
 void f5E8EC(int phase)
 {
-    char desc[0x34];
+    char desc[0x3D];
     FILE *fp;
     uint32_t crc;
     uint8_t b[4];
 
-    /* description = sprintf("AutoSaved after %s - R%d", phase name, int16 [0xF40FC]); the phase names are the table
-       of dword pointers at 0xCA9F4 (index = the phase byte) */
+    /* 0x5E904..0x5E913: the 61-byte local [ebp-0x60] starts as a copy of 0xC6E00 (zeros), so the description's tail
+       written by f5E9B0 is zeros (Claude, 2026-11-19: the tail was uninitialised; checked against the original's
+       autosaves). Then description = sprintf("AutoSaved after %s - R%d", phase name, int16 [0xF40FC]); the phase
+       names are the table of dword pointers at 0xCA9F4 (index = the phase byte) */
+    memcpy(desc, DP(0xC6E00u), sizeof desc);
     snprintf(desc, sizeof desc, "AutoSaved after %s - R%d",
              DSTR(D32(0xCA9F4u + 4u * (uint32_t)phase)), (int)S16(0xF40FCu));
     fp = fopen("savgamea.dat", "wb");
