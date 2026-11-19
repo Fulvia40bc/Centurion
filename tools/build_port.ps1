@@ -41,7 +41,7 @@ foreach ($arch in 'aarch64', 'x86_64') {
   if ($LASTEXITCODE) { throw "dro_play ${arch}: build failed" }
   # the port itself (so far: start-up and the title menu)
   $game = @('main.c', 'fg.c', 'ui_text.c', 'ui_dialog.c', 'ui_screen.c', 'title.c', 'state.c', 'le_image.c', 'fgfont.c',
-            'gif.c', 'catalog.c', 'palette.c', 'png_write.c', 'plat_sdl3.c', 'ui_widgets.c', 'setup.c', 'variants.c', 'load.c', 'gfxload.c', 'newgame.c', 'choose.c', 'ui_kit2.c', 'ast.c', 'ui_kit3.c', 'dispatch.c', 'nations.c', 'save.c', 'saveload.c', 'map.c', 'mapdata.c', 'panel.c', 'shippanel.c', 'start.c', 'aistart.c', 'info.c', 'menu1.c', 'menu2.c', 'move.c', 'stack.c', 'savewrite.c', 'rules.c', 'kit.c', 'wqsort.c', 'mstack.c', 'route.c', 'junk.c', 'loop.c', 'tax.c', 'pop.c', 'census.c', 'ship.c') | ForEach-Object { Join-Path $src $_ }
+            'gif.c', 'catalog.c', 'palette.c', 'png_write.c', 'plat_sdl3.c', 'ui_widgets.c', 'setup.c', 'variants.c', 'load.c', 'gfxload.c', 'newgame.c', 'choose.c', 'ui_kit2.c', 'ast.c', 'ui_kit3.c', 'dispatch.c', 'nations.c', 'save.c', 'saveload.c', 'map.c', 'mapdata.c', 'panel.c', 'shippanel.c', 'start.c', 'aistart.c', 'info.c', 'menu1.c', 'menu2.c', 'move.c', 'stack.c', 'savewrite.c', 'rules.c', 'kit.c', 'wqsort.c', 'mstack.c', 'route.c', 'junk.c', 'loop.c', 'tax.c', 'pop.c', 'census.c', 'ship.c', 'movephase.c', 'conflict.c', 'city.c', 'formulas.c') | ForEach-Object { Join-Path $src $_ }
   & $cc @warn "-I$sdl\include" @game "$sdl\lib\libSDL3.dll.a" @gui -o (Join-Path $o 'advciv.exe')
   if ($LASTEXITCODE) { throw "advciv ${arch}: build failed" }
   $rt = Join-Path (Split-Path $Toolchain) "$arch-w64-mingw32\bin"

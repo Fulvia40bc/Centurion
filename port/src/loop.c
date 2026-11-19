@@ -153,6 +153,9 @@
 #include "pop.h"
 #include "census.h"
 #include "ship.h"
+#include "movephase.h"
+#include "conflict.h"
+#include "city.h"
 #include "menu2.h"
 #include "rules.h"
 #include "saveload.h"
@@ -631,7 +634,7 @@ _Noreturn void f54824(void)
             f553C0();                                 /* 0x54A0E (the copy's registers are set before the call) */
             snap(0xE8888u, 0xE31B8u, 0x2B65);         /* 0x54A13..0x54A20 areas before the movement */
             snap(0xE2FD8u, 0xE2C18u, 0x1E0);          /* 0x54A32..0x54A3F territory state */
-            UNPORTED(0x55574u);                       /* 0x54A51 the movement phase [MOVE] */
+            PORTED(f55574(), 0x55574u);                       /* 0x54A51 the movement phase [MOVE] */
             snap(0xE5D20u, 0xE31B8u, 0x2B65);         /* 0x54A56..0x54A63 areas after it (REPLAY) */
             snap(0xE2DF8u, 0xE2C18u, 0x1E0);          /* 0x54A75..0x54A82 */
             snap(0xF1FB0u, 0xF14CCu, 0xAE2);          /* 0x54A99..0x54AA6 nations */
@@ -658,7 +661,7 @@ _Noreturn void f54824(void)
             f553C0();
             setD8(0xF40FEu, 0);                       /* 0x54B40 */
             setD8(FLAGS, (uint8_t)(D8(FLAGS) & ~1u)); /* 0x54B3A..0x54B4E */
-            UNPORTED(0x5AAA4u);                       /* 0x54B56 f5AAA4(1) [CONFLICT] */
+            PORTED(f5AAA4(1), 0x5AAA4u);                       /* 0x54B56 f5AAA4(1) [CONFLICT] */
             setD8(PHASE, 8);                          /* 0x54B5B */
             f5E7B4();
             f5E8EC(7);                                /* 0x54B6B */
@@ -666,7 +669,7 @@ _Noreturn void f54824(void)
         case 8:                                       /* 0x54B7A CITY CONSTRUCTION */
             f553C0();
             setD16(0xF408Eu, 0);                      /* 0x54B83 */
-            UNPORTED(0x32214u);                       /* 0x54B8A [CITY] */
+            PORTED(f32214(), 0x32214u);                       /* 0x54B8A [CITY] */
             setD8(PHASE, 9);                          /* 0x54B8F */
             f5E7B4();
             f5E8EC(8);                                /* 0x54B9F */
@@ -675,7 +678,7 @@ _Noreturn void f54824(void)
             break;
         case 9:                                       /* 0x54BD1 REMOVE SURPLUS */
             f553C0();
-            UNPORTED(0x5C238u);                       /* 0x54BDD f5C238(1) [CITY] */
+            PORTED(f5C238(1), 0x5C238u);                       /* 0x54BDD f5C238(1) [CITY] */
             setD8(PHASE, 10);                         /* 0x54BE2 */
             f5E7B4();
             f5E8EC(9);                                /* 0x54BF2 */
@@ -683,7 +686,7 @@ _Noreturn void f54824(void)
         case 10:                                      /* 0x54C01 CITY SUPPORT */
             f553C0();
             setD16(0x109E20u, 0);                     /* 0x54C0A */
-            UNPORTED(0x5C62Cu);                       /* 0x54C11 [CITY] */
+            PORTED(f5C62C(), 0x5C62Cu);                       /* 0x54C11 [CITY] */
             setD8(PHASE, 11);                         /* 0x54C16 */
             f5E7B4();
             f5E8EC(10);                               /* 0x54C2B */
@@ -830,7 +833,7 @@ _Noreturn void f54824(void)
         case 17:                                      /* 0x550BC CITY SUPPORT (again) */
             f553C0();
             setD16(0x109E20u, 0);                     /* 0x550C5 */
-            UNPORTED(0x5C62Cu);                       /* 0x550CC [CITY] */
+            PORTED(f5C62C(), 0x5C62Cu);                       /* 0x550CC [CITY] */
             setD16(0xF7AFCu, 0);                      /* 0x550D1 */
             setD16(0xF7AFEu, 0);                      /* 0x550D8 */
             setD8(PHASE, 18);                         /* 0x550DF */

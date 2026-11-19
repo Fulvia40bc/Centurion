@@ -625,6 +625,16 @@ likewise). The computers' parts (M7) stop with `not_ported`.
     (44,062 bytes, the CRC included);
   - the data object at the call of the movement phase: **0 unexplained bytes**.
   - The R4 game (seven computers) stops at the computers' ship planning 0x62840 (M7).
+- **M6, MOVE (the phase), CONFLICT, CITY (2026-11-19).** `movephase.c` (the movement phase 0x55574 with the human
+  loop, RESTART, UNDO, FIND UNMOVED, Roadbuilding, the computers' playback), `conflict.c` (CONFLICT 0x5AAA4, city
+  attacks, plunder; game_rand order kept), `city.c` (CITY CONSTRUCTION 0x32214, REMOVE SURPLUS 0x5C238, CITY SUPPORT
+  0x5C62C), and Mistral's `formulas.c` (Task 15: 15 small formulas, 7,086 real-data vectors).
+  - **BUG(1995) fixes:** a human with no movable token writes into a heap pointer and the panel shows "PIRACY";
+    FIND UNMOVED can hang for ever with a loaded ship out of points; plus fixes in conflict and city support (see the
+    files), and the text "const.for".
+  - **Check (V):** round 1 of the 3-human game, each human clicking FINISHED in movement: the port runs phases 0..10
+    by itself, and at the call of ACQUIRE GOODS (0x6BD98) its data object has **0 unexplained bytes** against the
+    original's.
 - **All-human saves** (Mistral's `tools/verify/hsave.py`): the R4 autosave with every computer turned human is
   accepted by the original (Iberia gets the human ship-construction screen). The port restores it (slot 1 in the run
   copy, savgame1.dat) and with `--play --stop-at-wait` stops at the same wait: whole frame **0 px**, data object **0

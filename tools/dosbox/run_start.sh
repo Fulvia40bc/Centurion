@@ -55,6 +55,8 @@ done
 [ "$e" = "$WANT" ] || { echo "$name: no stop at $STOP ($e)"; D dbgkey F5 > /dev/null; sleep 2; shot ${name}_nostop; exit 1; }
 rm -f /c/DOSBox-X/advciv/$name.bin
 D dbg "MEMDUMPBIN 0188:2A9000 72C00 $name.bin" > /dev/null; sleep 2
+# the saves as they are at the stop (the original runs on for a moment after the next F5 and may autosave again)
+if [ -n "$KEEP_SAVES_TO" ]; then mkdir -p "$KEEP_SAVES_TO"; cp -p $R/SAVGAMEA.DAT $R/savgameb.dat "$KEEP_SAVES_TO"/; KEEP_SAVES_TO=; fi
 rm -f /c/DOSBox-X/advciv/capture/ac_main_*.png
 D dbg "BPDEL *" > /dev/null; D menu "Take raw screenshot" > /dev/null; D dbgkey F5 > /dev/null; sleep 2
 mv /c/DOSBox-X/advciv/capture/ac_main_000.raw1.png /c/DOSBox-X/advciv/capture/start/$name.png

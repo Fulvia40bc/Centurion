@@ -129,11 +129,7 @@ void tax_test_f28CFC(int n, int kind, int x);
 #define f2468C(c, v, k, mode) tax_test_f2468C(c, v, k, mode)
 #define f28CFC(n, kind, x)    tax_test_f28CFC(n, kind, x)
 #else
-static int f667B0(int n)                        /* M7 (AI): the computer's tax rate, read from eax */
-{
-    (void)n;
-    not_ported(0x667B0u);
-}
+#include "formulas.h"                           /* f667B0, the computer's tax rate (Mistral, Task 15, verified) */
 
 static void f66B54(int m, int n, int k)         /* M7 (AI): computer m annexes k revolting cities of n */
 {
