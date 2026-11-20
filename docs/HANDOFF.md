@@ -79,6 +79,191 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
+### 2026-11-20  Claude → Mistral: TASK 18: savediff.py, a save comparer that names each differing field
+Status: open
+Context:
+- M7 (the computer players, docs/OVERVIEW.md §5) is checked by running whole computer-only games in DOSBox-X and in
+  the port from the same start, comparing the autosave after every phase (`SAVGAMEA.DAT`, "AutoSaved after <PHASE> -
+  R<n>"). Today a difference shows only as a byte offset. `savediff.py` names the field, the record and the value, so
+  the first difference points at the routine that went wrong.
+- Plain Python 3 like `hsave.py` (no packages, runs with `python -I`), in `tools/verify/`, with a row in its README.
+  Written from the layout below and from the port's notes, not from the EXE. No game data in the repo: tests use
+  synthetic files; Claude runs it on the real saves.
+- The layout is the writer's field list (`port/src/savewrite.c` f5E9B0, the same list as the reader f5F05C in
+  `port/src/saveload.c`), with file offsets computed by Claude and checked on a real save (D: the version stamp
+  "1.11B1" at 0x4535, the seed 0xDE9B76A2 at 0x3D0C). Version 0x38 is the only version written.
+- The play-by-email block (written only when bit 0x01 of the setup byte at file 0x53 is set) is not in any save we
+  use: PBEM was dropped (Erik, 18 Nov). The offsets below assume it absent; a file with that bit set is refused.
+- Sizes: an ordinary save or autosave is 44,062 bytes. The end-of-game autosave ("AutoSaved at End of Game") is 44,066:
+  the game appends a second CRC after the first one (V, 19 Nov), so bytes 0xAC1A..0xAC1D are the first CRC and the
+  last 4 (0xAC1E..0xAC21) the CRC over 0x4B..end-4 (which covers the first CRC).
+- CRC (as in TASK 14): CRC-32, reflected polynomial 0xEDB88320, start 0, no final inversion, over 0x4B up to the last
+  4 bytes, stored little-endian. Import `crc32` from `hsave.py` as `cal_edit.py` does (see its first lines).
+
+- **The layout** (version 0x38, no PBEM block; all integers little-endian). Labels as in the protocol: D = the port's
+  code shows it, G = a guess, `?` = nobody knows yet (show such bytes by offset). Put the names below in the script as
+  a table, with D/G kept in a comment; the output does not need the labels.
+
+  | File | Bytes | Link | Name | Elements |
+  |---|---|---|---|---|
+  | 0x0000 | 2 | — | version | s16, 0x38 |
+  | 0x0002 | 22 | — | tag | "Advanced Civilization" + NUL (one element) |
+  | 0x0018 | 51 | — | description | NUL-terminated text (one element) |
+  | 0x004B | 4 | 0xF40F4 | round_start_seed | u32 (G: copy of the seed, PBEM code) |
+  | 0x004F | 6 | 0xE1620 | setup | +0 s8 humans, +1 s8 computers, +2 s8 pbem_viewer, +3 u8 trade settings (low nibble sessions, high nibble min goods), +4 u8 flags (0x01 PBEM block, 0x02 large board, 0x04 new game, 0x10/0x20/0x40 variants, 0x80 PBEM), +5 u8 flags (bits 2..3 AI level) |
+  | 0x0055 | 14 x 199 | 0xF14CC | nation[n] | the nation record, below; n 0..13 |
+  | 0x0B37 | 161 x 69 | 0xE31B8 | area[r] | the area record, below; r 0..160, territory t = r - 1 |
+  | 0x369C | 9 x 25 | 0xF06D0 | stack[s] | the card-stack record, below |
+  | 0x377D | 160 x 3 | 0xE2C18 | tstate[t] | +0 u8 owner (nation of the city; 0 none), +1 u8 round_built (0xFF removed), +2 u8 flags (0x01 city, 0x02 AI site mark) |
+  | 0x395D | 1 | 0xF4102 | phase | u8, shown with its name (list below) |
+  | 0x395E | 2 | 0xF40FC | round | s16 |
+  | 0x3960 | 2 | 0xF0698 | census_count | s16 |
+  | 0x3962 | 10 x 2 | 0xF069A | census_order[i] | s16 nation |
+  | 0x3976 | 2 | 0xF06AE | player_count | s16 |
+  | 0x3978 | 8 x 2 | 0xF06B0 | player_order[i] | s16 nation |
+  | 0x3988 | 2 | 0xF5476 | trade_session | s16 |
+  | 0x398A | 56 x 16 | 0x111118 | counter_row[i] | +0x00 u8[2] stated, +0x02 u8[3] bluffs, +0x05 u8[3] replacements, +0x08 u8[5] shuffled copy, +0x0D s8 offerer, +0x0E s8 responder, +0x0F u8 offer flag |
+  | 0x3D0A | 2 | 0x112548 | counter_row_count | s16 |
+  | 0x3D0C | 4 | 0xCAC5C | seed | u32 hex, the random seed |
+  | 0x3D10 | 8 x 32 | 0xF4104 | player[p] | +0x00 s8 nation, +0x01 u8 start_territory (G), +0x02..+0x1F bytes (G: a PBEM name) |
+  | 0x3E10 | 2 | 0xF5474 | pbem_player | s16 (G) |
+  | 0x3E12 | 20 | 0x109E84 | pbem_name | text (one element) |
+  | 0x3E26 | 2 | 0xF5478 | pbem_goods_flag | s16 |
+  | 0x3E28 | 1 | 0xF408C | pbem_trade_flag | u8 |
+  | 0x3E29 | 12 x 1 | 0xF09D4 | another_trade[n] | u8 (1 = n wants another session) |
+  | 0x3E35 | 1 | 0xF40FE | pbem_data_invalid | s8 |
+  | 0x3E36 | 9 x 25 | 0xF07B4 | discard[s] | the card-stack record (a and b unused) |
+  | 0x3F17 | 9 x 25 | 0xF0898 | discard_pbem[s] | the card-stack record |
+  | 0x3FF8 | 2 | 0xF4094 | calamity_resolved | s16 |
+  | 0x3FFA | 2 | 0xF4098 | discard_pbem_flag | s16 |
+  | 0x3FFC | 10 x 2 | 0xF409A | grain_vs_famine[n] | s16 |
+  | 0x4010 | 10 x 45 x 2 | 0xEE9F0 | score[n][round] | s16, element (n, k) at +90n + 2k |
+  | 0x4394 | 417 | 0x110F74 | trade_log | +0x000 s8 count; +0x001 + 5t + j s8 offerer_cards[t][j]; +0x0A1 + 5t + j s8 responder_cards[t][j]; +0x141 + t s8 offerer[t]; +0x161 + t s8 responder[t]; +0x181 + t s8 session[t]; t 0..31, j 0..4 |
+  | 0x4535 | 11 | 0xBC8E4 | version_stamp | text "1.11B1" (one element) |
+  | 0x4540 | 2 | 0xF0982 | cfg_word | u16 hex |
+  | 0x4542 | 10 x 4 | 0xF590C | bought_from_stack[n] | s32 (-1 none) |
+  | 0x456A | 10 x 4 | 0x1105D4 | unk_1105d4[n] | s32 (?) |
+  | 0x4592 | 10 x 4 | 0x1105AC | trade_want_count[n] | s32 |
+  | 0x45BA | 4 | 0xF40F0 | players_at_start | s32 |
+  | 0x45BE | 10 x 160 | 0xF0044 | bpm_flags[n][t] | u8 hex |
+  | 0x4BFE | 10 x 160 | 0xEED84 | bpm_priority[n][t] | s8 |
+  | 0x523E | 4 | 0xF4898 | token_stock | s32 |
+  | 0x5242 | 13 | 0xF5230 | pbem_file | text (one element) |
+  | 0x524F | 7 x 20 | 0x111498 | response[i] | +0x00 u8[16] copy of a counter row, +0x10 s16 gain, +0x12 s8 row, +0x13 s8 pbem_pref |
+  | 0x52DB | 2 | 0x112568 | response_count | s16 |
+  | 0x52DD | 2 | 0xF4100 | accept_mode | s16 |
+  | 0x52DF | 9 x 18 | 0xF47D4 | pbem_trade_detail[i] | u8[18] (G) |
+  | 0x5381 | 9 | 0xF4878 | pbem_detail_flag[i] | s8 (G) |
+  | 0x538A | 14 x 199 | 0xF2A94 | nation_pbem[n] | the nation record (G: PBEM pre-trade copies) |
+  | 0x5E6C | 9 x 9 | 0x109E24 | met[i][j] | u8, nation i+1 met j+1 in a conflict |
+  | 0x5EBD | 12 x 1 | 0xF5934 | surplus_removed[n] | u8 |
+  | 0x5EC9 | 14 x 199 | 0xF1FB0 | nation_replay[n] | the nation record (REPLAY snapshot after movement) |
+  | 0x69AB | 161 x 69 | 0xE5D20 | area_replay[r] | the area record |
+  | 0x9510 | 160 x 3 | 0xE2DF8 | tstate_replay[t] | as tstate |
+  | 0x96F0 | 4 | 0xEDF58 | replay_valid | s32 |
+  | 0x96F4 | 4 | 0xEDF5C | replay_round | s32 |
+  | 0x96F8 | 30 x 10 x 2 | 0x112A94 | random_table[i][j] | s16, element at +20i + 2j |
+  | 0x9950 | 10 x 160 | 0xEFA04 | bpm_third[n][t] | u8 (? meaning) |
+  | 0x9F90 | 10 x 2 | 0xF0684 | pbem_buy[n] | s16 |
+  | 0x9FA4 | 10 x 2 | 0xF6E76 | adv_buy_count[n] | s16 |
+  | 0x9FB8 | 10 x 5 x 2 | 0xF6E12 | adv_bought[n][k] | s16 (-1 none) |
+  | 0xA01C | 10 x 19 | 0xF6D54 | adv_cards_spent[n][c] | s8 |
+  | 0xA0DA | 10 | 0xF488C | pop_short[n] | u8 (G) |
+  | 0xA0E4 | 9 x 157 x 2 | 0xF3580 | ai_territory[n-1][t] | u16 hex, element at +314(n-1) + 2t |
+  | 0xABEE | 4 | 0xF4230 | trade_session_held | s32 |
+  | 0xABF2 | 10 x 4 | 0x1106B0 | unk_1106b0[n] | s32 (?) |
+  | 0xAC1A | 4 | — | crc | u32 (an end-game file: the first CRC here, the second at 0xAC1E) |
+
+  **The nation record** (199 bytes; n: 0 scratch, 1 AFRICA, 2 IBERIA, 3 ILLYRIA, 4 THRACE, 5 CRETE, 6 ASIA, 7 ASSYRIA,
+  8 BABYLON, 9 EGYPT, 10 PIRATES, 11 BARBARIANS, 12 FIRST FACTION, 13 SECOND FACTION):
+  +0x00 u8 ?; +0x01..+0x12 s8 cards[c] at +c (c 1..18, commodity card ids); +0x13 s8 calamity_count;
+  +0x14..+0x1B u8[8] calamity_id[j]; +0x1C..+0x23 u8[8] calamity_giver[j] (0xFF drawn); +0x24..+0x3B u8[24] advance[i]
+  (1 held; i: 0 Pottery, 1 Clothmaking, 2 Metalworking, 3 Agriculture, 4 Roadbuilding, 5 Mining, 6 Engineering,
+  7 Astronomy, 8 Coinage, 9 Medicine, 10 Mathematics, 11 Drama & Poetry, 12 Music, 13 Architecture, 14 Literacy, 15 Law,
+  16 Democracy, 17 Military, 18 Philosophy, 19 Mysticism, 20 Deism, 21 Enlightenment, 22 Monotheism, 23 Theology);
+  +0x3C s8 cards_bought; +0x3D u8 number; +0x3E s8 treasury; +0x3F s8 tax_rate; +0x40 u8 ships;
+  +0x41..+0x44 u8[4] ship_points[k]; +0x45..+0x4C s16[4] ship_area[k] (territory + 1); +0x4D..+0x50 s8[4] ship_tokens[k];
+  +0x51 s8 cities; +0x52..+0x5B u8[10] city[j] (territory + 1); +0x5C s8 ast; +0x5D u8 ?; +0x5E s16 advance_points;
+  +0x60 s8 occupied_count; +0x61..+0x97 u8[55] occupied[j] (territory + 1, 0xFF unused); +0x98 s8 tokens_on_board;
+  +0x99 s8 tokens_in_stock; +0x9A s8 player_type (0 out, 2 computer, 3 human); +0x9B u8 ai_trait_9b (G);
+  +0x9C..+0x9D u8[2] offer_stated; +0x9E..+0xA0 u8[3] offer_bluff; +0xA1..+0xA5 u8[5] offer_wanted;
+  +0xA6..+0xA8 u8[3] offer_bluff_given; +0xA9..+0xB1 s8 hostility[m] at +0xA8+m (G; m 1..9);
+  +0xB2..+0xBA s8 trust[m] at +0xB1+m (m 1..9); +0xBB u8 ?; +0xBC u8 ai_trait_bc (G); +0xBD u8 ?;
+  +0xBE..+0xC6 u8 passed_calamity_to[m] at +0xBD+m (m 1..9).
+
+  **The area record** (69 bytes; record r is territory r - 1; record 0 is none): +0x00 u8 index (r);
+  +0x01 s8 nations_present; +0x02..+0x0E s8 present[n] at +0x01+n (n 1..13; the value is n while n has tokens there);
+  +0x0F..+0x1B s8 tokens[n] at +0x0E+n (n 1..13); +0x1C..+0x24 u8 ships[n] at +0x1B+n (n 1..9);
+  +0x25..+0x2D s8 movable[n] at +0x24+n (n 1..9, movement scratch); +0x2E..+0x36 u8 selected_ship[n] at +0x2D+n;
+  +0x37..+0x3A s16[2] ?; +0x3B..+0x44 s8 lost[n] at +0x3B+n (n 0..9: 0 none, 1 lost to a nation, 2 to pirates or
+  barbarians; G).
+
+  **The card-stack record** (25 bytes): +0x00 s16 count; +0x02 s16 a; +0x04 s16 b; +0x06..+0x18 u8[19] card[i] (ids:
+  1..18 commodities, 0x13..0x1E calamities; the top card is index count - 1).
+
+  **Phase names** (byte 0x395D): 0 TAXATION, 1 POPULATION EXPANSION, 2 CENSUS, 3 SHIP MAINTENANCE, 4 SHIP CONSTRUCTION,
+  5 MOVEMENT, 6 VIEW MOVEMENT, 7 CONFLICT, 8 CITY CONSTRUCTION, 9 REMOVE SURPLUS, 10 CITY SUPPORT, 11 ACQUIRE GOODS,
+  12 DECLARE OFFERS, 13 COUNTER OFFERS, 14 ACCEPT TRADES, 15 CALAMITIES, 16 MONOTHEISM CONVERT, 17 CITY SUPPORT,
+  18 ACQUIRE CIVILIZATION, 19 DISCARD EXCESS, 20 SHOW AST, 21 SELECT START.
+
+  Where the table says `[n]` for a 10- or 12-entry array, n is the nation number: print the nation's name with it
+  (`grain_vs_famine[5 CRETE]`). Areas print the territory too (`area 53 (t 52)`).
+
+Ask:
+1. `tools/verify/savediff.py A.DAT B.DAT [--ignore NAME]... [--max N]`:
+   - Refuse (exit 2, a message naming the file) a file that is not version 0x38, not 44,062 or 44,066 bytes, or has
+     the PBEM bit set. A CRC that does not check is not a refusal: the header line says `CRC bad` for that file
+     (an editor or port bug shows up that way) and the comparison goes on.
+   - Header line: both file names, sizes, descriptions (the NUL-terminated text at 0x18), phase and round of each, and
+     `CRC ok` / `CRC bad` for each.
+   - Then one line per differing **element** (a record field, an array entry, a scalar), in file order:
+     `0x3D0C  seed  0xDE9B76A2 -> 0xA7BB1DC8`
+     `0x04D0  nation 5 CRETE +0x98 tokens_on_board  12 -> 11`
+     `0x3786  tstate 3 +0x00 owner  2 -> 7`
+     `0x6344  nation_replay 5 CRETE +0x98 tokens_on_board  12 -> 11`
+     `0x7803  area_replay 53 (t 52) +0x0F tokens[1]  3 -> 0`
+     A record element prints as `<table name> <index>[ <nation name> | (t <territory>)] +0xNN <sub-field>`.
+     An element is decoded by its type (u8, s8, s16, u16, s32, u32; LE), shown as decimal for counts and hex for
+     addresses, seeds, flags and unknown bytes. A text element (only where the table says "one element") prints as
+     the Python repr of its full bytes with trailing NULs removed, so a change after the first NUL still shows.
+   - **What one element is**: every array is one element per entry, labelled `name[k]` (k from 0, or from the stated
+     index range, e.g. `cards[c]`, c 1..18); arrays without an index name likewise (`offer_stated[0]`,
+     `offer_stated[1]`). Unnamed or `?` spans are one element per stated type width, labelled `+0xNN byte` (u8/s8) or
+     `+0xNN s16`, shown in hex; e.g. nation `+0x5D byte`, area `+0x37 s16`. The response record's `+0x00 u8[16]` is 16
+     elements `row_copy[k]`; `pbem_trade_detail[i]` is 18 elements `[i][k]`; player `+0x02..+0x1F` is 30 elements
+     `pbem_name[k]`.
+   - Never list the CRC bytes as a difference (they differ whenever anything does); the header says whether each
+     checks. A 44,062 vs 44,066 pair compares the common part and says `end-game file: first CRC at 0xAC1A` once.
+   - `--ignore NAME` (repeatable) drops a whole top-level field by its name (e.g. `--ignore description`).
+     `--max N` stops after N lines and says how many more there are. Exit 0 if no element differs (after
+     `--ignore`), 1 if any does.
+2. `savediff.py --layout [A.DAT]`: print the field table, one line per top-level field (file offset, length, link
+   address, name, element size x count); with a file, also each element's value. Claude checks the table against the
+   writer with it.
+3. **Coverage built in**: the table must tile 0..0xAC1A (+4 CRC) with no gap and no overlap; assert it when the script
+   starts. Every byte of the file belongs to exactly one element (an unnamed byte inside a record is still an element
+   of its own: `+0x5D byte`).
+4. Your own tests with synthetic files (a generated 44,062-byte 0x38 save with a CRC that checks, as in TASK 14):
+   - a file against itself: no line, exit 0;
+   - **every single-byte change**: for each offset 2..0xAC19 of the synthetic save, change that one byte (XOR 0xFF;
+     at 0x53 XOR 0xFE, so the PBEM bit stays clear; the version at 0..1 is the refusal test below) and fix the CRC:
+     exactly one line, and it names the element that contains that offset (call the comparison as a function, not
+     44,000 subprocesses); among them 0x53 with XOR 0xFE gives one line, `setup +4`;
+   - two changes in one record give two lines; an s16 change in its high byte gives one line with the right signed
+     value; a change inside the description gives one `description` line;
+   - the 44,066 end-game shape (append a second CRC): compared with the 44,062 file: no difference;
+   - the refusals (version 0x37, a size of 44,061, the PBEM bit) exit 2; a bad CRC is reported, not refused;
+   - the three save editors (`cal_edit.py`, `city_edit.py`, `elim_edit.py`): for each, build a synthetic save that
+     meets its asserts (occupied lists, area token counts that add up to +0x98, tstate bit 0x01 clear) with a
+     non-trivial case: at least one token returned, one occupied entry removed that is not last in its list, the
+     phase changed. Run it (`python -I`, subprocess). Check that (a) savediff gives exactly one line per element
+     holding a byte where IN and OUT differ (a plain byte compare), and (b) every such element is one the editor's
+     header comment or the options passed name (an editor may write a value equal to the old one: no line then).
+Done: Claude runs it on real pairs: a save vs `cal_edit` / `city_edit` / `elim_edit` outputs (expected fields only),
+two autosaves a phase apart from the 19 Nov runs, the end-game autosave vs the save it came from, and an original vs
+port autosave pair from a run, against the byte offsets `cmp -l` gives.
+Reply:
+
 ## Done
 
 ### 2026-11-19  Claude → Mistral: TASK 17: fg_showflic and fg_flicsize in fg.c (the calamity animations)
