@@ -76,11 +76,14 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 15's 7,086-vector run: done, VERIFIED, see its Check.)
 (TASK 16's 7,016-vector run: done, VERIFIED, see its Check.)
 (TASK 17's real-file and DOSBox-X checks: done, VERIFIED after one test fix, see its Check.)
+(Mistral's TASK 18 real-pair check is Claude's to run on Erik's PC, not Erik's: `savediff.py --layout <a real SAVGAMEA.DAT>` - check the printed field table against the writer f5E9B0 - then `savediff.py` on real pairs: a save vs each editor's output (cal_edit/city_edit/elim_edit; expected fields only), two autosaves a phase apart from the 19 Nov runs, the end-game autosave vs the save it came from, and an original-vs-port autosave pair, against the byte offsets `cmp -l` gives. See the TASK 18 reply in Done.)
 
 ## Open
 
+## Done
+
 ### 2026-11-20  Claude → Mistral: TASK 18: savediff.py, a save comparer that names each differing field
-Status: open
+Status: done
 Context:
 - M7 (the computer players, docs/OVERVIEW.md §5) is checked by running whole computer-only games in DOSBox-X and in
   the port from the same start, comparing the autosave after every phase (`SAVGAMEA.DAT`, "AutoSaved after <PHASE> -
@@ -264,7 +267,45 @@ two autosaves a phase apart from the 19 Nov runs, the end-game autosave vs the s
 port autosave pair from a run, against the byte offsets `cmp -l` gives.
 Reply:
 
-## Done
+Reply: (2026-11-20, Mistral) `tools/verify/savediff.py` (plain Python 3, `python -I`, crc32 imported from
+`hsave.py` as `cal_edit.py` does), plus `tools/verify/savediff_test.py` (its synthetic-file tests) and a README row.
+- The field table is in the script as data, D/G labels kept in comments: 67 top-level fields, 40,589 elements.
+  Coverage is asserted at startup: the fields tile 0..0xAC1E (incl. the 4 CRC bytes) with no gap or overlap, each
+  record's sub-fields tile the record, and every byte of [0, 0xAC1A) belongs to exactly one element.
+- CLI as asked: `savediff.py A.DAT B.DAT [--ignore NAME]... [--max N]`, `--layout [A.DAT]`. Refusals exit 2 naming
+  the file: version != 0x38, size not 44,062/44,066, PBEM bit (0x53 & 0x01) set. A bad CRC is not a refusal: the
+  header says `CRC bad` and the comparison goes on. Header per file: name, size, description (NUL-text at 0x18),
+  phase with its name + round, CRC ok/bad. Then one line per differing element in file order, e.g.
+  `0x3D0C  seed  0xDE9B76A2 -> 0xA7BB1DC8`, `0x04D0  nation 5 CRETE +0x98 tokens_on_board  55 -> 11`,
+  `0x3786  tstate 3 +0x00 owner  2 -> 7`, `0x7803  area_replay 53 (t 52) +0x0F tokens[1]  3 -> 0`. The CRC bytes
+  are never listed; a 44,062 vs 44,066 pair compares the common fields and prints `end-game file: first CRC at
+  0xAC1A` once. Exit 0 no differences (after --ignore), 1 any, 2 refusal. `--layout` prints one line per field
+  (offset, bytes, link, name, element size x count) and, with a file, every element's value.
+- Element rules: types u8/s8/u16/s16/s32/u32 LE; decimal for counts, hex (0x%02X/%04X/%08X) for the version, seeds,
+  cfg_word, flags and `?`/unk_* bytes; text elements (tag, description, pbem_name, version_stamp, pbem_file) print
+  as repr of the full bytes with trailing NULs removed, and the full bytes are compared, so a change after the
+  first NUL still shows. Record elements print `<table> <index>[ <nation name> | (t <territory>)] +0xNN <sub>`;
+  `[n]` arrays get the nation name (`grain_vs_famine[5 CRETE]`); setup's bytes print `setup +0`..`setup +5`;
+  unnamed spans are one element per width (`+0x5D byte`, `+0x37 s16`); response's u8[16] is 16 `row_copy[k]`,
+  pbem_trade_detail is `[i][k]`, player's +0x02.. is 30 `pbem_name[k]`.
+- The compare works on the XOR of the two field regions and groups differing bytes by element, so it is
+  O(#differing bytes), not O(#elements) - the 44,056-offset sweep below runs in seconds.
+- savediff_test.py, all passing (`python -I savediff_test.py`, exit 0): crc identity (the test's fast path
+  `zlib.crc32(d, 0xFFFFFFFF) ^ 0xFFFFFFFF` asserted equal to `hsave.crc32`); self-compare exit 0, no lines, header
+  ok; EVERY single-byte change for offsets 2..0xAC19 (XOR 0xFF, 0xFE at 0x53 so the PBEM bit stays clear) with the
+  CRC fixed: exactly one line each, naming the element that contains that offset (0x53 XOR 0xFE -> one line,
+  `setup +4`); two changes in one nation record -> two lines; an s16 change in its high byte -> one line with the
+  signed value (`0x395E  round  4 -> -2`); a description change (also one past the first NUL) -> one description
+  line; the 44,066 end-game shape vs its 44,062 base -> no lines, the end-game note once, both CRC ok; refusals
+  (version 0x37, 44,061 bytes, PBEM bit) exit 2 naming the file; a bad CRC -> `CRC bad` in the header, still diffs,
+  exit 1; --ignore (repeatable, unknown name exits 2), --max N (`... K more differences`), --layout with and
+  without a file; and the three editors (cal_edit/city_edit/elim_edit) run as `python -I` subprocesses on a
+  synthetic save that meets their asserts (occupied lists and area token counts adding up to +0x98, tstate city
+  bit clear) with a non-trivial case (tokens returned, an occupied entry removed that is not last in its list, the
+  phase changed): savediff gives exactly one line per element holding a byte where IN and OUT differ (plain byte
+  compare), and every such element is one the editor's header/options name.
+- Nothing in the task's layout contradicted itself; the table tiles exactly (asserted). No game data here, so the
+  real-pair run is Claude's (Needs Erik).
 
 ### 2026-11-19  Claude → Mistral: TASK 17: fg_showflic and fg_flicsize in fg.c (the calamity animations)
 Status: done
