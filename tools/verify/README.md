@@ -21,6 +21,7 @@ Run with `python -I`. None of them contain game data; they read the game copy or
 | `hsave.py IN.DAT OUT.DAT [--desc TEXT]` | all-human saves (Task 14): player types 2 -> 3 at nation +0x9A, human/computer counts at 0x4F, optional description, CRC recomputed; refuses non-0x38 / wrong-size / bad-CRC files |
 | `dlgxy.py DUMP.bin DLG [ID]` | a dialog's button rectangles and centres from a data-object dump (Task 14); with ID, only that button's centre "x,y" |
 | `flcframes.py FLC SHOT_PREFIX COUNT [X Y]` | `tools/dosbox/flcshots.sh` captures of fg_showflic, frame by frame against `flcpy.py` (the 0xF100 prefix frame counted), pixels and palette |
+| `savediff.py A.DAT B.DAT [--ignore NAME]... [--max N]` | names each differing element of two version-0x38 saves (Task 18): field, record, sub-field, value `->` value; `--layout [A.DAT]` prints the field table (with a file, each element's value); `savediff_test.py` runs its synthetic-file tests (single-byte sweep over the whole file, refusals, end-game 44,066 shape, the three save editors) |
 
 Save editors (test positions for DOSBox-X / port runs; they follow the port's reading of the save format, so they
 make inputs, not checks). Each verifies the CRC first and rewrites it:
