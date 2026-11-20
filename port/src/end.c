@@ -44,7 +44,9 @@
         conquest (f22F3C: Final Standings, credits, then longjmp to the title menu) a new game in the same session
         shows "EXIT" on every CONTINUE of 0xBB800 (f79270's -500 messages, the elimination screens, the AST chart's
         modes 1 / 2). Fixed: the label is put back after the EXIT wait. The position is not restored: every user of
-        0xBB800 sets x and y itself (kit.c, loop.c, ast.c). (M6_PLAN egg 17.)
+        0xBB800 sets x and y itself (kit.c, loop.c, ast.c). (M6_PLAN egg 17.) V (19 Nov, DOSBox-X): after a
+        conquest of the all-human round-4 save, back on the title menu, the button's label pointer (byte 0xBB80A)
+        still points at "EXIT" in the original; the only byte that differs from the fixed port, none with --original.
    Kept as the original (D code, G effect unless marked):
      - 0x14294 draws a row for each r < [0xF40EC] while the array holds the nations in play (+0x9A != 0): more rows
        than nations would read uninitialised stack. G: unreachable, the elimination check lowers [0xF40EC] as it

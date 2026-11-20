@@ -20,6 +20,24 @@ Run with `python -I`. None of them contain game data; they read the game copy or
 | `palcrop.py CAP.png` | searches PAL.PAL's picture for pieces of a capture |
 | `hsave.py IN.DAT OUT.DAT [--desc TEXT]` | all-human saves (Task 14): player types 2 -> 3 at nation +0x9A, human/computer counts at 0x4F, optional description, CRC recomputed; refuses non-0x38 / wrong-size / bad-CRC files |
 | `dlgxy.py DUMP.bin DLG [ID]` | a dialog's button rectangles and centres from a data-object dump (Task 14); with ID, only that button's centre "x,y" |
+| `flcframes.py FLC SHOT_PREFIX COUNT [X Y]` | `tools/dosbox/flcshots.sh` captures of fg_showflic, frame by frame against `flcpy.py` (the 0xF100 prefix frame counted), pixels and palette |
+
+Save editors (test positions for DOSBox-X / port runs; they follow the port's reading of the save format, so they
+make inputs, not checks). Each verifies the CRC first and rewrites it:
+
+| Script | Makes |
+|---|---|
+| `cal_edit.py IN OUT "n:id[:giver] ..."` | the calamity phase (phase byte 15) with calamity cards added to hands (giver = the trader's nation, default 0xFF drawn) |
+| `city_edit.py IN OUT "n:t ..." [ast=n:pos] [phase=P]` | cities built as CITY CONSTRUCTION's human path does (tokens back to stock, presence and occupied list as f581C4); `--show` lists each nation's territories |
+| `elim_edit.py IN OUT PHASE "n ..."` | nations stripped of every token and city, so the elimination check (f22B00) removes them |
+
+The 19 Nov runs, all from `C:\work\advciv_cmp\savgame3_tradestart.dat` (the verified round-4 trade start):
+`cal_edit "1:13 2:15 3:17 4:19 5:1B 7:1A"` (the calamity phase, 183 clicks); `city_edit` with 21 cities, then
+`cal_edit "2:14:3 3:16 4:18 5:1C 7:1D 8:1E:9 9:14"` (the tradeable calamities and city support, 27 clicks);
+`city_edit "1:101 1:103 1:99 1:98" ast=1:15 phase=20` (an AST win); `elim_edit 20 "2 3 4 5 7 8 9"` (a conquest).
+Slots 4, 7, 8, 9 of `C:\work\advciv_run`. The DOSBox-X step scripts (`run_steps.sh` "ADDR:X,Y ..."; the port takes
+the same X,Y as `--wait 200 --click X Y`) are in `tools/dosbox/runs/`. Every slot file must be the same in both runs:
+the restore menu reads all their descriptions into the data object.
 
 Captures come from DOSBox-X's **Take raw screenshot** (`tools/dosbox/drive.ps1 menu "Take raw screenshot"`): the
 emulated 640x480 frame as an indexed PNG with the palette widened to 8 bits (`v << 2 | v >> 4`), before any window
