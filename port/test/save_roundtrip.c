@@ -1,5 +1,6 @@
 /* Round-trip check of savewrite.c without the game: for each save file, read it with f5F05C into a fresh data
-   object, write it again with f5E9B0 (the description read from the file) into a temp file, append the CRC as
+   object, do what the game does between a load and the next save (the PBEM name copy and 0x14B0E's base scores),
+   write it again with f5E9B0 (the description read from the file) into a temp file, append the CRC as
    0x5E8EC does (f7BB84 over the body after its 0x4B header, 4 bytes little-endian), and compare with the original
    file byte for byte.
    Build: clang -std=c11 port/test/save_roundtrip.c port/src/savewrite.c port/src/saveload.c port/src/state.c port/src/le_image.c -Iport/src -o save_roundtrip.exe
@@ -162,6 +163,12 @@ int main(int argc, char **argv)
         fp = fopen(argv[a], "rb");
         f5F05C(&version, desc, fp);
         fclose(fp);
+        /* what the game does between the load and the next save (savewrite.c's file comment): the restore dialog's
+           0x5FFDE copies the PBEM name to 0xEE20C in a PBEM game, and the restored game's set-up 0x14AA4 copies the
+           loaded scores 0xEED84 to the base 0xEF3C4 (0x14B0E), the block the writer saves */
+        if ((D8(0xE1624u) & 0x80) != 0)
+            strcpy((char *)DP(0xEE20Cu), (const char *)DP(0x109E84u));
+        memcpy(DP(0xEF3C4u), DP(0xEED84u), 0x640);
 
         memcpy(desc2, desc, sizeof desc2);
         out = tmpfile();

@@ -1,8 +1,11 @@
 /* Save-file writing of AC_MAIN.EXE (module S1 of docs/MAP_PLAN.md, the writing half): 0x5E9B0 (write a whole save body
    to fp) and 0x5E8EC (the autosave). The mirror of saveload.c's f5F05C for version 0x38, the only version written
-   (D, docs/INVENTORY_M6.json; the field list is read against the verified reader f5F05C — where the task's list and
-   the reader differ, the reader's addresses are used: the play-by-email name is 0x109E84 (not 0xEE20C) and the second
-   1600-byte block is 0xEED84 (not 0xEF3C4)).
+   (D, docs/INVENTORY_M6.json). The writer is not the reader's mirror in two places, and the port writes what the
+   original writes (D: 0x5EBC0, 0x5EE08; Claude, 21 Nov, after an M7 compare of "AutoSaved after MOVEMENT - R4"):
+   the play-by-email name comes from 0xEE20C (the reader puts it at 0x109E84), and the second 1600-byte block from
+   0xEF3C4, the computers' base territory scores (the reader puts it at 0xEED84, the current scores, and the restore
+   0x14AA4 copies that back to 0xEF3C4 at 0x14B0E: a consistent round trip, not a bug). The current scores are the base
+   plus f160EC's +5s, so the two blocks differ only once computers have planned (an all-human game has them equal).
 
    The reader f5F05C skips 13 bytes between 0x110F74 and 0xF590C into locals: 11 bytes of the version stamp at 0xBC8E4
    ("1.11B1" + NULs, as title.c's 0x4F66E reads it) and the 2 bytes at 0xF0982. The writer writes both back from the
@@ -71,7 +74,7 @@ void f5E9B0(char *desc, FILE *fp)
     wr(GAME_SEED, 4, 1, fp);                          /* the random seed 0xCAC5C */
     wr(0xF4104u, 0x20, 8, fp);                        /* players 8 x 32 */
     wr(0xF5474u, 2, 1, fp);
-    wr(0x109E84u, 1, 0x14, fp);                       /* the play-by-email name (reader's address) */
+    wr(0xEE20Cu, 1, 0x14, fp);                        /* 0x5EBC0 the play-by-email name (the reader: 0x109E84) */
     wr(0xF5478u, 2, 1, fp);
 
     if ((D8(0xE1624u) & 0x01) != 0) {                 /* play-by-email: the record lists */
@@ -115,7 +118,7 @@ void f5E9B0(char *desc, FILE *fp)
     wr(0x1105ACu, 4, 0xA, fp);
     wr(0xF40F0u, 4, 1, fp);
     wr(0xF0044u, 1, 0x640, fp);                       /* 1600 bytes */
-    wr(0xEED84u, 1, 0x640, fp);                       /* 1600 bytes (reader's address) */
+    wr(0xEF3C4u, 1, 0x640, fp);                       /* 0x5EE08 1600 bytes, the base scores (the reader: 0xEED84) */
     wr(0xF4898u, 4, 1, fp);
     wr(0xF5230u, 1, 0xD, fp);                         /* 13 bytes */
     wr(0x111498u, 0x14, 7, fp);                       /* 7 x 20 */
