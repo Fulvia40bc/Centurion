@@ -557,7 +557,8 @@ def load(path):
 
 
 def header(path, d, ok):
-    desc = d[DESC_OFF:DESC_OFF + DESC_LEN].split(b'\0')[0].decode('latin-1')
+    # ASCII with \xNN escapes: a Windows console or pipe (cp1252) cannot print every latin-1 byte (Claude, 21 Nov)
+    desc = d[DESC_OFF:DESC_OFF + DESC_LEN].split(b'\0')[0].decode('latin-1').encode('ascii', 'backslashreplace').decode('ascii')
     ph = d[PHASE_OFF]
     phname = PHASES[ph] if ph < len(PHASES) else '?'
     rnd = struct.unpack_from('<h', d, ROUND_OFF)[0]
