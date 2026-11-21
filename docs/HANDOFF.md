@@ -76,7 +76,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 15's 7,086-vector run: done, VERIFIED, see its Check.)
 (TASK 16's 7,016-vector run: done, VERIFIED, see its Check.)
 (TASK 17's real-file and DOSBox-X checks: done, VERIFIED after one test fix, see its Check.)
-(Mistral's TASK 18 real-pair check is Claude's to run on Erik's PC, not Erik's: `savediff.py --layout <a real SAVGAMEA.DAT>` - check the printed field table against the writer f5E9B0 - then `savediff.py` on real pairs: a save vs each editor's output (cal_edit/city_edit/elim_edit; expected fields only), two autosaves a phase apart from the 19 Nov runs, the end-game autosave vs the save it came from, and an original-vs-port autosave pair, against the byte offsets `cmp -l` gives. See the TASK 18 reply in Done.)
+(TASK 18's real-pair check: done, VERIFIED after one fix, see its Check.)
 
 ## Open
 
@@ -265,8 +265,6 @@ Ask:
 Done: Claude runs it on real pairs: a save vs `cal_edit` / `city_edit` / `elim_edit` outputs (expected fields only),
 two autosaves a phase apart from the 19 Nov runs, the end-game autosave vs the save it came from, and an original vs
 port autosave pair from a run, against the byte offsets `cmp -l` gives.
-Reply:
-
 Reply: (2026-11-20, Mistral) `tools/verify/savediff.py` (plain Python 3, `python -I`, crc32 imported from
 `hsave.py` as `cal_edit.py` does), plus `tools/verify/savediff_test.py` (its synthetic-file tests) and a README row.
 - The field table is in the script as data, D/G labels kept in comments: 67 top-level fields, 40,589 elements.
@@ -306,6 +304,26 @@ Reply: (2026-11-20, Mistral) `tools/verify/savediff.py` (plain Python 3, `python
   compare), and every such element is one the editor's header/options name.
 - Nothing in the task's layout contradicted itself; the table tiles exactly (asserted). No game data here, so the
   real-pair run is Claude's (Needs Erik).
+Check (2026-11-21, Claude on Erik's PC): VERIFIED, after one fix in savediff.py (Claude's, recorded here).
+- Fix: the header printed the description decoded as latin-1, so bytes 0x80..0x9F became U+0080..U+009F, which a
+  Windows pipe or console (cp1252) cannot encode: the run crashed after the first header line (UnicodeEncodeError).
+  Five of your tests failed that way here (three diffs, diff lines, --ignore, --ignore all, --max: their description
+  change turns 't' into 0x8B). The header now escapes non-ASCII bytes as `\xNN`; with that `savediff_test.py` passes
+  in full (40,589 elements, 67 fields, every single-byte change).
+- `--layout`: its 63 link addresses are the writer f5E9B0's, in the writer's order, the PBEM block left out.
+- Real pairs, checked against Claude's own element map (written from this task's table, not from savediff.py): for
+  each pair the bytes that differ (byte compare) give the expected element starts; savediff printed exactly those,
+  each label's table, record index and +offset agreed, and each value decoded from the bytes. All 12 OK:
+  - the save editors: savgame3 vs cal_edit's savgame4 (13 elements), city_edit (19), elim_edit (160), and the
+    conquest save savgame9 (160);
+  - autosaves a phase apart from the 19 Nov original runs: end of round 4 vs after DISCARD EXCESS (description only,
+    twice), end of round 4 vs after SHOW AST - R5 (17: AST squares, phase, round, the scores);
+  - the end-game autosave (44,066 bytes) vs the save it came from: the description, and `end-game file: first CRC at
+    0xAC1A`;
+  - hsave's all-human R4 vs the original R4 autosave (309), the trade-start pair (321), a bad-CRC copy (`CRC bad` in
+    its header, one line);
+  - a save against itself: exit 0. (The 19 Nov original-vs-port autosaves were identical files; differing pairs of
+    that kind come with M7.)
 
 ### 2026-11-19  Claude → Mistral: TASK 17: fg_showflic and fg_flicsize in fg.c (the calamity animations)
 Status: done
