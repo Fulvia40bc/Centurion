@@ -126,6 +126,12 @@ static uint32_t clock_8A080(void)
     return (uint32_t)((uint64_t)s_bios_ticks * 1000u / 182u);
 }
 
+/* port: the clock above for the routines that read 0x8A080 themselves (game.h) */
+uint32_t wat_clock(void)
+{
+    return clock_8A080();
+}
+
 /* 0x78A20: wait t milliseconds (Watcom's hundredths: (t / [0xBB3F4]) / 10; [0xBB3F4] = 1, or 10 with /C) */
 void f78A20(int t)
 {

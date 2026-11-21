@@ -160,29 +160,8 @@ void cal4_test_f27FCC(int n, int count, const char *text, int kind, int sub, int
 #define f2D1C0(v, k, o, b)                              cal4_test_f2D1C0(v, k, o, b)
 #define f27FCC(n, count, text, kind, sub, target)       cal4_test_f27FCC(n, count, text, kind, sub, target)
 #else
-static void f2C190(int x, int count, const char *text, int src, int target, int mode, int flag)
-{                                               /* M7 (AI): the computer chooses count units of src for target */
-    (void)x; (void)count; (void)text; (void)src; (void)target; (void)mode; (void)flag;
-    not_ported(0x2C190u);
-}
+#include "aical2.h"                             /* f2C190, f2C894, f2D10C, f2D1C0: the computers' Civil War (M7) */
 
-static void f2C894(int n, int count, char *text, int ov, int flag, int mode)
-{                                               /* M7 (AI): the computer takes faction n's Military losses */
-    (void)n; (void)count; (void)text; (void)ov; (void)flag; (void)mode;
-    not_ported(0x2C894u);
-}
-
-static void f2D10C(int v, int k, int o, int b)  /* M7 (AI): computer b annexes k cities of faction o */
-{
-    (void)v; (void)k; (void)o; (void)b;
-    not_ported(0x2D10Cu);
-}
-
-static void f2D1C0(int v, int k, int o, int b)  /* M7 (AI): computer b annexes k tokens of faction o */
-{
-    (void)v; (void)k; (void)o; (void)b;
-    not_ported(0x2D1C0u);
-}
 #endif
 
 /* ---- small shared pieces ------------------------------------------------------------------------------------------ */

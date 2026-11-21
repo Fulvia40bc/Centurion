@@ -131,17 +131,7 @@ void tax_test_f28CFC(int n, int kind, int x);
 #else
 #include "formulas.h"                           /* f667B0, the computer's tax rate (Mistral, Task 15, verified) */
 
-static void f66B54(int m, int n, int k)         /* M7 (AI): computer m annexes k revolting cities of n */
-{
-    (void)m; (void)n; (void)k;
-    not_ported(0x66B54u);
-}
-
-static void f66C2C(int n, int k)                /* M7 (AI): computer n removes k of its own cities */
-{
-    (void)n; (void)k;
-    not_ported(0x66C2Cu);
-}
+#include "aiship.h"                             /* f66B54, f66C2C: the computers' annexation and removal (M7) */
 
 #include "cal1.h"                               /* f2468C, f28CFC: the city choosers (CAL1, cal1.c) */
 #endif

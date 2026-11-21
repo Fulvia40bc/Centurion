@@ -215,29 +215,8 @@ void adv_test_f19700(int n, int count, uint32_t list);
 #else
 #include "cards.h"                              /* f6FBDC REVEAL GOODS, f6D0C4 the hand strip (cards.c) */
 
-static void f1A888(int n)                         /* M7 (ADVAI): the desirability of each advance for computer n */
-{
-    (void)n;
-    not_ported(0x1A888u);
-}
+#include "aiadv.h"                              /* f1A888, f177EC, f1B59C, f19700: the computers' advances (M7) */
 
-static int f177EC(int n)                          /* M7 (ADVAI): the advance computer n buys next, or -1 */
-{
-    (void)n;
-    not_ported(0x177ECu);
-}
-
-static int f1B59C(int n, int need)                /* M7 (ADVAI): the cards computer n pays need points with */
-{
-    (void)n; (void)need;
-    not_ported(0x1B59Cu);
-}
-
-static void f19700(int n, int count, uint32_t list)   /* M7 (ADVAI): "%s has acquired ..." (list: int16 link address) */
-{
-    (void)n; (void)count; (void)list;
-    not_ported(0x19700u);
-}
 #endif
 
 /* ---- small helpers -------------------------------------------------------------------------------------------- */

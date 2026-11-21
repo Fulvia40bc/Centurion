@@ -6,9 +6,7 @@
      0x21A70  f21A70  a human converts one territory (caller 0x21A37)
      0x227B0  f227B0  the candidate territories of a nation (caller 0x219FD)
 
-   Not ported here (module M7, AI; its call site stops the port with not_ported(0x21E8C); the static stub below
-   carries the name, so the call site reads as in the original and a later translation that exports the name collides
-   with the stub at compile time instead of being shadowed by it):
+   The computer's side is aical1.c's (M7 batch 2, linked through aical1.h):
      0x21E8C  a computer converts (2,340 bytes): its candidates as 12-byte stack records {t, nation, count}; with fewer
               than 9 cities and board tokens / 2 >= cities + 1 the cities first, bubble-sorted descending by int8
               0xEED84[160n + t] (the opening-map table) then int32 0xF52E0[10n + owner] (the score matrix 0x7C960);
@@ -123,11 +121,8 @@
 void mono_test_f21E8C(int n);
 #define f21E8C(n) mono_test_f21E8C(n)
 #else
-static void f21E8C(int n)   /* M7 (AI): computer n converts a territory */
-{
-    (void)n;
-    not_ported(0x21E8Cu);
-}
+#include "aical1.h"                             /* f21E8C: a computer's Monotheism (M7) */
+
 #endif
 
 const char *mono_converts_fmt(uint32_t addr)

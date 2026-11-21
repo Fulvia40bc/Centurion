@@ -242,23 +242,7 @@ void trade_test_pbem(uint32_t addr, int a, int b);
 #define f53C30()       trade_test_pbem(0x53C30u, 0, 0)
 #define f7399C(i, p)   trade_test_pbem(0x7399Cu, i, p)
 #else
-static void f68730(int n)                       /* M7 (TRADEAI): a computer declares its offer */
-{
-    (void)n;
-    not_ported(0x68730u);
-}
-
-static void f698A4(int n)                       /* M7 (TRADEAI): a computer answers the offers */
-{
-    (void)n;
-    not_ported(0x698A4u);
-}
-
-static void f6B0EC(int n)                       /* M7 (TRADEAI): a computer accepts a response */
-{
-    (void)n;
-    not_ported(0x6B0ECu);
-}
+#include "aitrade.h"                            /* f68730, f698A4, f6B0EC: the computers' trade (M7) */
 
 static void f53C30(void)                        /* PBEM_DROPPED: the turn order to the host */
 {

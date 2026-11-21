@@ -120,8 +120,9 @@ void ship_test_f461BC(int n);
 #define CALL_F461BC(n) ship_test_f461BC(n)
 #else
 #include "aimove.h"
-#define CALL_F61254(n) ((void)(n), not_ported(0x61254u))
-#define CALL_F62840(n) ((void)(n), not_ported(0x62840u), -1)
+#include "aiship.h"
+#define CALL_F61254(n) f61254(n)                    /* aiship.c (M7 batch 2) */
+#define CALL_F62840(n) f62840(n)                    /* aiship.c (M7 batch 2) */
 #define CALL_F461BC(n) f461BC(n)                    /* aimove.c (M7 batch 1) */
 #endif
 

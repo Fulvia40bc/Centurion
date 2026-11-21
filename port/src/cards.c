@@ -170,23 +170,7 @@ void cards_test_pbem(uint32_t addr);
 #define f6E158()      cards_test_f6E158()
 #define pbem_dropped(a) cards_test_pbem(a)
 #else
-static void f6DBAC(int p, int n)                /* M7 (AI): computer n acquires its cards face down at row p */
-{
-    (void)p; (void)n;
-    not_ported(0x6DBACu);
-}
-
-static int f6DE04(int n)                        /* M7 (AI): computer n buys a card or not ((s << 8) + 1 or 0) */
-{
-    (void)n;
-    not_ported(0x6DE04u);
-}
-
-static void f6EDA8(int n)                       /* M7 (AI): computer n discards down to 8 cards */
-{
-    (void)n;
-    not_ported(0x6EDA8u);
-}
+#include "aicards.h"                            /* f6DBAC, f6DE04, f6EDA8: the computers' cards (M7) */
 
 static void f6E158(void)                        /* PBEM (dropped): the local player's buy screen */
 {

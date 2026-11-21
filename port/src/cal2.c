@@ -197,35 +197,9 @@ int  cal2_test_f1EAEC(int n, int kind);
 #define f7A4C4(anim)               cal2_test_f7A4C4(anim)
 #define f1EAEC(n, kind)            cal2_test_f1EAEC(n, kind)
 #else
-static void f27850(int n)                       /* M7 (AI): the computer's Grain against Famine */
-{
-    (void)n;
-    not_ported(0x27850u);
-}
+#include "aical2.h"                             /* f27850, f260C4, f27518, f2E45C (M7) */
+#include "aical1.h"                             /* f2E1D0 (M7) */
 
-static void f260C4(int n, int L, int kind, int s)   /* M7 (AI): a computer loses L unit points (s the plain or -1) */
-{
-    (void)n; (void)L; (void)kind; (void)s;
-    not_ported(0x260C4u);
-}
-
-static void f27518(int n, int trader, int total, int kind)   /* M7 (AI): n assigns the secondary losses */
-{
-    (void)n; (void)trader; (void)total; (void)kind;
-    not_ported(0x27518u);
-}
-
-static int f2E45C(int n)                        /* M7 (AI): the computer's plain among the tied ones in 0xF7CA0 */
-{
-    (void)n;
-    not_ported(0x2E45Cu);
-}
-
-static int f2E1D0(int n, int c)                 /* M7 (AI, CAL1's row): the computer's city of the list 0xF7CA0 */
-{
-    (void)n; (void)c;
-    not_ported(0x2E1D0u);
-}
 #endif
 
 /* ---- small shared pieces ------------------------------------------------------------------------------------------ */

@@ -138,11 +138,8 @@ void conflict_test_f7A4C4(int anim);
 #define f5BF30(n, amount, show) conflict_test_f5BF30(n, amount, show)
 #define f7A4C4(anim)            conflict_test_f7A4C4(anim)
 #else
-static void f5BF30(int n, int amount, int show)   /* M7 (AI): the computer's stock -> treasury transfer after plunder */
-{
-    (void)n; (void)amount; (void)show;
-    not_ported(0x5BF30u);
-}
+#include "aiship.h"                             /* f5BF30: a computer's plunder transfer (M7) */
+
 #endif
 
 /* the background 3 into the back buffer: f3CD6C(3), byte [0xEE168] = 3 (stored after the call), fg_vbcopy of the

@@ -215,35 +215,8 @@ void cal1_test_handler(uint32_t addr, int k);
 #define f217A0(k)                  cal1_test_handler(0x217A0u, k)
 #define f2E59C(k)                  cal1_test_handler(0x2E59Cu, k)
 #else
-static int f213C0(int n)                        /* M7 (AI): computer n's own city to reduce, territory + 1 */
-{
-    (void)n;
-    not_ported(0x213C0u);
-}
-
-static int f20C70(int p, int v)                 /* M7 (AI): the city of v that computer p takes by Treachery, t + 1 */
-{
-    (void)p; (void)v;
-    not_ported(0x20C70u);
-}
-
-static void f24EB8(int c, int v, int k)         /* M7 (AI): computer c gives k of v's coastal cities to the Pirates */
-{
-    (void)c; (void)v; (void)k;
-    not_ported(0x24EB8u);
-}
-
-static void f252BC(int c, int v, int k)         /* M7 (AI): computer v picks k secondary coastal cities (trader c) */
-{
-    (void)c; (void)v; (void)k;
-    not_ported(0x252BCu);
-}
-
-static void f27518(int n, int trader, int total, int kind)   /* M7 (AI): n assigns the secondary losses */
-{
-    (void)n; (void)trader; (void)total; (void)kind;
-    not_ported(0x27518u);
-}
+#include "aical1.h"                             /* f213C0, f20C70, f24EB8, f252BC (M7) */
+#include "aical2.h"                             /* f27518 (M7) */
 
 #endif
 

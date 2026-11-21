@@ -165,17 +165,8 @@ void city_test_f5DE5C(int n, const char *msg);
 #define f333E8(t, n, k, arch) city_test_f333E8(t, n, k, arch)
 #define f5DE5C(n, msg)        city_test_f5DE5C(n, msg)
 #else
-static void f333E8(int t, int n, int k, int arch)   /* M7 (AI): computer n builds a city in t with k tokens */
-{
-    (void)t; (void)n; (void)k; (void)arch;
-    not_ported(0x333E8u);
-}
+#include "aicards.h"                            /* f333E8, f5DE5C: the computers' city build and support (M7) */
 
-static void f5DE5C(int n, const char *msg)          /* M7 (AI): computer n reduces one of its cities */
-{
-    (void)n; (void)msg;
-    not_ported(0x5DE5Cu);
-}
 #endif
 
 /* The player list int16 [0xF06AE] / 0xF06B0[]: the nations 1..9 in play, ascending (0x32233..0x32286, 0x5C272..

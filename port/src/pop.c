@@ -24,9 +24,8 @@
              allocated is skipped (the original would copy through NULL)
      0x8A080 clock: 0x673A8 takes start = clock() before its loop and at the end busy-waits until clock() reaches start
              + (1000 / [0xBB3F4]) / 10 (unsigned, 0x67722..0x6774C: an inline copy of f78A20(1000) whose start is the
-             phase's start). The port's clock is ui_kit2.c's, which advances only inside f78A20, so the translation
-             calls f78A20(1000) there (G, port design): the same wait when no message or screen came up (the
-             automatic case); after one the original's wait is shorter or none, the port's a full second
+             phase's start). The port reads ui_kit2.c's virtual clock wat_clock(), which advances only inside f78A20
+             (and so inside the computers' own waits, f680DC's included), and waits the rest with one f78A20 (M7)
      rep movsd / movsw / movsb -> memcpy; 0x7D4AC (__CHK) dropped; 0x78B0C ("ManualPopExpansion", a no-op debug log)
              left out
    game_rand f78AE4: neither routine draws.
@@ -108,6 +107,7 @@
 #define POP_F28CFC(n, kind, s) not_ported(0x28CFCu)   /* pop_test runs without CAL1 */
 #else
 #include "cal1.h"
+#include "aiship.h"                             /* f680DC: a computer short of stock (M7) */
 #define POP_F28CFC(n, kind, s) f28CFC(n, kind, s)
 #endif
 
@@ -155,6 +155,7 @@ void f673A8(void)
     int32_t tok;        /* [ebp-0x2C] */
     int32_t t;
     char buf[100];      /* [ebp-0x9C] */
+    uint32_t start;     /* [ebp-0x20] */
 
     setD16(0xBB3FAu, 0xA9);                                         /* 0x673D6 the message area */
     setD16(0xBB3FCu, 0x154);                                        /* 0x673DD */
@@ -177,7 +178,7 @@ void f673A8(void)
     f459E4(S16(POP_PLAYERS + 2u));                                  /* 0x6749F dword [0xF06AE] sar 16: the first player */
     f3CBBC();                                                       /* 0x674A4 */
     f3D9FC(S16(POP_PLAYERS + 2u));                                  /* 0x674B1 */
-    /* 0x674B6: start = clock() ([ebp-0x20]); the port waits with f78A20 at the end (file comment) */
+    start = wat_clock();                                            /* 0x674B6 start = clock() ([ebp-0x20]) */
 
     for (n = 1; n <= 9; n++) {                                      /* 0x674BE, 0x6766C cmp 9; jg 0x67712 */
         rec = nrec(n);                                              /* 0x67684 */
@@ -228,8 +229,7 @@ void f673A8(void)
                 if (t == 3) {                                       /* 0x67645 */
                     f67758(n);                                      /* 0x6764D ManualPopExpansion */
                 } else if (t == 2) {                                /* 0x67654 */
-                    /* 0x67661 f680DC([0xF40F8], need): the computer's choice (module AI, M7) */
-                    not_ported(0x680DCu);
+                    f680DC(S32(0xF40F8u), need);                    /* 0x67661 the computer's choice (aiship.c) */
                 }
             }
         }
@@ -238,7 +238,12 @@ void f673A8(void)
     if ((D8(POP_FLAGS) & 0x80) != 0)                                /* 0x67712 */
         setD8(0xF40FEu, 1);                                         /* 0x6771B */
     /* 0x67722..0x6774C: wait until clock() >= start + (1000 / [0xBB3F4]) / 10 (file comment) */
-    f78A20(1000);
+    {
+        uint32_t target = start + (uint32_t)((1000 / S32(0xBB3F4u)) / 10), now = wat_clock();
+
+        if (target > now)
+            f78A20((int)((target - now) * 10u * D32(0xBB3F4u)));
+    }
 }
 
 /* the five copies of 0x67758 (port guard: a block that could not be allocated is skipped) */

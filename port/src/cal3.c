@@ -160,23 +160,8 @@ void cal3_test_f7A4C4(int anim);
 #define f201B8(n)         cal3_test_f201B8(n)
 #define f7A4C4(anim)      cal3_test_f7A4C4(anim)
 #else
-static int f1EF28(int n, int32_t *scores)       /* M7 (AI): computer n's volcano among the tied ones */
-{
-    (void)n; (void)scores;
-    not_ported(0x1EF28u);
-}
+#include "aical1.h"                             /* f1EF28, f20068, f201B8: the computers' Volcano / Earthquake choices (M7) */
 
-static void f20068(int n)                       /* M7 (AI): the tied Earthquake pairs 0xF7300 ordered (eax unused) */
-{
-    (void)n;
-    not_ported(0x20068u);
-}
-
-static int f201B8(int n)                        /* M7 (AI): computer n's own city hit when there is no pair */
-{
-    (void)n;
-    not_ported(0x201B8u);
-}
 #endif
 
 /* ---- small shared pieces ------------------------------------------------------------------------------------------ */
