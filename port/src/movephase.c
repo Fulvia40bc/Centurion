@@ -138,17 +138,8 @@ void movephase_test_f461BC(int n);
 #define f353C4(n) movephase_test_f353C4(n)
 #define f461BC(n) movephase_test_f461BC(n)
 #else
-static void f353C4(int n)                       /* AICITY (M7): the computer's trial planning */
-{
-    (void)n;
-    not_ported(0x353C4u);
-}
-
-static void f461BC(int n)                       /* AIMOVE (M7): the movement planner, which calls f4D518 */
-{
-    (void)n;
-    not_ported(0x461BCu);
-}
+#include "aicity.h"                             /* f353C4 the computer's trial planning (M7 batch 1) */
+#include "aimove.h"                             /* f461BC the movement planner (M7 batch 1) */
 #endif
 
 #define FLAGS        0xE1624u
@@ -519,6 +510,7 @@ L55934:
     f353C4(n);                                                      /* 0x55A52 [AICITY, not ported] */
     f7AC60();                                                       /* 0x55A57 pop: the trial undone */
     f461BC(n);                                                      /* 0x55A5F [AIMOVE, not ported]: the real moves */
+    port_checkpoint(0x55A64u);                                      /* port (M7): the planner's return, a comparison point */
     setD32(0xF5908u, 0);                                            /* 0x55A6B */
     f3C7A0(D32(CUR_DLG));                                           /* 0x55A71 */
     f788AC();                                                       /* 0x55A76 */

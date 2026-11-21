@@ -24,6 +24,7 @@ FFB54 0xC adjacency blocks (port handles)
 1125A8 0x30 DPMI free-memory information (int 31h AX=0500h)
 11AF24 8 Watcom heap internals
 11B0E4 8 Watcom heap internals
+11B420 0x67E0 the DOS/4GW stack below its first 4 KB (deeper calls: the computers' movement planner, M7; no code references the data object above 0x11B3FB, D)
 121C00 0x1000 the DOS/4GW stack at the top of the data object
 DB300 0x631D library data: Fastgraph/Image (the 16 KB GIF code table at 0xDCA51), Fastgraph/Fonts working globals (0xE0A66..0xE0D79), the Watcom initializer table's done flags (0xE15E8..0xE1612); game code references nothing below 0xE161D here
 F6058 1 the DOS video mode at start-up (0x7E044; the port skips it)

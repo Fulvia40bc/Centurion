@@ -37,7 +37,7 @@
      0x8A080 clock: read twice per housekeeping from round 7 (start, and the busy wait until start + 250 / 10
              hundredths, 0x60F86 / 0x62125, unsigned ja). Port (G): ui_kit2.c's clock_8A080 is static, so the wait
              is f78A20(250), which equals the original when f461BC spends no clock time (open: export the clock).
-             Reached only after not_ported(0x461BC) today
+             (f461BC is ported since M7 batch 1, 21 Nov)
      rep movsd / movsb -> memcpy inside g_ds (and into the heap blocks); 0x7D4AC (__CHK) dropped; 0x78B24 (the alloc
              trace, called with the size or 0 after each malloc / free) is a no-op (game.h).
    game_rand f78AE4: none drawn here (D); the phase's random numbers are all in SHIPAI (0x61254, 0x62840) and f461BC.
@@ -119,9 +119,10 @@ void ship_test_f461BC(int n);
 #define CALL_F62840(n) ship_test_f62840(n)
 #define CALL_F461BC(n) ship_test_f461BC(n)
 #else
+#include "aimove.h"
 #define CALL_F61254(n) ((void)(n), not_ported(0x61254u))
 #define CALL_F62840(n) ((void)(n), not_ported(0x62840u), -1)
-#define CALL_F461BC(n) ((void)(n), not_ported(0x461BCu))
+#define CALL_F461BC(n) f461BC(n)                    /* aimove.c (M7 batch 1) */
 #endif
 
 #define FLAGS        0xE1624u

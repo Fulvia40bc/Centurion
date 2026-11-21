@@ -488,5 +488,10 @@ void f302C4(void);                     /* D: the computer takes the nations the 
 
 void f7784C(int n);                    /* D: the player buttons for n players (dialogs 0xF596C and 0x111594); newgame.c, also called by the elimination check f22B00 */
 extern void (*g_not_ported_hook)(uint32_t addr);   /* port: called by not_ported before it exits (main.c: --dump-ds there) */
+extern uint32_t g_stop_at_addr;         /* port: main.c --stop-at ADDR N */
+extern int g_stop_at_count;
+void port_checkpoint(uint32_t addr);   /* port (M7): a comparison point at the original's link address addr (e.g. 0x55A64, the return
+                                         of the planner f461BC); with --stop-at ADDR N the N-th pass (from 1) prints
+                                         "advciv: stop at 0xADDR #N", dumps as not_ported does (--dump-ds) and exits 0 */
 
 #endif

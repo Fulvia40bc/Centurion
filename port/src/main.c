@@ -276,6 +276,10 @@ int main(int argc, char **argv)
             s_stop_at_loop = 1;                       /* restore: 0x14AA4, then stop at main 0x118C9 */
         else if (strcmp(argv[i], "--through-start") == 0)
             s_through_start = 1;                      /* new game: go on through the starting territories to 0x1188C */
+        else if (strcmp(argv[i], "--stop-at") == 0 && i + 2 < argc) {
+            g_stop_at_addr = (uint32_t)strtoul(argv[++i], NULL, 0);   /* M7: stop at the N-th pass of the */
+            g_stop_at_count = atoi(argv[++i]);                         /* comparison point ADDR (port_checkpoint) */
+        }
         else if (strcmp(argv[i], "--overview") == 0)
             s_overview = 1;
         else if (strcmp(argv[i], "--press") == 0 && i + 1 < argc)

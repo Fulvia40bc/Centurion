@@ -50,6 +50,22 @@ extern uint8_t *ui_heap_F522C;
 /* not_ported: a call into code that is not translated yet. Prints the original's address and ends the program. */
 void (*g_not_ported_hook)(uint32_t addr);   /* main.c: with --dump-ds, the data object and frame at this point */
 
+uint32_t g_stop_at_addr;                        /* main.c --stop-at ADDR N (0: none) */
+int g_stop_at_count;
+
+void port_checkpoint(uint32_t addr)
+{
+    static int passes;
+
+    if (g_stop_at_addr == 0 || addr != g_stop_at_addr || ++passes < g_stop_at_count)
+        return;
+    fprintf(stderr, "advciv: stop at 0x%X #%d\n", (unsigned)addr, passes);
+    if (g_not_ported_hook != NULL)
+        g_not_ported_hook(addr);
+    plat_shutdown();
+    exit(0);
+}
+
 _Noreturn void not_ported(uint32_t addr)
 {
     fprintf(stderr, "advciv: 0x%X is not ported yet\n", (unsigned)addr);
