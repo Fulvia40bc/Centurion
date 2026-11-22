@@ -22,6 +22,7 @@ Run with `python -I`. None of them contain game data; they read the game copy or
 | `dlgxy.py DUMP.bin DLG [ID]` | a dialog's button rectangles and centres from a data-object dump (Task 14); with ID, only that button's centre "x,y" |
 | `flcframes.py FLC SHOT_PREFIX COUNT [X Y]` | `tools/dosbox/flcshots.sh` captures of fg_showflic, frame by frame against `flcpy.py` (the 0xF100 prefix frame counted), pixels and palette |
 | `savediff.py A.DAT B.DAT [--ignore NAME]... [--max N]` | names each differing element of two version-0x38 saves (Task 18): field, record, sub-field, value `->` value; `--layout [A.DAT]` prints the field table (with a file, each element's value); `savediff_test.py` runs its synthetic-file tests (single-byte sweep over the whole file, refusals, end-game 44,066 shape, the three save editors) |
+| `demo_regress.py record EXE GAMEDIR REFDIR [--seeds ...]` / `check EXE GAMEDIR REFDIR` / `xarch EXE_A EXE_B GAMEDIR` | whole demo games (Task 19): record the per-round data-object dumps per seed as the reference, check new runs against them round by round (volatile ranges masked by `port_volatile.txt`), or compare two builds directly; the game folder's save/cfg files are snapshotted and restored around every run. `fake_advciv.py` is the test stand-in for the exe, `demo_regress_test.py` the tests |
 
 Save editors (test positions for DOSBox-X / port runs; they follow the port's reading of the save format, so they
 make inputs, not checks). Each verifies the CRC first and rewrites it:
