@@ -416,7 +416,7 @@ void f29E34(int k)
                          o == 0xD ? DSTR(0xB3061u) : DSTR(0xB3068u));   /* 0x2A9A4 (0xB306E) */
                 f79270(-500, b, -200, buf, 1);                      /* 0x2A9C1 */
             } else if (human(NATION(b))) {                          /* 0x2A840..0x2A85E */
-                if (g_original)   /* BUG(1995): "beneficary" (0xB2FB3; text) */
+                if (g_original)   /* BUG(1995) 2: "beneficary" (0xB2FB3; text) */
                     snprintf(buf, sizeof buf,
                              "%s, you are a beneficary of Civil War. Choose cities to annex.", NAME(b));   /* 0x2A877 */
                 else
@@ -424,7 +424,7 @@ void f29E34(int k)
                              "%s, you are a beneficiary of Civil War. Choose cities to annex.", NAME(b));
                 f2B6EC(n, 9 - S8(NATION(b) + 0x51u), buf, o, b, 5); /* 0x2A8AA */
             } else {
-                if (g_original)   /* BUG(1995): "beneficary" and "Second" for either faction (0xB2FF2; text) */
+                if (g_original)   /* BUG(1995) 2 and 3: "beneficary", "Second" for either faction (0xB2FF2; text) */
                     snprintf(buf, sizeof buf,
                              "%s is a beneficary of Civil War, but cannot fully absorb the Second Faction cities.  "
                              "Choosing cities to annex.", NAME(b)); /* 0x2A8CB */
@@ -441,7 +441,7 @@ void f29E34(int k)
             goto next;
         if (S8(on + 0x98u) > S8(NATION(b) + 0x99u)) {               /* 0x2A9E8..0x2A9F6 cmp al, cl; jle 0x2AAC9 */
             if (human(NATION(b))) {                                 /* 0x2A9FC..0x2AA1A */
-                if (g_original)   /* BUG(1995): "beneficary" (0xB308C; text) */
+                if (g_original)   /* BUG(1995) 2: "beneficary" (0xB308C; text) */
                     snprintf(buf, sizeof buf,
                              "%s, you are a beneficary of Civil War. Choose tokens to annex.", NAME(b));   /* 0x2AA33 */
                 else
@@ -449,7 +449,7 @@ void f29E34(int k)
                              "%s, you are a beneficiary of Civil War. Choose tokens to annex.", NAME(b));
                 f2B6EC(n, S8(NATION(b) + 0x99u), buf, o, b, 6);     /* 0x2AA5D */
             } else {
-                if (g_original)   /* BUG(1995): "beneficary" and "Second" for either faction (0xB30CB; text) */
+                if (g_original)   /* BUG(1995) 2 and 3: "beneficary", "Second" for either faction (0xB30CB; text) */
                     snprintf(buf, sizeof buf,
                              "%s is a beneficary of Civil War, but cannot fully absorb the Second Faction tokens. "
                              "Choosing tokens to annex.", NAME(b)); /* 0x2AA7E */
@@ -754,7 +754,7 @@ void f2B6EC(int x, int count, const char *text, int src, int target, int mode)
         fg_vbopen(S32(BACKBUF));                                    /* 0x2BAF5 */
         f3C9D0(0x109, 0x186, 0x6E, 0x13, 5);                        /* 0x2BB13 */
         fg_setcolor(5);                                             /* 0x2BB1A */
-        if (g_original || S32(CHOICE_N) > 0)   /* BUG(1995): an empty list shows a stale entry (file comment) */
+        if (g_original || S32(CHOICE_N) > 0)   /* BUG(1995) 4: an empty list shows a stale entry (file comment) */
             f3A0B0(0x109, 0x18A, 0x6E, TERR_NAME(S32(CHOICE + 4u * (uint32_t)sel)));   /* 0x2BB42 */
         f3C9D0(0x136, 0x172, 0x13, 0x13, 5);                        /* 0x2BB5A */
         fg_setcolor(5);                                             /* 0x2BB61 */
@@ -763,7 +763,7 @@ void f2B6EC(int x, int count, const char *text, int src, int target, int mode)
         fg_vbclose();                                               /* 0x2BB96 */
         f459E4(x);                                                  /* 0x2BB9E */
         f3F670();                                                   /* 0x2BBA3 */
-        if (g_original || S32(CHOICE_N) > 0)   /* BUG(1995): an empty list highlights a stale entry */
+        if (g_original || S32(CHOICE_N) > 0)   /* BUG(1995) 4: an empty list highlights a stale entry */
             f3F624(S32(CHOICE + 4u * (uint32_t)sel), 15);           /* 0x2BBB7 */
         if (left != tgt) {                                          /* 0x2BBC2 je 0x2BBF5 */
             f3C3D0(PANEL_DLG, 0x2A);                                /* 0x2BBD0 FINISHED off */
@@ -817,7 +817,7 @@ void f2B6EC(int x, int count, const char *text, int src, int target, int mode)
                             f57E28(t, target, 1);                   /* 0x2BF2F */
                             inc8(NATION(target) + 0x98u);           /* 0x2BF3B */
                             dec8(NATION(target) + 0x99u);           /* 0x2BF48 */
-                            if (g_original)   /* BUG(1995): the target's stock given back (the ALL path, file comment) */
+                            if (g_original)   /* BUG(1995) 1: the target's stock given back (the ALL path) */
                                 inc8(NATION(target) + 0x99u);       /* 0x2BF55 */
                         }
                         if (mode != 4)                              /* 0x2BF60 */

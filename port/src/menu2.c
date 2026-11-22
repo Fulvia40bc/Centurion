@@ -87,12 +87,12 @@
    screen, the cursor, the colour, the palette and the clip region end up as with the GIF.
 
    1995 bugs (fixed unless g_original):
-     - 0x44D5C stores the current score at column r of the 45-column history without the clamp to 44 that the AST
+     1. 0x44D5C stores the current score at column r of the 45-column history without the clamp to 44 that the AST
        phase uses (0x13BC7, game.h): from round 45 on it writes into the next nation's row, and for EGYPT (n = 9) past
        the table into [0xEED74] (0xEE9F0 + 90 * 9 + 2 * 45 = 0xEED74), a heap pointer that the dispatcher's NEW GAME /
        RESTORE cases free (D for the addresses; G: how often a game reaches round 45). Fixed: the column is clamped to
        44, the column the AST phase writes from round 44 on.
-     - 0x44D5C draws "R O U N D S" in whatever colour the round labels left: 15, except with 37..44 rounds and an odd
+     2. 0x44D5C draws "R O U N D S" in whatever colour the round labels left: 15, except with 37..44 rounds and an odd
        count, where the last label is skipped and the text comes out in the grid's colour 7 (D; G: unintended). Fixed:
        colour 15 is set first.
    Oddities kept (D):
@@ -617,7 +617,7 @@ void f44D5C(void)
         s = f147C4(n);                                /* 0x44DCD */
         col = r;
         if (!g_original && col > 44)
-            col = 44;   /* BUG(1995): the store is not clamped to the 45 columns (file comment) */
+            col = 44;   /* BUG(1995) 1: the store is not clamped to the 45 columns (file comment) */
         setD16(hist(n, col), (uint16_t)s);            /* 0x44DF2 mov word [90n + 2r + 0xEE9F0], bx */
         pair[cnt][0] = (int16_t)s;                    /* 0x44DFE word [ebp + 4cnt - 0x6C] */
         pair[cnt][1] = (int16_t)n;                    /* 0x44E13 word [ebp + 4cnt - 0x6A] */
@@ -690,7 +690,7 @@ void f44D5C(void)
         f3A0B0(xstep * n + 0x1A, 0x196, 0x28, buf);   /* 0x451ED */
     }
     if (!g_original)
-        fg_setcolor(0xF);   /* BUG(1995): otherwise the colour the last round label left (7 when it was skipped) */
+        fg_setcolor(0xF);   /* BUG(1995) 2: otherwise the colour the last round label left (7 when it was skipped) */
     f3A0B0(0x2D, 0x1A4, 0x212, DSTR(0xB45AAu));       /* 0x4520B "R O U N D S" */
 
     /* the legend, highest score first (0x45210..0x45323) */

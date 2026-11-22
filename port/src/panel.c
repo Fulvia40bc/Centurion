@@ -34,7 +34,7 @@
    (f3AF8C, f3AFF4); [0xF52C8] / [0xF52CC] are Fastgraph buffer handles; [0xF40D4] is the port's catalog handle.
 
    1995 bugs (fixed unless g_original):
-     - 0x3E374 draws the ships of every nation k 1..10 except k == P - 1, then those of k == P - 1 in a second loop
+     1. 0x3E374 draws the ships of every nation k 1..10 except k == P - 1, then those of k == P - 1 in a second loop
        that runs only for k 1..8 (0x3E493, 0x3E548, 0x3E552). k is a 1-based nation there (nation record 199k, sprite
        0xF4D5C + 8k), so the P - 1 (right in the token loops, where k is 0-based: area +0x0F + k, sprite 0xF4E3C +
        8(k + 1)) puts nation P - 1's ships on top of a shared territory instead of the viewer's own (D for the code,
@@ -197,7 +197,7 @@ void f3E374(int P)
         memset(cnt_mem, 0, sizeof cnt_mem);                         /* port: the scratch bytes */
         memset(cnt, 0, 0xA0);                                       /* 0x3E460 memset([ebp-0xD4], 0, 0xA0) */
         if (g_original) {
-            /* BUG(1995): k is a 1-based nation in these loops, but the viewer is compared as P - 1 (as in the 0-based
+            /* BUG(1995) 1: k is a 1-based nation in these loops, but the viewer is compared as P - 1 (as in the 0-based
                token loops below), and the second loop stops at 8 (0x3E548 cmp 9; jge). */
             own = P - 1;                                            /* 0x3E48F, 0x3E552 dec eax */
             last = 9;                                               /* 0x3E548 */

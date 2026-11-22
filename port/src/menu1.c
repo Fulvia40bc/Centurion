@@ -39,11 +39,15 @@
    Heap pointers in data fields: none.
 
    1995 bugs (fixed unless g_original):
-     - 0x42CEC gives the two CITY SUPPORT phases (10 and 17) the Ship Construction help: both jump-table entries go to
-       0x42FEE, which copies "shipcnst.hlp" / "Ship Construction" from a second pair of strings (0xB41AE, 0xB41BB;
+     1. 0x42CEC gives the two CITY SUPPORT phases (10 and 17) the Ship Construction help: both jump-table entries go
+       to 0x42FEE, which copies "shipcnst.hlp" / "Ship Construction" from a second pair of strings (0xB41AE, 0xB41BB;
        phase 4 has its own at 0xB4104 / 0xB4111). ACIV.CT3 holds CITYSUP.HLP (416 bytes, about city support), which
        no string of the game names (D). G: 0x42FEE is a copy of phase 4's case whose strings were never changed. The
        fix shows citysup.hlp with the title "City Support" (port text; the original has no such title string).
+   Text slips (fixed unless g_original, docs/TEXT_SWEEP.md; Erik's ruling of 19 Nov 2026): five obvious errors in the
+     help files, "Acquistion" (buyciv.hlp), the stray '.' of 'Salt?".' (tradwant.hlp), "button , only"
+     (tradoffr.hlp), "a F (" (civilwar.hlp) and "the affect" (superstn.hlp), corrected by help_fix after 0x4290C loads
+     the text (0x42992); the rest of the help texts' wording is kept.
    Oddities kept or guarded (D):
      - 0x42CEC leaves both buffers untouched in phases 2 (CENSUS) and 9 (REMOVE SURPLUS), in TAXATION when the tax
        state is neither 2 nor -50, for a calamity outside 18..30 and for phases above 21. 0x4290C passes them
@@ -174,7 +178,7 @@ void f4290C(void)
         text = malloc((size_t)size + 1 + HELP_FIX_ROOM);   /* 0x4297B (port: room for the text fixes) */
         cat_load(name, (uint8_t *)text, S32(0xF40DCu));    /* 0x42992 */
         text[size] = 0;                         /* 0x429A0 */
-        if (!g_original)
+        if (!g_original)                        /* BUG(1995) (text): the help files' slips (file comment) */
             help_fix(name, text);               /* port: Erik's text ruling of 19 Nov */
     }
 
@@ -270,7 +274,7 @@ void f42CEC(char *name, char *title)
     case 10:                                    /* -> 0x42FEE (CITY SUPPORT) */
     case 17:                                    /* -> 0x42FEE (CITY SUPPORT) */
         if (g_original) {
-            /* BUG(1995): the City Support phases show the Ship Construction help; CITYSUP.HLP is never shown */
+            /* BUG(1995) 1: the City Support phases show the Ship Construction help; CITYSUP.HLP is never shown */
             pick(name, title, 0xB41AEu, 0xB41BBu);      /* "shipcnst.hlp", "Ship Construction" */
         } else {
             strcpy(name, "citysup.hlp");        /* port text: the catalogue's CITYSUP.HLP */

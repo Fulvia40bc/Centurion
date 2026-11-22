@@ -54,13 +54,13 @@
    [0xF52CC] are Fastgraph buffer handles.
 
    1995 bugs (fixed unless g_original):
-     - 0x1A0B9: a click in the bottom 4 pixels of a row of Civilization Tools (the button is 48 high, the grid's four
+     1. 0x1A0B9: a click in the bottom 4 pixels of a row of Civilization Tools (the button is 48 high, the grid's four
        name rows 44) gives grid row 4: the pop-up shows the next column's first advance, and in the last column index
        24, past the tables: 0xC7E9C[24] is the dword 0x0B86ED00, not a text (D: obj2), so the original reads a wild
        pointer (G: a crash or garbage). The same happens when the press on a row is dragged off it before the release:
        f775F0 (in f3C5D4) leaves the release position in 0xE1628 / 0xE162C, so ri is -38..40 and c 0..6 (D). Fixed:
        ri clamped to 0..3 and c to 0..5 (row 4 counts as row 3). Grades D (arithmetic and tables), G (effect).
-     - 0x3FC75: REVIEW saves rows 0..0x1DE of the screen (fg_makegif(0, 0x27F, 0, 0x1DE)) and later shows them over the
+     2. 0x3FC75: REVIEW saves rows 0..0x1DE of the screen (fg_makegif(0, 0x27F, 0, 0x1DE)) and later shows them over the
        background buffer, so the bottom row 479 keeps tradwrap.gif's row instead of the trade screen's. Fixed: 0x1DF.
        D (the arguments), G (visible only where the two pictures' last rows differ).
    Bugs and oddities kept (D unless marked):
@@ -489,7 +489,7 @@ void f19C10(void)
         ri = my / 11;                                               /* 0x1A0A4 idiv (signed) */
         c = mx / 0x5A;                                              /* 0x1A0B7 idiv (signed) */
         if (!g_original) {
-            /* BUG(1995): the row button is 48 high, the four name rows 44: its bottom 4 pixels gave row 4, the next
+            /* BUG(1995) 1: the row button is 48 high, the four name rows 44: its bottom 4 pixels gave row 4, the next
                column's first advance or, in the last column, index 24 past the tables (a wild text pointer,
                0xC7E9C[24] = 0x0B86ED00). Also, f78BA4 picks the button at the press but f3C5D4's f775F0 leaves the
                RELEASE position in 0xE1628 / 0xE162C: a press on a row dragged off it gives ri -38..40 and c up to 6
@@ -767,8 +767,9 @@ int dcase_103(int code)
     if (g_original)
         junk_makegif(0, 0x27F, 0, 0x1DE, DSTR(0xB400Cu));           /* 0x3FC75 fg_makegif(0, 0x27F, 0, 0x1DE, "junk") (port: junk.c) */
     else
-        junk_makegif(0, 0x27F, 0, 0x1DF, DSTR(0xB400Cu));  /* BUG(1995): the original saves rows 0..478 only, so row 479 keeps
-                                                       tradwrap.gif's row when the screen is put back. Fixed: 0..479. */
+        junk_makegif(0, 0x27F, 0, 0x1DF, DSTR(0xB400Cu));  /* BUG(1995) 2: the original saves rows 0..478 only,
+                                                       so row 479 keeps tradwrap.gif's row when the screen is put back.
+                                                       Fixed: 0..479. */
     f788AC();                                                       /* 0x3FC7D */
     pic = D8(0xEE168u);                                             /* 0x3FC82 */
     f763FC();                                                       /* 0x3FC8A */

@@ -53,7 +53,7 @@
        +2 bit 0x01 a city
 
    1995 bugs (fixed unless g_original):
-     - 0x227B0 lets a city territory that fails the city rule (owner with Monotheism / Theology, the Pirates' city,
+     1. 0x227B0 lets a city territory that fails the city rule (owner with Monotheism / Theology, the Pirates' city,
        or n already at 9 cities) fall through to the token rule (0x22AE6); with tokens of an unprotected nation 1..9
        there it is listed, and 0x21A70's CONVERT tests only the city bit (0x21CC0) and converts the city: a protected
        city taken, or a 10th city appended past n's 9-byte city list (+0x52 + 9) by f78E74. Fixed: such a territory
@@ -329,7 +329,7 @@ void f227B0(int n)
         }
         /* 0x22AE6: the tokens of the other nations */
         if (!g_original && (D8(TSTATE(t) + 2) & 1) != 0)
-            continue;   /* BUG(1995): a city territory that failed the city rule above (owner protected, the Pirates,
+            continue;   /* BUG(1995) 1: a city territory that failed the city rule above (owner protected, the Pirates,
                            or n at 9 cities) is listed through other nations' tokens there, and 0x21A70's CONVERT
                            (0x21CC0) then takes the city itself (D code; G reach: no tokens of nations 1..9 share a
                            city territory at phase 16) */

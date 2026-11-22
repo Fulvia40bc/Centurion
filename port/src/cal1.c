@@ -410,13 +410,13 @@ void f1E388(void)
                 snprintf(part, sizeof part, " and %s", CARDNAME(card)); /* 0x1E3DD (0xB19FB) */
             for (m = idx; S8(rec + 0x13u) - 1 > m; m++) {           /* 0x1E3F5, 0x1E400..0x1E40D */
                 setD8(rec + (uint32_t)m + 0x14u, D8(rec + (uint32_t)m + 0x15u));   /* 0x1E41B / 0x1E41E */
-                /* BUG(1995): the givers +0x1C.. are not shifted with the cards (0x1E69C shifts both) */
+                /* BUG(1995) 1: the givers +0x1C.. are not shifted with the cards (0x1E69C shifts both) */
                 if (!g_original)
                     setD8(rec + (uint32_t)m + 0x1Cu, D8(rec + (uint32_t)m + 0x1Du));
             }
             setD8(rec + 0x13u, (uint8_t)(D8(rec + 0x13u) - 1u));    /* 0x1E426 dec byte [rec + 0x13] */
             setD8(rec + (uint32_t)(int32_t)S8(rec + 0x13u) + 0x14u, 0);   /* 0x1E441 */
-            if (!g_original)   /* BUG(1995): the freed giver slot is not reset (0x1E69C writes 0xFF) */
+            if (!g_original)   /* BUG(1995) 1: the freed giver slot is not reset (0x1E69C writes 0xFF) */
                 setD8(rec + (uint32_t)(int32_t)S8(rec + 0x13u) + 0x1Cu, 0xFFu);
             cat(text, sizeof text, part);                           /* 0x1E435..0x1E466 */
         }
@@ -481,8 +481,8 @@ void f1E69C(int k)
             break;
         }
     }
-    /* BUG(1995): a card not in the hand leaves [ebp-0x14] unwritten; the original shifts from stack garbage, drops the
-       count and discards the card anyway. Fixed: the hand stays as it is and nothing is discarded. */
+    /* BUG(1995) 2: a card not in the hand leaves [ebp-0x14] unwritten; the original shifts from stack garbage,
+       drops the count and discards the card anyway. Fixed: the hand stays as it is and nothing is discarded. */
     if (!found && !g_original)
         return;
     for (j = at; S8(rec + 0x13u) - 1 > j; j++) {                    /* 0x1E72B, 0x1E736..0x1E743 */
@@ -524,7 +524,7 @@ void f20564(int k)
             break;
         }
     }
-    /* BUG(1995): no Treachery card in the hand leaves [ebp-0x1C] unwritten (the giver comes from stack garbage).
+    /* BUG(1995) 3: no Treachery card in the hand leaves [ebp-0x1C] unwritten (the giver comes from stack garbage).
        Fixed: the giver of the calamity record (copied from the same hand by 0x1E5B8). */
     if (!found && !g_original)
         giver = S8(CAL_GIVER(k));
@@ -643,7 +643,7 @@ int f207B4(int p, int v, int kind)
             f3F624(S32(CHOICE + 4u * (uint32_t)sel), 15);           /* 0x20B86 */
         f3CBBC();                                                   /* 0x20B8B */
         if (redraw != 0) {                                          /* 0x20B93 */
-            if (g_original || S32(CHOICE_N) > 0)   /* BUG(1995): an empty list centres on territory -1 */
+            if (g_original || S32(CHOICE_N) > 0)   /* BUG(1995) 6: an empty list centres on territory -1 */
                 f3DA60(S32(CHOICE + 4u * (uint32_t)sel));           /* 0x20BA1 */
             else
                 f3D52C(0, 0);
@@ -711,7 +711,7 @@ void f20FC4(int t, int p, int v)
             setD8(TSTATE(t) + 1u, D8(0xF40FCu));                    /* 0x210D4 */
             if ((D8(FLAGS) & PBEM_BIT) != 0 || S8(prec + 0x9Au) == 2) {   /* 0x210E0, 0x210F1 */
                 an = f789EC(S8(prec + 0x3Du));                      /* 0x2110B */
-                /* BUG(1995) (text): the original maps 1 to "a" and 0 to "an" ("replaced by a African city") */
+                /* BUG(1995) 4 (text): the original maps 1 to "a" and 0 to "an" ("replaced by a African city") */
                 if (g_original)
                     snprintf(part, sizeof part, "replaced by %s %s city.", an != 0 ? "a" : "an",
                              ADJ(S8(prec + 0x3Du)));                /* 0x2112D (0xB1E40, 0xB1E3B / 0xB1E3D) */
@@ -745,8 +745,9 @@ void f20FC4(int t, int p, int v)
             break;
         }
     }
-    /* BUG(1995): a city not in the list leaves [ebp-0x18] unwritten; the original shifts from stack garbage and drops
-       the count anyway (as rules.c's f78F04). Fixed: the list stays as it is (the state writes above still happen). */
+    /* BUG(1995) 2: a city not in the list leaves [ebp-0x18] unwritten; the original shifts from stack garbage and
+       drops the count anyway (as rules.c's f78F04). Fixed: the list stays as it is (the state writes above still
+       happen). */
     if (found || g_original) {
         for (j = at; S8(vrec + 0x51u) - 1 > j; j++)                 /* 0x2126B, 0x21276..0x21283 */
             setD8(vrec + (uint32_t)j + 0x52u, D8(vrec + (uint32_t)j + 0x53u));   /* 0x21291 / 0x21294 */
@@ -1264,7 +1265,7 @@ void f2468C(int c, int v, int k, int mode)
     removed = 0;                                                    /* 0x2498F */
     left = k;                                                       /* 0x24995 */
     owner = 0;
-    /* BUG(1995): an empty list with cities left to take (mode 1, see the file comment): nothing is left */
+    /* BUG(1995) 7: an empty list with cities left to take (mode 1, see the file comment): nothing is left */
     if (!g_original && S32(CHOICE_N) == 0 && left > 0)
         left = 0;
     for (;;) {
@@ -1337,14 +1338,14 @@ void f2468C(int c, int v, int k, int mode)
             snprintf(buf, sizeof buf, "Are you sure you want to Restart?");   /* 0x24D04 (0xB28AD) */
             if ((D8(0xF097Cu) & 0x08) == 0 || f795A8(buf) == -0x61) {   /* 0x24D12, 0x24D1D, 0x24D22 */
                 pirate_snapshot(0);                                 /* 0x24D2B..0x24DEE */
-                /* BUG(1995): the nation marks of mode 1 are not restored with the records */
+                /* BUG(1995) 8: the nation marks of mode 1 are not restored with the records */
                 if (!g_original)
                     pirate_marks(c, v, mode);
                 left = k;                                           /* 0x24DF3 */
                 f28CFC(v, kind, 0);                                 /* 0x24DFE */
                 sel = 0;                                            /* 0x24E05 */
                 redraw = 1;                                         /* 0x24E08 */
-                if (!g_original && S32(CHOICE_N) == 0 && left > 0)  /* BUG(1995): as above */
+                if (!g_original && S32(CHOICE_N) == 0 && left > 0)  /* BUG(1995) 7: as above */
                     left = 0;
             }
         } else if ((uint32_t)r < (uint32_t)-0xA) {                  /* 0x24B4F jb 0x24B98 */
@@ -1368,7 +1369,7 @@ void f2468C(int c, int v, int k, int mode)
             f79A9C(&sel);                                           /* 0x24E59 */
             removed = 0;                                            /* 0x24E60 */
             f28CFC(v, kind, 0);                                     /* 0x24E6B */
-            if (!g_original && S32(CHOICE_N) == 0 && left > 0)      /* BUG(1995): as above */
+            if (!g_original && S32(CHOICE_N) == 0 && left > 0)      /* BUG(1995) 7: as above */
                 left = 0;
         }
     }

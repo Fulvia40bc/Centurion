@@ -59,7 +59,8 @@
    [0x11059C], 0x1105A0, [0x1105FC], [0x110600], [0x110604], 0x110608... Saved: the nation records (record 0 too),
    0x111118 rows and [0x112548], 0x111498 (7 records) and [0x112568], 0x1105D4, 0x1105AC, 0x1106B0.
 
-   Stack words read before they are written (batch 1's rule applied first):
+   Stack words read before they are written (batch 1's rule applied first), fixed in both modes; word 2 is not a
+   bug (noted after the list):
      1. f6937C's card [ebp-0x3C] (0x697EA) when no candidate was ever tried (count <= 0, or top < 1: 0x1105A0[0] == 0).
         Not a sibling's word: game_rand (0x78AE4) and __CHK, called just before at the same depth, never reach
         [ebp-0x3C] (game_rand: 3 words). The word is left by older, deeper frames (f6AD70's table, f195D8, the previous
@@ -67,13 +68,14 @@
         OFFERS top < 1 means an empty ranked list, so slot 10 was empty and flag = 1 returns before the word is used;
         in COUNTER OFFERS count is always 1 ([0x1103F8 + 28k] = 3) and 0x1105A0[0] is 1 because n or the offering
         nation holds a countable card. BUG(1995) (D code / G unreachable): the port reads 0 (no recursion) in both modes.
-     2. f698A4's [ebp-0x34] (out of f6A5FC) is read at 0x6A3C1 even if f6A5FC never ran, but only together with
-        added > 3, which needs four f6A5FC calls: no effect (D). The port starts it at 0.
-     3. f6AD70 / f6AF34's [10][9] tables ([ebp-0x1FC] / [ebp-0x1D4]): rows of nations not in play are never written,
+     3. 0x6AD70 / 0x6AF34's [10][9] tables ([ebp-0x1FC] / [ebp-0x1D4]): rows of nations not in play are never written,
         and a card c >= 19 reads row m + 1 ((c - 1) / 2 >= 9): stack garbage when m + 1 is not in play, the next
         local array (held[], memset) for m = 9, and past it the locals q, i, c, n and the record pointer (D frame).
         The locals are modelled; unwritten rows read 0 in both modes (BUG(1995), D code / G: offers and responses hold
         only commodities, except a human's card 19 / 20 from trade.c's chart slip under --original).
+   Noted, not bugs (nothing to fix; word 2 keeps its number for the code's comments):
+     (2) f698A4's [ebp-0x34] (out of f6A5FC) is read at 0x6A3C1 even if f6A5FC never ran, but only together with
+        added > 3, which needs four f6A5FC calls: no effect (D). The port starts it at 0.
      f6B0EC's [0x1104C8 + 28i] read before it is written (0x6B496, M6_PLAN risk 7) is not stack garbage: it is the
      data-object word the previous f6B0EC (or f698A4's candidate 7 + i) left, 0 after a fresh start. Kept literally.
 
@@ -547,7 +549,7 @@ void f6AD70(int n)
     int32_t w[TW_TABLE + 29];                                       /* [ebp-0x1FC] table, [ebp-0x94] held[29] */
     int32_t m, s, c, i, q;
 
-    memset(w, 0, sizeof w);                                         /* port: unwritten rows read 0 (item 3) */
+    memset(w, 0, sizeof w);                                         /* BUG(1995) item 3: unwritten rows read 0 */
     for (m = 1; m <= 9; m++) {                                      /* 0x6AD9A, 0x6ADA9 jg */
         if (D8(NAT(m) + 0x9Au) == 0)                                /* 0x6ADB6 */
             continue;
@@ -580,7 +582,7 @@ void f6AF34(int n)
     int32_t w[TW_TABLE + 19];                                       /* [ebp-0x1D4] table, [ebp-0x6C] held[19] */
     int32_t m, s, c, i, q;
 
-    memset(w, 0, sizeof w);                                         /* port: unwritten rows read 0 (item 3) */
+    memset(w, 0, sizeof w);                                         /* BUG(1995) item 3: unwritten rows read 0 */
     for (m = 1; m <= 9; m++) {                                      /* 0x6AF5E, 0x6AF6D jg */
         if (D8(NAT(m) + 0x9Au) == 0)                                /* 0x6AF7A */
             continue;
@@ -793,7 +795,7 @@ void f698A4(int n)
     uint32_t rec = NAT(n);                                          /* [ebp-0x28] */
     int32_t h = 0;                                                  /* 0x698C1 [ebp-0x68] */
     int32_t added = 0;                                              /* 0x698C4 [ebp-0x30] */
-    int32_t out = 0;                                                /* [ebp-0x34]: item 2 */
+    int32_t out = 0;                                                /* [ebp-0x34]: stale word 2 (noted, no effect) */
     int32_t kw, sum, j, i, q, w, c, m, matches, k, ex, diff, trust, total, avg, thr, x, v, low, s, g, a, b, idx;
     int32_t cnt, rows, r, t;
     uint8_t *buf, tmp[8];

@@ -54,16 +54,16 @@
    0x68096..0x680C2). TAX's 0x66D8C uses the same three fields the same way (G, its record).
 
    1995 bugs fixed (the original's behaviour under g_original, marked BUG(1995)):
-     - 0x67758 DISTRIBUTE ALL (0x67D1A..0x67DC8) loops while the stock is not 0, one token to each listed territory
-       with an allowance per pass. If the listed allowances run out first it never ends (D code). G: the list always
-       holds every territory 0..156 with an allowance left (each removal is followed by a rebuild) and each token
-       added takes one from the stock and one from an allowance, so the hang needs need (> stock on entry) to count
-       something the listed allowances do not: an area-list entry (+0x61..) for territories 157..159 (allowed but
-       never listed by 0x28CFC), an entry present twice, or an entry 0 or above 160 (no allowance is computed there).
-       Tokens outside the area list and negative token bytes only add allowances. Unreachable with a well-formed
-       area list of territories 0..156. The fix stops when a pass adds nothing (M6_PLAN risk 6). The player then
-       still has stock and no FINISHED (it needs stock == 0) and an empty list, where ADD ONE puts a token into area
-       record 0 (no territory) until the stock is 0; not changed (for Erik).
+     1. 0x67758 DISTRIBUTE ALL (0x67D1A..0x67DC8) loops while the stock is not 0, one token to each listed territory
+        with an allowance per pass. If the listed allowances run out first it never ends (D code). G: the list always
+        holds every territory 0..156 with an allowance left (each removal is followed by a rebuild) and each token
+        added takes one from the stock and one from an allowance, so the hang needs need (> stock on entry) to count
+        something the listed allowances do not: an area-list entry (+0x61..) for territories 157..159 (allowed but
+        never listed by 0x28CFC), an entry present twice, or an entry 0 or above 160 (no allowance is computed there).
+        Tokens outside the area list and negative token bytes only add allowances. Unreachable with a well-formed
+        area list of territories 0..156. The fix stops when a pass adds nothing (M6_PLAN risk 6). The player then
+        still has stock and no FINISHED (it needs stock == 0) and an empty list, where ADD ONE puts a token into area
+        record 0 (no territory) until the stock is 0; not changed (for Erik).
 
    Oddities kept (D):
      - The need loop reads the tokens with n = [0xF40F8] (dword [0xE31C3 + 69a + [0xF40F8]] sar 24), the expansion
@@ -308,7 +308,7 @@ void f67758(int n_)
     int32_t redraw;     /* [ebp-0x2C] */
     int32_t sel;        /* [ebp-0x28] */
     int32_t remove;     /* [ebp-0x24] */
-    int32_t added;      /* port: the BUG(1995) guard of DISTRIBUTE ALL */
+    int32_t added;      /* port: for BUG(1995) 1, the guard of DISTRIBUTE ALL */
     char buf[200];      /* [ebp-0xFC] */
 
     setD16(0xBB400u, 0x15);                                         /* 0x67773 */
@@ -416,7 +416,7 @@ void f67758(int n_)
                         added = 1;
                     }
                 }
-                /* BUG(1995): with stock left and no listed allowance the original passes over the list forever
+                /* BUG(1995) 1: with stock left and no listed allowance the original passes over the list forever
                    (file comment); the fix stops */
                 if (!g_original && added == 0)
                     break;

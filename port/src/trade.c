@@ -101,11 +101,12 @@
        COMPLETE); 0x112158 Accept (0x87..0x89 ACCEPT -0x2F..-0x31, radios 0xEC + 3j + row, players 0x12.. -0x36..);
        0xBB800 CONTINUE; 0xBBBEC the box's CONTINUE
 
-   1995 bugs, fixed unless g_original (each marked BUG(1995) in the code; grades code / effect):
+   Fixed in both modes (stack garbage the port cannot reproduce; marked BUG(1995) 1; grades code / effect):
      1. 0x71768 own offer (D / D): the message buffer [ebp-0x174] is written only when the offer is incomplete; a
         complete offer with a bluff but no replacement appends "You must declare a bluff replacement." to stack garbage.
         The port cannot reproduce the garbage: both modes start from an empty text (no mode difference; for the
         DOSBox-X check, a frame of this box shows what the original prints).
+   1995 bugs, fixed unless g_original (each marked BUG(1995) in the code; grades code / effect):
      2. 0x71768 counter-offer (D / G): the want count [ebp-0x24] is never set in mode 1, yet every accepted
         counter-offer stores it into 0x1105AC[n] (in the save; the computers compare it, 0x6B1D1). The port cannot
         reproduce the garbage: --original stores 0; fixed: mode 1 leaves 0x1105AC[n] (n's own offer's count).
@@ -646,8 +647,8 @@ void f70984(int c)
             break;
         }
     }
-    /* BUG(1995): a calamity not held leaves [ebp-0x8] unwritten (stack garbage in the original); --original starts
-       at index 0 as rules.c's f75CA8 does. Fixed: the record stays. */
+    /* BUG(1995) 4: a calamity not held leaves [ebp-0x8] unwritten (stack garbage in the original); --original
+       starts at index 0 as rules.c's f75CA8 does. Fixed: the record stays. */
     if (!found && !g_original)
         return;
     for (i = at; (int32_t)S8(rec + 0x13u) - 1 > i; i++) {           /* 0x709F7 sar 24; dec eax; cmp; jle */
@@ -883,8 +884,8 @@ void f7109C(int n, uint32_t dlg)
             else
                 continue;
             sel = (S32(0xE162Cu) - 0x18) / 0x2F * 2 + col;          /* 0x7151C..0x71538 (idiv) */
-            /* BUG(1995): the chart button reaches y 448 while row 8 ends at 446, so a click at y 447..448 gives card 19
-               or 20, a calamity, as a bluff or a wanted card. Fixed: ignored. */
+            /* BUG(1995) 3: the chart button reaches y 448 while row 8 ends at 446, so a click at y 447..448 gives
+               card 19 or 20, a calamity, as a bluff or a wanted card. Fixed: ignored. */
             if (!g_original && sel > 0x12)
                 continue;
             g = S32(GROUP) / 3;                                     /* 0x7154A (idiv) [ebp-0x24] */
@@ -929,8 +930,8 @@ void f716BC(int c, int m)
             break;
         }
     }
-    /* BUG(1995): as 0x70984, a calamity not held shifts from an unwritten index; --original starts at 0. Fixed: the
-       record stays. */
+    /* BUG(1995) 4: as 0x70984, a calamity not held shifts from an unwritten index; --original starts at 0. Fixed:
+       the record stays. */
     if (!found && !g_original)
         return;
     for (i = at; (int32_t)S8(rec + 0x13u) - 1 > i; i++) {           /* 0x71726 */
@@ -953,8 +954,9 @@ int f71768(int n)
     int32_t  ok, ok2 = 1, ok3 = 1, ok4;                             /* [ebp-0x48], [ebp-0x44], [ebp-0x40], [ebp-0x3C] */
     int32_t  st, j, r;
 
-    /* BUG(1995): in mode 0 the original writes the text only when the offer is incomplete, so a complete offer
-       without its bluff replacement appends to stack garbage (see the file header). Both modes start empty. */
+    /* BUG(1995) 1 (fixed in both modes): in mode 0 the original writes the text only when the offer is incomplete,
+       so a complete offer without its bluff replacement appends to stack garbage (see the file header). Both modes
+       start empty. */
     text[0] = 0;
     if (S32(MODE) == 0) {                                           /* 0x7179C */
         ok = 1;                                                     /* 0x717B1 */
@@ -1023,8 +1025,8 @@ int f71768(int n)
         f71B68(text);                                               /* 0x71AD2 */
         r = -15;                                                    /* 0x71AD7 */
     } else {
-        /* BUG(1995): mode 1 never sets [ebp-0x24], yet stores it (stack garbage in the original). --original stores 0
-           (the port cannot reproduce the garbage); fixed: mode 1 leaves n's own offer's count. */
+        /* BUG(1995) 2: mode 1 never sets [ebp-0x24], yet stores it (stack garbage in the original). --original
+           stores 0 (the port cannot reproduce the garbage); fixed: mode 1 leaves n's own offer's count. */
         if (S32(MODE) == 0 || g_original)
             setD32(WANTS + 4u * (uint32_t)n, (uint32_t)want);       /* 0x71AE7 */
         r = -1;                                                     /* 0x71AEE */
@@ -1666,8 +1668,8 @@ void f7401C(int n, int mode)
         f3A044(0xD9, 0x4C, DSTR(0xB9294u));                         /* 0x74CC6 "Offers..." */
     }
     if (ro != 0 && !g_original)
-        /* BUG(1995) text (Erik's ruling, a missing article): "The responses to African offer..." -> "... to the
-           African offer...". "your" keeps the original's format. */
+        /* BUG(1995) 6 (text; Erik's ruling, a missing article): "The responses to African offer..." -> "... to
+           the African offer...". "your" keeps the original's format. */
         snprintf(buf, sizeof buf, "The responses to the %s offer...", ADJ(n));
     else
         snprintf(buf, sizeof buf, DSTR(0xB92A3u), ro == 0 ? DSTR(0xB929Eu) : ADJ(n));   /* 0x74CF5 "The responses to %s offer..." */
@@ -1776,8 +1778,8 @@ void f75074(int i)
             found = 1;
             break;
         }
-    /* BUG(1995): no record for a leaves [ebp-0x34] unwritten; --original uses index 0. Fixed: no cards logged for a.
-       G: unreachable (f726DC made a record for every nation with an offer). */
+    /* BUG(1995) 5: no record for a leaves [ebp-0x34] unwritten; --original uses index 0. Fixed: no cards logged
+       for a. G: unreachable (f726DC made a record for every nation with an offer). */
     for (j = 0; j < 5; j++)                                         /* 0x75178, 0x75185 */
         setD8(0x110F75u + (uint32_t)(5 * t + j),
               (found || g_original) ? D8(OFFER(idx) + 0xDu + (uint32_t)j) : 0);   /* 0x751B2 [21idx + j + 0x110ED9] */

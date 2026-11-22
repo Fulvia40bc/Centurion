@@ -7,6 +7,13 @@
    Watcom runtime -> standard C: 0x7D5D0 memset(eax, edx, ebx), 0x877E6 free (load_heap_free for the heap fields).
    __CHK dropped.
 
+   1995 bugs (fixed unless g_original):
+     1. 0x3F5C7 in 0x3F558 clears [0xFFB5C] after freeing the N.RL block [0x10740C]: [0xFFB5C] (seaadj) is already 0
+        from its own free above, and [0x10740C] keeps the freed block's address (a dangling pointer, D). Harmless in
+        the original as long as the next new game or restore reloads N.RL before another free (G: both paths run
+        0x3EED8). In the port the field would keep a stale handle whose slot load_heap_alloc may hand out again. The
+        fix clears [0x10740C].
+
    Heap fields (port, G): the original keeps malloc pointers in 32-bit data fields. Every field 0x3F558 frees was
    allocated through load.c's load_heap_alloc (0xFF648, 0xFF8CC, 0xFF8D0 in load.c's f3EA7C / f3EC20; 0xFFB54, 0xFFB58,
    0xFFB5C, 0x10740C in gfxload.c's f3EED8 through its heap_alloc), so each holds a handle with offset 0 and
@@ -232,10 +239,11 @@ void f3F558(void)
     if (h != 0) {
         load_heap_free(h);                                        /* 0x3F5C2 */
         if (g_original)
-            /* BUG(1995): the store after this free goes to [0xFFB5C] (0x3F5C7 mov [0xFFB5C],ebx), already 0 after the
-               seaadj free above, so [0x10740C] keeps the freed block's address (a dangling pointer, D). Harmless in the
-               original as long as the next new game or restore reloads N.RL before another free (G: both paths run
-               0x3EED8). In the port the field keeps a stale handle whose slot load_heap_alloc may hand out again. */
+            /* BUG(1995) 1: the store after this free goes to [0xFFB5C] (0x3F5C7 mov [0xFFB5C],ebx), already 0 after
+               the seaadj free above, so [0x10740C] keeps the freed block's address (a dangling pointer, D). Harmless
+               in the original as long as the next new game or restore reloads N.RL before another free (G: both
+               paths run 0x3EED8). In the port the field keeps a stale handle whose slot load_heap_alloc may hand
+               out again. */
             setD32(GAME_SEAADJ_BLOCK, 0);
         else
             setD32(GAME_RL_BLOCK, 0);

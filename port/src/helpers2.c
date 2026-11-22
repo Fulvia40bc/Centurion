@@ -3,8 +3,15 @@
    bytes. Each read from the disassembly (D); field meanings are G and in helpers2.h. Conventions as TASK 15 /
    rules.c: fXXXXX = the original at 0xXXXXX, register arguments eax, edx in order, data only through state.h,
    address arithmetic in uint32_t, __CHK dropped, each line carries the address of its instruction. The ported
-   helpers of rules.h (f75CA8, f75D84, f78D08) are called, not copied. No routine here has a 1995 fix of its own
-   (f75C08 calls f75CA8, which has one; the test leaves g_original at 0). Prototypes: helpers2.h.
+   helpers of rules.h (f75CA8, f75D84, f78D08) are called, not copied. One routine here has a 1995 fix of its own,
+   f2EC38 (below); f75C08 calls f75CA8, whose fix is rules.c's (the test leaves g_original at 0). Prototypes:
+   helpers2.h.
+
+   1995 bugs (fixed unless g_original):
+     1. 0x2EC94 in f2EC38 (the Epidemic helper when n has no spare tokens) passes n's city entry D8(rec + 0x52 + i)
+        to f78D08 as it is, but the city list holds territory + 1 (0x78ECD) and every other reader subtracts 1
+        (0x233B8, 0x242F8), so each city gets the limit of the next territory (D code, D effect). The fix passes
+        the entry - 1.
 
    Notation as TASK 15: rec = 0xF14CC + 199n (nation record n), area r = 0xE31B8 + 69r, terr t = 0xE1638 + 35t.
    "S8(a)" = the byte at a signed (dword [a-3] sar 24 / movsx), "D8(a)" = the byte at a unsigned, "S16(a)" = the
@@ -286,7 +293,7 @@ int f2EC38(int n, int L)
         return 0;
     for (i = 0; (int32_t)S8(rec + 0x51u) > i; i++) {                    /* 0x2EC75, 0x2EC78 */
         uint32_t t1 = D8(rec + 0x52u + (uint32_t)i);                    /* 0x2EC8C and 0xFF */
-        /* BUG(1995): the city list holds territory + 1 (0x78ECD), and every other reader subtracts 1 (0x233B8,
+        /* BUG(1995) 1: the city list holds territory + 1 (0x78ECD), and every other reader subtracts 1 (0x233B8,
            0x242F8); 0x2EC94 passes the entry as it is, so the limit is that of the next territory. Fixed by default
            (Claude, 19 Nov, Erik's standing rule); --original keeps it. */
         v[i] = 5 - f78D08(g_original ? (int)t1 : (int)t1 - 1, n);      /* 0x2EC94, 0x2EC99 */

@@ -529,8 +529,8 @@ void f32214(void)
                 }
                 cnt = S32(CHOICE_N);                                  /* 0x32D33 */
                 setD32(CHOICE_N, 0);                                  /* 0x32D38 */
-                /* BUG(1995): the four passes read area record s (territory s - 1) instead of s + 1 (the file
-                   comment, 1); `c` is the record read */
+                /* BUG(1995) 1: the four passes read area record s (territory s - 1) instead of s + 1; `c` is
+                   the record read */
                 for (i = 0; i < cnt; i++) {                           /* 0x32D49 pass 1: tokens enough */
                     c = g_original ? sites[i] : sites[i] + 1;         /* 0x32D5B..0x32D67 69s */
                     if (TOKENS(c, n) < needs[i])                      /* 0x32D6A..0x32D7F */
@@ -781,7 +781,7 @@ void f5C750(int n, int loss, const char *msg)
         /* 0x5C78E */
         if (S8(rec + 0x98) - loss >= 2 * S8(rec + 0x51))              /* 0x5C791..0x5C7AA jge: supported */
             return;
-        if (!g_original && S8(rec + 0x51) <= 0)   /* BUG(1995): no city left, the loop could never end */
+        if (!g_original && S8(rec + 0x51) <= 0)   /* BUG(1995) 2: no city left, the loop could never end */
             return;
         setD16(REDUCED, 1);                                           /* 0x5C7B0 */
         if (((D8(FLAGS) & PBEM_BIT) == 0 && S8(rec + 0x9A) == 3)      /* 0x5C7BF, 0x5C7D0 */
@@ -864,7 +864,7 @@ int f5C880(const int32_t *list, int cnt, const char *msg, int mode)
     loop = 1;                                                         /* 0x5CB23 */
     owner = 0;
     while (loop != 0) {                                               /* 0x5CB26 */
-        empty = !g_original && S32(CHOICE_N) <= 0;   /* BUG(1995): an empty list reads entry -1 (the file comment) */
+        empty = !g_original && S32(CHOICE_N) <= 0;   /* BUG(1995) 3: an empty list reads entry -1 */
         fg_vbopen(S32(BACKBUF));                                      /* 0x5CB37 */
         f3C9D0(0x109, 0x181, 0x6E, 0x13, 5);                          /* 0x5CB55 */
         fg_setcolor(5);                                               /* 0x5CB5C */

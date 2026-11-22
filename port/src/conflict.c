@@ -453,7 +453,7 @@ void f5B588(int r)
             for (j = i + 1; j < count; j++) {                         /* 0x5B6AE..0x5B6CA */
                 if (D8(NATION(pair[2 * j + 1]) + 0x35u) != 0)         /* 0x5B6CC..0x5B6E5 */
                     continue;
-                /* BUG(1995): the original reads and decrements pair[count] (0x5B6E7, 0x5B6FA), one past the list */
+                /* BUG(1995) 3: the original reads and decrements pair[count] (0x5B6E7, 0x5B6FA), one past the list */
                 x = g_original ? count : j;
                 if (pair[2 * x] == 0) {                               /* 0x5B6EE..0x5B6F5 and 0xFF; jle */
                     flag = 1;                                         /* 0x5B6B7 */
@@ -579,7 +579,7 @@ void f5BA0C(int show)
         amount = 3;                                                   /* 0x5BC01 */
     if (amount <= 0) {                                                /* 0x5BC09 */
         if (show != 0) {                                              /* 0x5BEDA */
-            if (g_original)   /* BUG(1995): the missing space after the comma (0xB5CDE) */
+            if (g_original)   /* BUG(1995) (text): the missing space after the comma (0xB5CDE) */
                 snprintf(buf, sizeof buf, "%s,you have no stock to pillage with.", NAME(S8(PL_ATT)));    /* 0x5BF08 */
             else
                 snprintf(buf, sizeof buf, "%s, you have no stock to pillage with.", NAME(S8(PL_ATT)));

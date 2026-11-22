@@ -385,7 +385,7 @@ int f1EAEC(int n, int type)
         if (r == -100)                                              /* 0x1EE89 */
             continue;
         if (r >= 0) {                                               /* 0x1EE96 test ecx, ecx; jl */
-            /* BUG(1995): for a volcano or a river the list holds indices, not territories, so the map click selects
+            /* BUG(1995) 1: for a volcano or a river the list holds indices, not territories, so the map click selects
                the wrong candidate (file comment, 1); ignored as a click on nothing */
             if (!g_original && type != 0x12)
                 continue;

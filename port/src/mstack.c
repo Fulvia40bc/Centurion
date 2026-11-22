@@ -146,7 +146,7 @@ static void from_slot(uint32_t dst, uint32_t field, uint32_t n)
 /* The inline byte-pair strcpy of a "popped once to often." text into 0xF5500, then the quit. */
 static _Noreturn void popped(uint32_t text, const char *fixed)
 {
-    snprintf((char *)DP(MSG), 0x1F4, "%s", g_original ? DSTR(text) : fixed);
+    snprintf((char *)DP(MSG), 0x1F4, "%s", g_original ? DSTR(text) : fixed);   /* BUG(1995) (text): "too often" */
     f44CAC();
 }
 

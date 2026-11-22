@@ -28,16 +28,18 @@
    Runtime: __CHK dropped. Byte arithmetic on the records wraps as on the 386 (uint8_t stores).
 
    1995 bug fixed (the original's behaviour kept under g_original, marked BUG(1995)):
-     NEXT SHIP (0x2E, 0x32) writes its play-by-email log record and bumps int16 [0xF09B8] without the test of bit 0x80
-     of [0xE1624] that the other six ship actions and UNDO make (0x40EF1, 0x4101F, 0x41193, 0x412F1, 0x4149A, 0x41633,
-     0x40DF9). Outside PBEM [0xF09B4] is 0 (D: its only writers 0x55E61, 0x56095 and 0x5704A run only with bit 0x80,
-     behind the tests at 0x55E2A, 0x5606E and 0x5701F, and the data object starts with 0 there; the phase's own log
-     writes are guarded too, 0x5681E and 0x56DC3), so each press writes two bytes at linear address 10 * count and
-     10 * count + 8 under DOS/4GW's flat selector, and the count grows over the whole session: the real-mode
-     interrupt vectors from the first press (byte 0x26, INT 9's segment, on the fourth), then the BIOS data area and
-     DOS memory (G for the effect).
-     The fix makes the log conditional, as everywhere else. In the port the original's writes cannot reach low memory
-     (the guard skips them); --original keeps the counter's growth, which a data-object comparison sees at 0xF09B8.
+     1. NEXT SHIP, both buttons (0x2E at 0x41805..0x41850, the second coast's 0x32 at 0x41730..0x4177A), writes its
+        play-by-email log record and bumps int16 [0xF09B8] without the test of bit 0x80 of [0xE1624] that the other
+        six ship actions and UNDO make (0x40EF1, 0x4101F, 0x41193, 0x412F1, 0x4149A, 0x41633, 0x40DF9). Outside PBEM
+        [0xF09B4] is 0 (D: its only writers 0x55E61, 0x56095 and 0x5704A run only with bit 0x80, behind the tests at
+        0x55E2A, 0x5606E and 0x5701F, and the data object starts with 0 there; the phase's own log writes are
+        guarded too, 0x5681E and 0x56DC3), so each press writes two bytes at linear address 10 * count and
+        10 * count + 8 under DOS/4GW's flat selector, and the count grows over the whole session: the real-mode
+        interrupt vectors from the first press (byte 0x26, INT 9's segment, on the fourth), then the BIOS data area
+        and DOS memory (G for the effect).
+        The fix makes the log conditional, as everywhere else. In the port the original's writes cannot reach low
+        memory (the guard skips them); --original keeps the counter's growth, which a data-object comparison sees
+        at 0xF09B8.
 
    Oddities kept (D unless said):
      - f576F8, f57A10 and f57B5C compare the whole int16 ship word with t + 1; the panel, 0x57810, 0x57BD8 and these
@@ -642,7 +644,7 @@ int dcase_32(int code)
     setD8(ar(f3E89C(S32(0x109E10u)), S32(0xF40F8u), 0x2Du),         /* 0x41710; 0x41729 mov [..], bl */
           (uint8_t)((int32_t)v % 4));                               /* 0x41707 idiv ebx (4) */
     if (g_original) {
-        /* BUG(1995): the play-by-email log record is written and its count bumped without the PBEM test the other
+        /* BUG(1995) 1: the play-by-email log record is written and its count bumped without the PBEM test the other
            ship actions make (0x41730..0x4177A): outside PBEM the original writes through [0xF09B4] = 0 into low
            memory (move.c's file comment). */
         pbem_log_next(0x0C);
@@ -667,7 +669,7 @@ int dcase_2E(int code)
     setD8(ar(S32(0x109E10u), S32(0xF40F8u), 0x2Du),                 /* 0x417E3..0x417FE mov [..], bl */
           (uint8_t)((int32_t)v % 4));                               /* 0x417E1 idiv ebx (4) */
     if (g_original) {
-        /* BUG(1995): as in 0x32, the log record and its count without the PBEM test (0x41805..0x41850) */
+        /* BUG(1995) 1: as in 0x32, the log record and its count without the PBEM test (0x41805..0x41850) */
         pbem_log_next(0x0B);
     } else if ((D8(0xE1624u) & 0x80) != 0) {                        /* the test of the other actions */
         pbem_log_next(0x0B);

@@ -80,7 +80,8 @@
         with 8 cities and one site already planned (bit 0x02 with 3+ tokens) and goal 1 from f337C8. Fixed: the
         counter starts at 0. Marked BUG(1995); the original's value cannot be reproduced, so --original changes nothing
         here (check in DOSBox-X: BP 0x33CA8 with [ebp-0x30] != 0 there).
-     2. 0x3580C, 0x348B0 and f33964's list: the locals the original leaves uninitialised but that the callees fill
+   Noted, not a bug (the code's "garbage 2"; nothing to fix):
+     (2) 0x3580C, 0x348B0 and f33964's list: the locals the original leaves uninitialised but that the callees fill
         before any read (the count [ebp-0x40] by f48028, [ebp-0x48] by f7C838, the candidate buffer read one entry
         past the count by f33ECC's tie scan at 0x3428C, whose result does not matter there) are zeroed here; no
         behaviour depends on it (D). f3580C's [ebp-0x28] is one slot for the whole call (x here), handed to f495C0
@@ -360,7 +361,7 @@ int f33964(int goal, int32_t *count, int n, int mode)
         if (S8(AREA(a) + 0x0Eu + (uint32_t)n) >= 3)                   /* 0x33A0E [69a + n + 0xE31C3] sar 24 */
             planned++;
     }
-    /* BUG(1995): the counter [ebp-0x30] is first set at 0x33A59, after the two early exits below (stack garbage;
+    /* BUG(1995) 1: the counter [ebp-0x30] is first set at 0x33A59, after the two early exits below (stack garbage;
        see the file comment). It starts at 0 here in both modes. */
     done = 0;
     if (rem > 0 && S8(rec + 0x51u) + planned < 9) {                   /* 0x33A24, 0x33A2E..0x33A3D */

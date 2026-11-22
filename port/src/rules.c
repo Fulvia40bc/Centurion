@@ -8,14 +8,17 @@
    with "dword [x - 3] sar 24" or movsx are int8, those it reads with "mov al; and eax, 0xFF" are uint8.
 
    1995 bugs fixed (the original's behaviour kept under g_original, marked BUG(1995)):
-     - f78F04 (city removed) and f75CA8 (calamity card taken) look the entry up in a list and shift the list down from
-       the index they found, kept in [ebp-0x8]. When the entry is not in the list, [ebp-0x8] is never written (D:
-       0x78F98 / 0x75D0D are its only stores) and the shift starts at whatever the stack held; the count is
-       decremented and the slot past the new end cleared anyway, so a real entry is lost, and a negative garbage
-       index writes below the list (G). The fix leaves the list and its count alone when the entry is not there (the
-       territory-state writes of f78F04 still happen). --original cannot reproduce the stack garbage: the port starts
-       the index at 0 (the whole list shifted down, its first entry lost). G: whether a caller reaches this path is
-       to be checked in DOSBox-X (M6_PLAN risk 7).
+     1. 0x78F04 f78F04 (city removed) looks the city up in n's list (+0x52..) and shifts the list down from the index
+        it found, kept in [ebp-0x8]. When the city is not in the list, [ebp-0x8] is never written (D: 0x78F98 is its
+        only store) and the shift starts at whatever the stack held; the count is decremented and the slot past the
+        new end cleared anyway, so a real entry is lost, and a negative garbage index writes below the list (G). The
+        fix leaves the list and its count alone when the city is not there (the territory-state writes still
+        happen). --original cannot reproduce the stack garbage: the port starts the index at 0 (the whole list
+        shifted down, its first entry lost). G: whether a caller reaches this path is to be checked in DOSBox-X
+        (M6_PLAN risk 7).
+     2. 0x75CA8 f75CA8 (calamity card taken): the same with the calamity lists (+0x14.., givers +0x1C..) when the
+        calamity is not held (D: 0x75D0D is the only store of [ebp-0x8]). The fix leaves both lists and the count
+        alone; --original starts the index at 0 as in 1. G: reach to be checked as in 1.
 
    Oddities kept (D unless said):
      - f78D08 and f78FEC compute the Agriculture bonus differently: f78D08 adds 1 when +0x27 != 0 and the area has
@@ -118,7 +121,7 @@ void f78F04(int t, int n)
             break;                                                  /* falls into 0x78F9E */
         }
     }
-    /* BUG(1995): a city not in the list leaves [ebp-0x8] unwritten; the original shifts from stack garbage and
+    /* BUG(1995) 1: a city not in the list leaves [ebp-0x8] unwritten; the original shifts from stack garbage and
        decrements the count anyway (see the file header). Fixed: the list stays as it is. */
     if (!found && !g_original)
         return;
@@ -358,7 +361,7 @@ void f75CA8(int c, uint32_t rec)
             break;
         }
     }
-    /* BUG(1995): a calamity not held leaves [ebp-0x8] unwritten; the original shifts from stack garbage and
+    /* BUG(1995) 2: a calamity not held leaves [ebp-0x8] unwritten; the original shifts from stack garbage and
        decrements the count anyway (see the file header). Fixed: the lists stay as they are. */
     if (!found && !g_original)
         return;

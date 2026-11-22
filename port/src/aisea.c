@@ -68,7 +68,7 @@
    0x107694 / [0x1079B4] outside the Move List Stack levels, [0xF5908] (saved and restored by f4D29C), the stacks' high
    water marks, and in f65CB0 whatever f5AAA4(0) / f5C238(0) change outside the world state (conflict.h, city.h).
 
-   1995 bugs and port guards (each marked in the code; "--original" = g_original; D code / G effect):
+   1995 bugs, fixed unless --original ("--original" = g_original; each marked in the code; D code / G effect):
      1. f64BB8 (risk 8, out-of-range read): the land matrix is indexed 157t + u with the ship's own territory t, which
         is 157..159 for a ship on a second coast: rows 157..159 lie past the 157x157 matrix, in the mapdataz pointers
         0xFF648..0xFF81E (D). The original reads bytes of DOS heap addresses there; the port keeps handles in those
@@ -77,9 +77,11 @@
         and 3-player runs; G: the new-game dumps N1 / N2 / NEWGAME hold 0x377F3C, so the base depends on the start-up
         path; the offsets equal the port's, checked on M7_R4MV_0.BIN). Reachable (G): a computer ship with full points
         on 157..159.
-     2. (none: f4AC50's test "tokens == [ebp-0x2c]" at 0x4B567 is reached only with more than one nation at the stop,
-        and the loading pass calls f7C838 for such a stop in every mode (0x4B7C8 tests no mode, unlike the scoring
-        pass's 0x4B09C), so [ebp-0x2c] always holds this stop's result: no garbage read. Reviewer, D.)
+     6. f65010 (hang, unreachable G): the unload sweep repeats while tokens are aboard; every landing takes up to its
+        limit and the load is at most the sum of the limits, so it ends. Fixed by default (a sweep that unloads nothing
+        ends it); --original loops.
+   Fixed in both modes (1995 bugs, and port guards against the original's out-of-range reads and crashes, with no
+   g_original test; each marked in the code):
      3. f4AC50 (risk 7): the hop after stop 5 reads the byte after a 6-byte leg, stack padding ([ebp-0x8A] after leg 1,
         [ebp-0x82] after leg 2). Reachable (G: a ship with 5 points, Clothmaking, on a leg of 4 intermediates). Both
         modes read 0xFF (the leg ends).
@@ -88,14 +90,15 @@
         records are zeroed here and the scan stops at the end of the local (port guard).
      5. f36918 (port guard): the scan for routes tied with route 0 on +6 has no bound; f58888 leaves 0xFF after the
         last record, so it stops at the count (G). Kept, bounded by the data object.
-     6. f65010 (hang, unreachable G): the unload sweep repeats while tokens are aboard; every landing takes up to its
-        limit and the load is at most the sum of the limits, so it ends. Fixed by default (a sweep that unloads nothing
-        ends it); --original loops.
      7. f4D29C / f65CB0 (port guards, unreachable D: the nation record has 4 ship slots): best[] has 256 entries, and a
         ship territory outside 0..159 is not marked in f65CB0's 160-entry table.
      8. f65010 (crash, unreachable G): with no route the tie count is 0 and 30000 / 0 traps (0x65BCB idiv). f648C8
         calls f65010 only after f64BB8 chose the target from the same routes (f58888 with the same arguments), so the
         count is at least 1. Both modes return -1 there (a C division by 0 has no defined result).
+   Noted (not a bug, no fix; so there is no item 2): f4AC50's test "tokens == [ebp-0x2c]" at 0x4B567 is reached
+   only with more than one nation at the stop, and the loading pass calls f7C838 for such a stop in every mode
+   (0x4B7C8 tests no mode, unlike the scoring pass's 0x4B09C), so [ebp-0x2c] always holds this stop's result: no
+   garbage read (reviewer, D).
      Kept literally (they change only the computer's choices, or nothing): f36918's code byte 0xC1938[code] for the
      codes 0x0F / 0x27 that f37CF8 / f396FC pass (risk 8: 0xC1947 / 0xC195F, both 0 in the data object; 0xC1938 lies in
      the data object, obj2.bin offset 0x11938, so D8 reads exactly what the original reads, run-time writes included;
@@ -230,7 +233,7 @@ static int land_adj(int32_t t, int32_t u)
     uint32_t a, off, h;
 
     if (t >= 157 && !g_original)
-        t = ALIAS(t);   /* BUG(1995) fixed: rows 157..159 lie past the matrix; the second coast's own territory */
+        t = ALIAS(t);   /* BUG(1995) 1 fixed: rows 157..159 lie past the matrix; the second coast's own territory */
     a = LAND_MATRIX + 157u * (uint32_t)t + (uint32_t)u;
     if (a < MAPDATA_PTRS)
         return D8(a);
@@ -429,7 +432,7 @@ void f36918(int n, int t, int32_t *need, int code)
             } else {
                 wc_qsort(DP(ROUTE_BUF), (size_t)cntr, 16, f35368);   /* 0x36BC9 */
             }
-            /* the routes tied with route 0 on +6 (0x36BCE; bug 5: bounded by the data object) */
+            /* the routes tied with route 0 on +6 (0x36BCE; BUG(1995) bug 5: bounded by the data object) */
             for (idx = 1; ds_valid(ROUTE((uint32_t)idx) + 6u, 1)
                           && D8(ROUTE_BUF + 6u) == D8(ROUTE((uint32_t)idx) + 6u); idx++)
                 ;
@@ -538,7 +541,7 @@ void f36918(int n, int t, int32_t *need, int code)
 
 int f4D29C(int t, int m)
 {
-    int32_t best[256];             /* [ebp-0x58] int32[4] (bug 7) */
+    int32_t best[256];             /* [ebp-0x58] int32[4] (BUG(1995) bug 7) */
     int32_t res = 0;               /* [ebp-0x18] */
     uint32_t nat = NAT(m);
     int32_t saved, k, s, pts, i, x, cntr;
@@ -1340,7 +1343,7 @@ int f65010(int n, int flags)
                     f57E28(c, n, 1);                              /* 0x659E6 */
                     unloaded = 1;
                 }
-                if (unloaded == 0 && !g_original)                 /* BUG(1995) fixed: a sweep with no room ends */
+                if (unloaded == 0 && !g_original)                 /* BUG(1995) 6 fixed: a sweep with no room ends */
                     break;
             }
             setD16(ROUTE((uint32_t)r) + 0x0Eu, (uint16_t)f7B044(n));   /* 0x659F3, 0x659FE */
@@ -1401,7 +1404,7 @@ void f65CB0(int n)
     memset(occ, 0, sizeof occ);                                   /* 0x65D03 */
     for (k = 0; (int)D8(nat + 0x40u) > k; k++) {                  /* 0x65D15 */
         s = S16(nat + 0x45u + 2u * (uint32_t)k) - 1;              /* 0x65D2D */
-        if (s >= 0 && s < 160)                                    /* bug 7: port guard */
+        if (s >= 0 && s < 160)                                    /* BUG(1995) bug 7: port guard */
             occ[s] = 1;                                           /* 0x65D33 [ebp + 4*word - 0x2CC] */
     }
     for (k = 0; (int)D8(nat + 0x40u) > k; k++) {                  /* 0x65D4D */

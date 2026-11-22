@@ -532,7 +532,7 @@ void f6D564(int p, int n)
         s = 8;                                                        /* 0x6D5EA */
         card = (int8_t)f76E50(s, n);                                  /* 0x6D5F3 */
         if (!g_original && card == 0) {
-            /* BUG(1995): an empty stack 8 gave card 0, counted and paid 18; fixed: nothing bought (see above) */
+            /* BUG(1995) 4: an empty stack 8 gave card 0, counted and paid 18; fixed: nothing bought (see above) */
             card = -1;
         } else {
             setD32(BOUGHT, D32(BOUGHT) + 1u);                         /* 0x6D5FB */
@@ -593,14 +593,14 @@ void f6D564(int p, int n)
             x = 0xEC;                                                 /* 0x6D890 */
             for (i = 0; i <= max; i++) {                              /* 0x6D899, 0x6D8A7 jg */
                 if (S16(STACK(i)) != 0 && S32(MOUSE_X) >= x && x + 0x20 >= S32(MOUSE_X)   /* 0x6D8C4, 0x6D8D0, 0x6D8E0 */
-                    && (g_original || S8(rec + 0x3E) >= 2 * i + 2))   /* BUG(1995): the first unaffordable stack was
+                    && (g_original || S8(rec + 0x3E) >= 2 * i + 2))   /* BUG(1995) 2: the first unaffordable stack was
                                                                          clickable (the loop runs to i <= max) */
                     s = i;                                            /* 0x6D8E5 */
                 x += 0x27;                                            /* 0x6D8E8 */
                 if (s != -100)                                        /* 0x6D8EC */
                     break;
             }
-            if (!g_original && s == -100)   /* BUG(1995): a click between the columns bought from "stack" -100 */
+            if (!g_original && s == -100)   /* BUG(1995) 1: a click between the columns bought from "stack" -100 */
                 continue;
             card = (int8_t)f76E50(s, n);                              /* 0x6D8F8 */
             setD32(BOUGHT_FROM + 4u * (uint32_t)n, (uint32_t)s);      /* 0x6D906 */
@@ -822,7 +822,7 @@ void f6BD98(void)
             do {
                 int got = f6DE04(n) != 0;                             /* 0x6C6B2 [M7]; setne */
                 bought += got;
-                /* BUG(1995): the counter held only the last call's result; fixed: the purchases */
+                /* BUG(1995) 5: the counter held only the last call's result; fixed: the purchases */
                 setD32(BOUGHT, (uint32_t)(g_original ? got : bought));   /* 0x6C6C1 */
                 if (!got || S8(rec + 0x3E) < 6)                       /* 0x6C6C6, 0x6C6D8 jge (dword [199n + 0xF1507]
                                                                          sar 24) */
@@ -924,7 +924,7 @@ void f6E870(void)
         f6FE68(0x249, 0xD1, n, 1, 0xF);                               /* 0x6EB25 */
         for (;;) {                                                    /* 0x6EB2A */
             if (!g_original && !holds_commodity(n))
-                break;   /* BUG(1995): a hand over 8 with no commodity left could never end (M6_PLAN risk 6) */
+                break;   /* BUG(1995) 6: a hand over 8 with no commodity left could never end (M6_PLAN risk 6) */
             f3CD6C(S8(PICTURE));                                      /* 0x6EB32 */
             remaining(n);                                             /* 0x6EB37..0x6EBD5 */
             r = f78BA4(DISC_DLG, 0);                                  /* 0x6EBDF */

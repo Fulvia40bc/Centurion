@@ -50,19 +50,7 @@
      the Mining list of f194E4: int32 [0xF68B0] the choice, [0xF68B4] the count, int8 0xF68B8[] the commodities
 
    Stack words read before they are written (batch 1's rule: a stale word of a sibling frame is modelled; only what
-   cannot be predicted is fixed, in both modes):
-     1. 0x1A888's [ebp-0x30], the nation of the highest attitude m (written only for a nation in play whose
-        0xF52E0[n][k] beats -5000, 0x1A956), is read by the Military case (0x1B176). n itself is in play and
-        0x7C960 writes 0xF52E0[n][n] = 0 (D, aimove.c), so the word is always written (G: unreachable). Its stale value
-        would be the return address of 0x17EDC's last call (0x17EDC, called from the same frame just before, ends
-        its frame at [ebp-0x2C]: a relocated code address, times 199 as a nation record), which a port cannot model:
-        the port's local starts at 0 (both modes; no effect while the word is written).
-     2. 0x1B59C's out-words [ebp-0x34] / [ebp-0x30] (*excess, *mask) are written by 0x1BE08 only when the hand reaches
-        need (0x1C0C4 / 0x1C0D5). A later call that does not reach it leaves the previous call's words, which are >=
-        the best already kept, so nothing happens (the port keeps them as f1B59C locals across the calls, as the
-        original). The first call always reaches need (G from D: computer_turn buys only advances 0x17EDC found
-        affordable with hand + treasury + credits, and need = the costs less the credits used; 0x1BE08's full hand
-        with its best Mining choice is f195D8's value): the port starts *excess at INT32_MAX, which is never read.
+   cannot be predicted is fixed, in both modes). Words 1 and 2 are not bugs (noted after the list); fixed:
      3. 0x1BE08's [ebp-0x20], the last entry of the prefix that reaches need, is written in the prefix loop only; with
         no commodity in record 0 (count 0: n holds no commodity card and pays from its treasury alone) the loop does
         not run and the word is stale: it is [ebp-0x114] of 0x162D0's callees (0x1B59C's ebp; 0x1BE08's frame sits
@@ -74,6 +62,19 @@
         screen; G: deep enough), which the port's fg.c does not reproduce: it cannot be modelled. Its use: the masks (1 << (e+1)) - 1, which select no entry with count 0, and, on the
         excess path (min(shortfall, treasury) > need), the walk back over entries e-1..0, which would read stale list
         entries. BUG(1995), fixed in both modes: e = 0 (no walk; the excess is min(shortfall, treasury) - need).
+   Noted, not bugs (stale words 1 and 2, as the code's comments number them; nothing to fix):
+     (1) 0x1A888's [ebp-0x30], the nation of the highest attitude m (written only for a nation in play whose
+        0xF52E0[n][k] beats -5000, 0x1A956), is read by the Military case (0x1B176). n itself is in play and
+        0x7C960 writes 0xF52E0[n][n] = 0 (D, aimove.c), so the word is always written (G: unreachable). Its stale value
+        would be the return address of 0x17EDC's last call (0x17EDC, called from the same frame just before, ends
+        its frame at [ebp-0x2C]: a relocated code address, times 199 as a nation record), which a port cannot model:
+        the port's local starts at 0 (both modes; no effect while the word is written).
+     (2) 0x1B59C's out-words [ebp-0x34] / [ebp-0x30] (*excess, *mask) are written by 0x1BE08 only when the hand reaches
+        need (0x1C0C4 / 0x1C0D5). A later call that does not reach it leaves the previous call's words, which are >=
+        the best already kept, so nothing happens (the port keeps them as f1B59C locals across the calls, as the
+        original). The first call always reaches need (G from D: computer_turn buys only advances 0x17EDC found
+        affordable with hand + treasury + credits, and need = the costs less the credits used; 0x1BE08's full hand
+        with its best Mining choice is f195D8's value): the port starts *excess at INT32_MAX, which is never read.
    Deterministic out-of-range reads (M6_PLAN risk 8), kept byte-exact through the data object (D code):
      - 0x1A888's three slips: (1) the "another nation present" test computes the address 0xE31B8 + 69r + 2 and tests
        it for zero (0x1AAF5, 0x1AB59): always true, so the test is dropped (no read is made); (2) the attitude
@@ -100,7 +101,7 @@
         "Pottery, \nLaw, \nMusic and \n.". adv.c's BUG(1995) 4 lets a computer buy three, so the default passes 3
         here: fixed, ", \n" up to the last but one, " and \n" before the last, nothing after it. D code, G reach
         (with --original adv.c never passes more than 2).
-     2. Item 3 of the stale words above (both modes).
+   Also fixed: item 3 of the stale words above, in both modes (so it is listed there, not here).
    Text: "%s has acquired \n" (the space before the line break) and "CONTINUE" stay (Erik's ruling: style).
    Easter eggs / oddities (none is a joke): the box saves the screen to the "junk" GIF (M6_PLAN egg 22, known); it
    relabels the shared CONTINUE of 0xBBBEC "CONTINUE" again, which undoes the "NOT REVEAL GDS" that REVEAL GOODS

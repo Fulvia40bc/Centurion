@@ -115,9 +115,9 @@
        callers call it only when the total exceeds the amount assigned, so some 0xF796C[m] != 0).
      - 0x291D0 and 0x29550 write the CONTINUE dialogs' positions into the data object (they persist).
    Text (Erik's ruling of 19 Nov, obvious errors only, TEXT_SWEEP.md): the river name "TIGRUS-EUPHRATES" (0xB36D4)
-   printed by Flood's two messages -> "TIGRIS-EUPHRATES" unless g_original (CAL3's 0x1EAEC and M7's 0x2E45C print
-   the same table entry: they need the same fix). Kept as style: "The %s river Floods." (capital), "Assignments for
-   Epidemic secondary losses." on the human path and without the period on the computer's (0xB35EF / 0xB3644),
+   printed by Flood's two messages, fixed to "TIGRIS-EUPHRATES" unless g_original (CAL3's 0x1EAEC and M7's 0x2E45C
+   print the same table entry: they need the same fix). Kept as style: "The %s river Floods." (capital), "Assignments
+   for Epidemic secondary losses." on the human path and without the period on the computer's (0xB35EF / 0xB3644),
    "...by MEDICINE.".
    Easter eggs / oddities: the trace name "NationLosesUnits" (known); duplicated strings the compiler did not merge
    ("Famine ravages %s.", "Your usage of Grain...", "Assignments for Famine secondary losses", "Flood also ravages
@@ -224,7 +224,7 @@ static int human(int n)
    shared with CAL3's 0x1EAEC (cal2.h) */
 const char *cal2_river_text(const char *r)
 {
-    if (!g_original && strcmp(r, "TIGRUS-EUPHRATES") == 0)
+    if (!g_original && strcmp(r, "TIGRUS-EUPHRATES") == 0)   /* BUG(1995) (text): "TIGRUS" (0xB36D4) */
         return "TIGRIS-EUPHRATES";
     return r;
 }

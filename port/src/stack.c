@@ -243,7 +243,7 @@ void f7AC60(void)
 
     if (d < 0) {                                                    /* 0x7AC77 test edx, edx; jl 0x7ACF2 */
         /* 0x7ACF2..0x7AD15 the inline strcpy of "World State Stack has popped once to often." (0xB9679) */
-        text = g_original ? DSTR(0xB9679u)
+        text = g_original ? DSTR(0xB9679u)                          /* BUG(1995) (text): "too often" */
                           : "World State Stack has popped once too often.";   /* text slip fixed (TEXT_SWEEP.md) */
         snprintf((char *)DP(MSG), 0x1F4, "%s", text);
         f44CAC();                                                   /* 0x7AD16 quit; the original returns after it */
