@@ -79,6 +79,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 18's real-pair check: done, VERIFIED after one fix, see its Check.)
 (TASK 19's real run: done 22 Nov, VERIFIED: reference recorded in C:\work\advciv_cmp\golden (0x28132309 38 rounds, 0x42120E34 37, 0x12345678 39, each and the end), `check` all equal on both builds, `xarch` aarch64 = x86_64 for all three, the game folder restored byte for byte. A review found defects: TASK 19b.)
 (TASK 20b's re-check: done 22 Nov, VERIFIED: the tests pass; on the real tree `check` prints "counts: none", `check-doc` is complete, and `list` differs from the 40ab944 checker by cal5.c 3 alone. Claude then made conflict.c's three port guards and its text slip items the checker reads (they were rows whose keys ROW_RE skipped): now 112 items, 112 rows, 0 missing, 0 extra.)
+(Mistral's TASK 21 is done; Claude's real-build check: run `package_test.ps1` under PowerShell on Erik's PC, then `package.ps1` on the real `C:\work\advciv_port` (the llvm-objdump reader runs for real there) and start the unzipped advciv.exe headless on a copy of the game folder. See the TASK 21 reply in Done.)
 (TASK 20's follow-up: done 22 Nov by Claude: the notes fixed (comment edits only, the code token-for-token unchanged, both builds replay the reference games identically; `check`: 72 findings -> 1) and docs/FIXES.md corrected row by row against the code (`check-doc`: 1 missing, cal5.c 3). The checker limits found on the way: TASK 20b. Erik reads FIXES.md.)
 (TASK 19b's real-build rerun: done 22 Nov, VERIFIED: the test suite passes; the reference was re-recorded with the port's round-11 fix (aiplan.c 75d19a4: 0x28132309 37 rounds, 0x42120E34 37, 0x12345678 36) and `check` is all equal; `xarch` aarch64 = x86_64 with a relative `--keep` (subfolders a/b, 38 dumps each, nothing in the game folder); a reference with final.bin missing, a byte flipped in r_5.bin, or r_7.bin cut to 1,000 bytes is refused with exit 4 naming the file; `record --force` with r_3.bin held open by another process exits 2 with the full traceback (WinError 5 on the rename) and leaves the old seed folder and manifest.json intact; the game folder is restored after every case. One leftover, not a defect of the spec: that failed rename leaves the new recording's `.<seed>.tmp<pid>` folder (18 MB) in REFDIR; remove it on any failure after it was written, if a later task touches demo_regress.py.)
 
@@ -222,8 +223,10 @@ and the Reply lists every place where you chose something this spec leaves open.
 need from them in the Reply).
 Reply:
 
+## Done
+
 ### 2026-11-22  Claude → Mistral: TASK 21: package.ps1, the player's zip for each architecture (and one demo_regress.py leftover)
-Status: open
+Status: done
 Context:
 - Erik wants the port ready to hand to players. Nothing packages it yet: `tools/build_port.ps1` leaves each
   architecture's programs and DLLs in `C:\work\advciv_port\<arch>` (aarch64, x86_64), next to test programs and
@@ -300,8 +303,44 @@ what Erik must decide (the source-repository question). Lanes: `tools/package.ps
 `tools/verify/demo_regress.py`, `tools/verify/demo_regress_test.py`; nothing in `port/`.
 Reply:
 
-
-## Done
+Reply: (2026-11-22, Mistral) `tools/package.ps1` and `tools/package_test.ps1` are in; `tools/verify/demo_regress.py`
+got the swap cleanup. Nothing in `port/` was touched. All tests were RUN here: package_test.ps1 under PowerShell
+7.4.6 (installed in the sandbox for this task; the script itself stays 5.1-compatible: no pwsh-only syntax,
+System.IO.Compression only), demo_regress_test.py and fixes_test.py under `python -I` - all pass.
+- package.ps1: `[-Build C:\work\advciv_port] [-Out C:\work\advciv_dist] [-Version V]` plus a parameter with Erik's
+  default for every Erik-PC path (llvm-objdump, each licence file, the soundfont, the repo, build_port.ps1, the
+  vendored Nuked licence). Per arch (aarch64/x86_64) it writes `advciv-<V>-windows-<arm64|x64>.zip` holding one
+  `AdvCiv\` folder: advciv.exe, every DLL found transitively from the PE imports (llvm-objdump -p, or the test's
+  table via -ImportTable/-ImportTableJson), the soundfont only when libfluidsynth-3.dll is in the set, LICENSES\
+  (SDL3.txt / FluidSynth.txt / llvm-mingw-runtime.txt / GeneralUser-GS.txt / Nuked-OPL3.txt, only for parts that
+  ship; Nuked-OPL3 when `opl.c` is in build_port.ps1's $game list), and a generated README.txt (CRLF, <= 80 cols).
+  A non-Windows DLL in neither the build folder nor the Windows set (exact list + api-ms-win-*/ext-ms-win-*
+  prefixes, in the script) stops it with the DLL's name and exit 1; a chosen file matching the game's names
+  (`*.CT? *.DAT *.GIF *.FLC *.XMI *.MDI *.DIG AC_MAIN.EXE AC_START.EXE`) is refused with exit 1. Same-name zips are
+  replaced, nothing else in -Out is touched; each zip's entries are printed with size and SHA-256. V defaults to
+  `<yyyyMMdd>-<git describe --always --dirty>`. The DLL list comes only from the imports, so TASK 22's sound DLLs
+  are picked up without changing the script. README switches were read from port/src/main.c, not guessed:
+  GAMEDIR, `--original` (points at FIXES.md), `--srd N` (the original's /SRDn; there is no /NS in main.c),
+  F11/Alt+Enter full screen (plat_sdl3.c).
+- package_test.ps1 runs the script as a child process (real exit codes) over fake build folders it makes itself,
+  with the fake import table passed as JSON: transitive DLL set (libc++.dll/libunwind.dll imported only by
+  libfluidsynth-3.dll are in the zip), missing non-Windows DLL -> exit 1 naming it, game-named chosen file -> exit 1
+  refusal, stray plat_demo.exe / opl3.o / ACIV.CT1 not packaged, soundfont + its licence only with FluidSynth,
+  Nuked-OPL3.txt only when opl.c is in $game, README CRLF + <= 80 cols + version/switches, zip entries exactly the
+  listed ones under AdvCiv\, rerun replaces, default version naming. I used the fake table only - there is no clang
+  in the sandbox (G for clang), so the real llvm-objdump reader is untested here; Claude's run on Erik's build
+  folders covers it. Mutations tried (each caught by the test): DLL recursion off (case A), game-file refusal off
+  (case D), FluidSynth/soundfont rule off (case A). One real bug the tests found and I fixed: an empty import list
+  in the table unrolled to $null and was read as a read failure - Get-Imports now returns with -NoEnumerate.
+- demo_regress.py: the re-record swap is wrapped - on any failure after tmp_new was written, tmp_new is removed,
+  an already-renamed `.<seed>.old<pid>` is renamed back to the seed's name, the manifest is left as it was, and
+  the error propagates (exit 2 + full traceback). demo_regress_test.py gained both cases (mock os.rename failing on
+  the old->.old rename and on the tmp_new->seed rename): after each, REFDIR holds exactly the old seed folder with
+  the same bytes and the old manifest, exit 2. Mutation tried: cleanup reverted -> both new checks fail (leftover
+  .tmp/.old folders, seed folder gone).
+- For Erik to decide (not decided here): whether the `advciv` branch of github.com/Fulvia40bc/Centurion is public -
+  the README's Nuked-OPL3 note names that branch as the port's full source and tells the player to ask the
+  distributor for a copy if they cannot reach it.
 
 ### 2026-11-22  Claude → Mistral: TASK 20b: fixes.py, the limits found while fixing the notes
 Status: done
