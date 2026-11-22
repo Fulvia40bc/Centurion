@@ -83,10 +83,14 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 20's follow-up: done 22 Nov by Claude: the notes fixed (comment edits only, the code token-for-token unchanged, both builds replay the reference games identically; `check`: 72 findings -> 1) and docs/FIXES.md corrected row by row against the code (`check-doc`: 1 missing, cal5.c 3). The checker limits found on the way: TASK 20b. Erik reads FIXES.md.)
 (TASK 19b's real-build rerun: done 22 Nov, VERIFIED: the test suite passes; the reference was re-recorded with the port's round-11 fix (aiplan.c 75d19a4: 0x28132309 37 rounds, 0x42120E34 37, 0x12345678 36) and `check` is all equal; `xarch` aarch64 = x86_64 with a relative `--keep` (subfolders a/b, 38 dumps each, nothing in the game folder); a reference with final.bin missing, a byte flipped in r_5.bin, or r_7.bin cut to 1,000 bytes is refused with exit 4 naming the file; `record --force` with r_3.bin held open by another process exits 2 with the full traceback (WinError 5 on the rename) and leaves the old seed folder and manifest.json intact; the game folder is restored after every case. One leftover, not a defect of the spec: that failed rename leaves the new recording's `.<seed>.tmp<pid>` folder (18 MB) in REFDIR; remove it on any failure after it was written, if a later task touches demo_regress.py.)
 
+(Mistral's TASK 22 is done; Claude's real-build needs: add `ail_test.c`/`ail_render.c` to `tools/build_port.ps1` (fluidsynth include + `gm_synth.c` + `ail.c` `musplay.c` `mixer.c` `wav.c` `xmi.c` `xmiseq.c` [+ `catalog.c`]), link the sound modules into `advciv.exe`, wire `plat_audio_lock`/`ail_render`/the SoundFont path in `plat_sdl3.c`/`platform.h`, then run `ail_test` under the strict clang build and `ail_render` on the real ACIV.CT5 songs + WAVs, listening against DOSBox-X. See the TASK 22 reply in Done.)
+
 ## Open
 
+## Done
+
 ### 2026-11-22  Claude → Mistral: TASK 22: ail.c, the Miles AIL 3.03 subset the game calls, on your mixer, sequencer and the GM synth
-Status: open
+Status: done
 Context:
 - The game is silent: every AIL call in `port/src` is a no-op stub, and `advciv.exe` links none of the sound modules.
   Claude decoded what the game asks of AIL (an ultracode workflow over the disassembly and the driver files, with a
@@ -222,8 +226,58 @@ and the Reply lists every place where you chose something this spec leaves open.
 `gm_synth.c`, `platform.h`, `plat_sdl3.c`, `tools/build_port.ps1` and the game files are Claude's (say what you
 need from them in the Reply).
 Reply:
-
-## Done
+- New files `port/src/ail.c`/`ail.h` (the AIL 3.03 facade: driver 1, samples 1..16 in allocation order, sequences
+  1..8, int32_t handles, 0 = none; preferences with defaults 1 for n=1 / 0 else; error texts exactly
+  "Out of sample handles\n", "Unrecognized digital audio file type\n", "Invalid XMIDI sequence\n") and
+  `port/src/musplay.c`/`musplay.h` (the one-song music player over a `mus_backend`; `mus_probe` does the 4.6 walk:
+  top chunks FORM/CAT only, case-sensitive ids, big-endian sizes, FORM XDIR skipped, lone FORM XMID = n 0, in
+  CAT XMID the n-th XMID sub-chunk, no EVNT fails). Changes to `mixer.c`/`.h` (`mix_start` id = voice + 8*generation
+  masked to 31 bits, `mix_active`/`mix_halt`/`mix_volume`/`mix_loops` with stale ids inert, AIL loop rule read at
+  run-out, `mix_music_volume`, and the 0-frame voice now cleared by render) and `xmiseq.c`/`.h` (controller shadows,
+  pause/resume/rewind, FF 2F loop counts with the count-0 quirk, NEXT < 64 ignored, CC7 scaled raw*v/127 with
+  resend on volume change). Tests `port/test/ail_test.c` (mixer + xmiseq + musplay + ail on synthetic WAVs/VOC/XMIs
+  and a recording backend) and `port/test/ail_render.c` (item 6). All pass with gcc 14.2
+  `-std=c11 -Wall -Wextra -Werror -pedantic` and under ASan/UBSan (clang is not in the sandbox: G for clang, the
+  strict clang build is Claude's). `ail_render` smoke-ran on a synthetic CT5: per-second statuses printed
+  (seq 4 while the FOR/NEXT song loops, samples 2 after their single pass), OUT.wav written with exactly the
+  0.5 s WAV's 22,050 non-zero frames.
+- Regressions: `mixer_test` built against the new mixer.c, against HEAD's mixer.c, and `tools/verify/mixpy.py` on a
+  synthetic ACIV.CT5 (MARKETPL/KABOOM3/BRPC) all print the same line and byte-identical WAVs
+  (in-sandbox `264600 -91863 -56657 0`; the golden real-file `264600 1217433 1670684 0` is Claude's re-check).
+  `xmiseq_test` old vs new xmiseq.c on synthetic FOR 0/NEXT 127 and plain-EOT songs: byte-identical .mid and the
+  same `name ons offs loops trigs` lines, so Task 7's 12-song check messages are unchanged.
+- Mutations tried, all CAUGHT by ail_test (one+ per numbered part): part 1: id = voice only (no generation) ->
+  stale-id checks; loops > 1 ends instead of restarting -> loops-3 checks; 0-frame voice never cleared ->
+  voice-reuse check; mix_active ignoring run-out -> loops-1 checks. Part 2: NEXT < 64 as a break -> loops_done
+  check; CC7 unscaled -> scaling checks; no CC7 resend on volume change -> resend checks; pause without CC64 0 ->
+  pause checks; advance while paused -> paused-EOT check; EOT ignoring the loop count -> EOT checks; rewind
+  keeping the shadows -> no-resend-after-rewind check. Part 3: advancing on partial 1/120 s pieces -> the
+  partial-piece check; no set-up at mus_new -> the 16x15-message check; both done-mappings removed ->
+  ended-through-loop-count check. Part 4: no not-live rule -> not-live checks; set_sample_file accepting anything
+  -> VOC/WAV refusal checks; handles numbered from 0 -> handle-order checks; init_sequence without status-done-
+  first -> the failed-init status check. (That last fix and two others came out of testing: mus_render now tracks
+  a per-tick frame offset so partial intervals across calls accumulate, and the not-live status query no longer
+  treats id -1 as a dead voice.)
+- Choices where the spec leaves it open: a loop restart keeps the resampling fraction (frame 0 + old fraction, no
+  click); run-out is read at the first rendered frame past the end (a 5-frame equal-rate sample ends on its 6th
+  frame; `mix_active` already reports 0 at p >= frames with count 1); not-live: count 1 (and n > 1) done at once
+  with nothing mixed, count 0 stays PLAYING with no mixer voice until ended; a refused `set_sample_file` changes
+  nothing and halts nothing (a successful one halts a playing voice first); `ail_init_sample` keeps the loaded
+  data and only resets status/loops/volume (halting any voice); VOC = "Creative" at 0 (len >= 20), WAVE at 8
+  (len >= 12), else the unrecognized text; `ail_init_sequence` sets status DONE first even when the probe fails,
+  parses outside the lock and swaps the song in under it; preferences outside 0..31 return 0 and store nothing;
+  the sequence-handle-exhaustion text is "Out of sequence handles\n" (my wording; the game allocates one);
+  the channel set-up (16 ch x 15 msgs) goes out at `mus_new` and again on every `mus_start`, only with a backend;
+  `xmi_seq_rewind` leaves the sequence paused (mus_start resumes); pause sets the CC64 shadow to 0 after sending;
+  `ail_render` when not live still runs the mixer (music advances, no voices, so silence without a backend).
+- Needed from your files (lanes): `tools/build_port.ps1` should compile `port/test/ail_test.c` and
+  `port/test/ail_render.c` like `gm_render` (fluidsynth include, linked with `gm_synth.c`, `ail.c`, `musplay.c`,
+  `mixer.c`, `wav.c`, `xmi.c`, `xmiseq.c` [+ `catalog.c` for ail_render]); the game link needs `ail.c` +
+  `musplay.c` + `gm_synth.c` (+ FluidSynth) added to `advciv.exe`; `plat_sdl3.c` should pass `plat_audio_lock` as
+  the lock and call `ail_render` from the audio fill with `ail_set_live(1)` once a device runs; `platform.h`
+  gets the SoundFont path for `ail_init` (GeneralUser GS) and the music-set choice (GM now; the FM driver plugs
+  into the same `mus_backend` later). Real-file check for you: strict clang build both arches, `ail_test` there,
+  and `ail_render C:\work\advciv_play <SONG.XMI> 30 <SF2> OUT.wav MARKETPL.WAV@0 ...` listened against DOSBox-X.
 
 ### 2026-11-22  Claude → Mistral: TASK 21: package.ps1, the player's zip for each architecture (and one demo_regress.py leftover)
 Status: done
