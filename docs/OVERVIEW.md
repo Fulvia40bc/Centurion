@@ -661,6 +661,31 @@ tests against independent models and mutation checks.
   - MONO: "Montheism" (fixed in the text helper the computers' conversion will use).
 - Left: TRADE (round 1 has no trade session), the end of the game (END) and the computers (M7).
 
+**M7, the computer players (2026-11-21).** 111 functions (126 KB) in two workflows, five translators and five
+reviewers each, every module unit-tested against an independent model with mutation checks:
+- batch 1, the movement planner f461BC: `aiq.c`, `aicity.c`, `aisea.c`, `aimove.c`, `aiplan.c`;
+- batch 2, the rest: `aiship.c` (SHIPAI and the AI parts of TAX, POP, CONFLICT), `aitrade.c`, `aiadv.c`, `aicards.c`
+  (ADVAI, CARDS, CITY), `aical1.c` (CAL1, CAL3, MONO), `aical2.c` (CAL2, CAL4).
+Only PBEM (dropped) and f15FE0's loose-file fallback still stop the port.
+- **Port:** `--srd N` is the original's `/SRDn` (the self-running demo: N computers, no menu); `--stop-at ADDR N` stops
+  at the N-th pass of a comparison point (`port_checkpoint`: 0x55A64 after f461BC, 0x5E8EC the autosave's entry,
+  0x55258 the end-of-round save); `--snap-after S` dumps wherever a long run sits. ui_kit2.c exports the virtual
+  Watcom clock (`wat_clock`).
+- **Lessons:**
+  - a local the original reads before it writes is often a stale local of a sibling frame at the same depth, and
+    then deterministic: model it (aiplan.c's s_slot38), do not zero it;
+  - the save writer writes 0xEF3C4 and 0xEE20C (the reader reads them into 0xEED84 and 0x109E84);
+  - the kaboom3 counter lives in aciv.cfg across games: every run script restores ACIV.CFG with the saves.
+- **Check (V), DOSBox-X:**
+  - the R4 game (seven computers) from slot 0: all seven movement plans (0 unexplained bytes at 0x55A64);
+    "AutoSaved after MOVEMENT" and "after CITY SUPPORT - R4" byte-identical; the data object at ACQUIRE GOODS 0
+    unexplained bytes;
+  - `/SRD8` from the original's clock seed: the data object at each of the first 38 autosaves (round 1 to round 3's
+    taxation) 0 unexplained bytes; a whole game compared at every end-of-round save (`tools/dosbox/run_srd.sh` with
+    ADDR=0x55258), see below.
+- The port's own demo with seed 0x12345678 plays 40 rounds, deterministic run to run, and ends on Final Civilization
+  Standings (Assyria 3,762) at EXIT, where the original waits too (f14294's f78BA4, D 0x14630).
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 
