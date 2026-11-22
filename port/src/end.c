@@ -141,6 +141,7 @@ void f14294(void)
     uint32_t label;
     FILE *fp;            /* [0xF52D8] in the original (file comment) */
 
+    port_checkpoint(0x14294u);   /* port (M7): the game's end; --stop-at 0x14294 1 ends a demo run here */
     cnt = 0;                                                        /* 0x142AB */
     for (n = 1; n <= 9; n++) {                                      /* 0x142AE, 0x142BD cmp 9; jg */
         if (D8(NATION(n) + 0x9Au) == 0)                             /* 0x142CA byte [199n + 0xF1566]; je */

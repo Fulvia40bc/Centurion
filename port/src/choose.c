@@ -52,11 +52,15 @@ void (*g_not_ported_hook)(uint32_t addr);   /* main.c: with --dump-ds, the data 
 
 uint32_t g_stop_at_addr;                        /* main.c --stop-at ADDR N (0: none) */
 int g_stop_at_count;
+uint32_t g_dump_every_addr;                     /* main.c --dump-every ADDR PREFIX (0: none) */
+void (*g_dump_every_hook)(int pass);
 
 void port_checkpoint(uint32_t addr)
 {
-    static int passes;
+    static int passes, every;
 
+    if (g_dump_every_addr != 0 && addr == g_dump_every_addr && g_dump_every_hook != NULL)
+        g_dump_every_hook(++every);
     if (g_stop_at_addr == 0 || addr != g_stop_at_addr || ++passes < g_stop_at_count)
         return;
     fprintf(stderr, "advciv: stop at 0x%X #%d\n", (unsigned)addr, passes);

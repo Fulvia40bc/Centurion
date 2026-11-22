@@ -494,5 +494,7 @@ extern int g_stop_at_count;
 void port_checkpoint(uint32_t addr);   /* port (M7): a comparison point at the original's link address addr (e.g. 0x55A64, the return
                                          of the planner f461BC); with --stop-at ADDR N the N-th pass (from 1) prints
                                          "advciv: stop at 0xADDR #N", dumps as not_ported does (--dump-ds) and exits 0 */
+extern uint32_t g_dump_every_addr;      /* port: main.c --dump-every ADDR PREFIX (0: none) */
+extern void (*g_dump_every_hook)(int pass);   /* main.c: at every pass of g_dump_every_addr (from 1), before --stop-at */
 
 #endif

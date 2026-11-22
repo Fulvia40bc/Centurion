@@ -181,6 +181,20 @@ static int map_state_draw(const char *path)
     return 0;
 }
 
+/* --dump-every ADDR PREFIX (M7): the data object at every pass of the comparison point ADDR (port_checkpoint), to
+   PREFIX<pass>.bin (pass from 1), and the run goes on. With --srd 8 --seed S, ADDR 0x55258 (the end-of-round save, once
+   per round) and --stop-at 0x14294 1 (the game's end), one run writes every round of a demo game. */
+static const char *s_dump_every;
+
+static void dump_every(int pass)
+{
+    char path[1024];
+
+    snprintf(path, sizeof path, "%s%d.bin", s_dump_every, pass);
+    if (ds_dump(path) != 0)
+        fprintf(stderr, "advciv: cannot write %s\n", path);
+}
+
 /* --snap-after S (diagnostics): at the first input poll after S seconds, dump (--dump-ds) and frame
    (--headless-frame), print the phase and round, and exit 0: where a long unattended run sits */
 static uint64_t s_snap_at;
@@ -297,6 +311,10 @@ int main(int argc, char **argv)
             g_stop_at_addr = (uint32_t)strtoul(argv[++i], NULL, 0);   /* M7: stop at the N-th pass of the */
             g_stop_at_count = atoi(argv[++i]);                         /* comparison point ADDR (port_checkpoint) */
         }
+        else if (strcmp(argv[i], "--dump-every") == 0 && i + 2 < argc) {
+            g_dump_every_addr = (uint32_t)strtoul(argv[++i], NULL, 0);   /* M7: the data object at every pass of */
+            s_dump_every = argv[++i];                                      /* ADDR, to PREFIX<pass>.bin; runs on */
+        }
         else if (strcmp(argv[i], "--snap-after") == 0 && i + 1 < argc)
             s_snap_at = (uint64_t)atoi(argv[++i]) * 1000u;   /* diagnostics (snap_hook) */
         else if (strcmp(argv[i], "--srd") == 0 && i + 1 < argc)
@@ -332,13 +350,14 @@ int main(int argc, char **argv)
     }
     if (s_frame_path != NULL && s_frame_path[0] != '/' && s_frame_path[0] != '\\' && s_frame_path[1] != ':')
         fprintf(stderr, "advciv: note: %s is relative to the game folder now\n", s_frame_path);
-    if (plat_init("Advanced Civilization", s_frame_path != NULL || s_dump_path != NULL ? PLAT_HEADLESS : 0) != 0)
+    if (plat_init("Advanced Civilization", s_frame_path != NULL || s_dump_path != NULL || s_dump_every != NULL ? PLAT_HEADLESS : 0) != 0)
         return 1;
     fg_init();
     fg_set_gamedir(gamedir);
-    if (s_frame_path != NULL || s_dump_path != NULL)
+    if (s_frame_path != NULL || s_dump_path != NULL || s_dump_every != NULL)
         fg_set_headless(1);
     g_not_ported_hook = dump_at_not_ported;
+    g_dump_every_hook = dump_every;
     rc = title_boot(gamedir);
     if (rc != 0) {
         fprintf(stderr, "advciv: start-up failed (%d)\n", rc);
