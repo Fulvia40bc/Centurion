@@ -84,6 +84,84 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
+### 2026-11-22  Claude → Mistral: TASK 21: package.ps1, the player's zip for each architecture (and one demo_regress.py leftover)
+Status: open
+Context:
+- Erik wants the port ready to hand to players. Nothing packages it yet: `tools/build_port.ps1` leaves each
+  architecture's programs and DLLs in `C:\work\advciv_port\<arch>` (aarch64, x86_64), next to test programs and
+  scratch builds a player must not get (`plat_demo.exe`, `gm_render.exe`, `advciv_noaslr.exe`, `opl3.o`, ...).
+- The port needs the original game's files (`ACIV.CT1`..`ACIV.CT5`, `*.DAT`, `MDI.INI`, ...), which are never in the
+  repo or a package. `advciv.exe GAMEDIR` reads and writes them in GAMEDIR (default: the current folder), as the
+  original does: saves `SAVGAME*.DAT` and `ACIV.CFG` land there.
+- What `advciv.exe` imports today (D, `llvm-objdump -p`, both architectures): `SDL3.dll`, `KERNEL32.dll` and the
+  Universal CRT (`api-ms-win-crt-*.dll`, part of Windows 10 and 11). The sound modules (FluidSynth, which needs
+  llvm-mingw's `libc++.dll` and `libunwind.dll`) are not linked into the game yet: TASK 22 will do that, and the
+  package must then pick them up without changing the script. So the DLL list is not fixed: it comes from the
+  imports.
+- Licences of what may ship (files on Erik's PC; `tools/build_deps.ps1` fetches them):
+  - SDL3 3.4.20: zlib licence, `C:\work\toolchain\deps\SDL3-3.4.20\LICENSE.txt`;
+  - FluidSynth 2.6.2: LGPL-2.1, `C:\work\toolchain\deps\fluidsynth-2.6.2\LICENSE`. LGPL: it ships as a DLL the player
+    can replace, and the package says where its exact source is (FluidSynth's v2.6.2 tag, built by
+    `tools/build_deps.ps1` in this repo);
+  - llvm-mingw's `libc++.dll` / `libunwind.dll`: Apache-2.0 with LLVM exception,
+    `C:\work\toolchain\llvm-mingw-20261104-ucrt-aarch64\LICENSE.TXT`;
+  - GeneralUser GS 2.0.3 (`C:\work\toolchain\soundfont\GeneralUser-GS.sf2` and `LICENSE.txt`): ships only together
+    with FluidSynth;
+  - Nuked-OPL3 (`port/third_party/nuked-opl3/LICENSE`, LGPL-2.1): compiled into the game once TASK 22 links the FM
+    synth. While it is statically linked, the LGPL asks that a player can relink: the package then carries a note
+    that the full source of the port is the `advciv` branch of this repository (Erik's call on whether that is
+    public: list it under "Needs Erik" in your Reply, do not decide it).
+Ask:
+1. `tools/package.ps1 [-Build C:\work\advciv_port] [-Out C:\work\advciv_dist] [-Version V]` (PowerShell 5.1 and 7,
+   no modules beyond what Windows has; `Compress-Archive` or `System.IO.Compression` is fine). For each of
+   `aarch64` and `x86_64` it writes `advciv-<V>-windows-<arm64|x64>.zip` holding one folder `AdvCiv\`:
+   - `advciv.exe`;
+   - every DLL it needs, found transitively: read the imports of `advciv.exe` (llvm-objdump from the toolchain:
+     `C:\work\toolchain\llvm-mingw-20261104-ucrt-aarch64\bin\llvm-objdump.exe -p`, which reads both architectures),
+     take each one present in the build folder, then their imports, until nothing new. A DLL in neither the build
+     folder nor the Windows set (`KERNEL32`, `USER32`, `GDI32`, `SHELL32`, `ADVAPI32`, `OLE32`, `OLEAUT32`,
+     `IMM32`, `VERSION`, `WINMM`, `SETUPAPI`, `CFGMGR32`, `WS2_32`, `api-ms-win-*`, `ucrtbase` and the like: keep
+     the list in the script) stops the script with its name and exit 1;
+   - `GeneralUser-GS.sf2` when `libfluidsynth-3.dll` is in the set (and only then);
+   - `LICENSES\` with one licence file per shipped third-party part, named after the part (`SDL3.txt`,
+     `FluidSynth.txt`, `llvm-mingw-runtime.txt`, `GeneralUser-GS.txt`, `Nuked-OPL3.txt`), only for parts that ship
+     (Nuked-OPL3: when `port/src/opl.c` is in the game's file list in `tools/build_port.ps1`, i.e. linked);
+   - `README.txt` (plain text, CRLF, at most 80 columns), written by the script: what this is (a native port of the
+     1995 DOS game; the original game files are needed and not included); how to install (unzip `AdvCiv\` into the
+     folder of an installed Advanced Civilization, the one holding `AC_MAIN.EXE` and `ACIV.CT1`..`ACIV.CT5`, and
+     start `advciv.exe` there; or start `advciv.exe "C:\path\to\the\game"`); that saves and `ACIV.CFG` are written
+     to that folder as the original does; the switches a player uses (`--original`: the 1995 behaviour including its
+     bugs, see FIXES.md in the source; F11 or Alt+Enter: full screen; `/NS`-style switches only if main.c has them:
+     read `port/src/main.c`, do not guess); the version; the licence list with each part's source location (the
+     LGPL note above for FluidSynth, the source-repository note for Nuked-OPL3 when it ships).
+   Every path above that is on Erik's PC (the toolchain's llvm-objdump, each licence file, the soundfont) is a
+   parameter of the script with that path as its default, so the tests can point them at their own files.
+   Never put anything else in: no test programs, no `.o`, no game data (refuse with exit 1 if the build folder's
+   chosen files include any name matching the game's files: `*.CT?`, `*.DAT`, `*.GIF`, `*.FLC`, `*.XMI`, `*.MDI`,
+   `*.DIG`, `AC_MAIN.EXE`, `AC_START.EXE`). V defaults to `git describe --always --dirty` of the repo plus the
+   date (`20261122-abc1234`). Existing zips of the same name are replaced; nothing else in `-Out` is touched. It
+   prints each zip's file list with sizes and SHA-256.
+2. `tools/package_test.ps1` (or a Python test, `python -I`), with fake build folders it makes itself (fake
+   EXE/DLL files are not readable by llvm-objdump: make the import reader a function or a parameter the test can
+   replace with a table of fake imports; if you can also build two small real DLLs with clang, one importing the
+   other, test the real reader on them, and say in the Reply which you did). It
+   checks: the transitive DLL set (a DLL imported only by another DLL is included); a missing non-Windows DLL stops
+   with exit 1 naming it; a game file in the build folder is not packaged; the soundfont and its licence ship only
+   with FluidSynth; README.txt lines are at most 80 columns and CRLF; the zip has exactly the listed entries under
+   `AdvCiv\`. Claude runs it on Erik's real build folders (you have no access to them) and starts the unzipped
+   game headless on a copy of the game folder.
+3. `tools/verify/demo_regress.py`, the leftover from TASK 19b's check: when the swap of a re-recorded seed folder
+   fails (renaming the old folder or the new one, e.g. WinError 5 with a file of the old folder held open), the new
+   recording's `.<seed>.tmp<pid>` folder stays in REFDIR (18 MB). On any failure after `tmp_new` was written: remove
+   `tmp_new`; if the old folder was already renamed to `.<seed>.old<pid>`, rename it back to the seed's name; leave
+   the manifest as it was; keep exit 2 and the full traceback. Add a test to `demo_regress_test.py` for each of the
+   two renames failing (mock `os.rename`), checking REFDIR afterwards holds exactly the old seed folder (same
+   files, same bytes) and the old manifest. Say which mutation of the fix you tried that the tests caught.
+Done = the tests pass, `demo_regress_test.py` passes, the Reply lists
+what Erik must decide (the source-repository question). Lanes: `tools/package.ps1`, `tools/package_test.*`,
+`tools/verify/demo_regress.py`, `tools/verify/demo_regress_test.py`; nothing in `port/`.
+Reply:
+
 
 ## Done
 
