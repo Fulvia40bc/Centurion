@@ -307,6 +307,7 @@ void f55258(void)
     FILE *fp;                                         /* [ebp-0x18] */
     uint32_t crc;                                     /* [ebp-0x1C] */
 
+    port_checkpoint(0x55258u);                        /* port (M7): the end-of-round save, a comparison point */
     memcpy(desc, DP(0xC65C0u), sizeof desc);          /* 0x5526D..0x5527E rep movsd 0xC, movsw, movsb: zeros */
     fp = fopen("savgameb.dat", "wb");                 /* 0x55289 (0xB5A30, mode 0xB5A2D) */
     snprintf(desc, sizeof desc, "AutoSaved at end of Round %d", (int)S16(ROUND));   /* 0x552A3 (0xB5A3D) */

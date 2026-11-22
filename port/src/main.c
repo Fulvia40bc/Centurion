@@ -181,6 +181,23 @@ static int map_state_draw(const char *path)
     return 0;
 }
 
+/* --snap-after S (diagnostics): at the first input poll after S seconds, dump (--dump-ds) and frame
+   (--headless-frame), print the phase and round, and exit 0: where a long unattended run sits */
+static uint64_t s_snap_at;
+
+static void snap_hook(void)
+{
+    if (plat_ticks_ms() < s_snap_at)
+        return;
+    fprintf(stderr, "advciv: snapshot: phase %d, round %d, nation %d\n", D8(0xF4102u), S16(0xF40FCu),
+            (int)S32(0xF40F8u));
+    if (s_dump_path != NULL && ds_dump(s_dump_path) != 0)
+        fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
+    if (s_frame_path != NULL)
+        (void)save_frame();
+    exit(0);
+}
+
 static void script_hook(void)
 {
     if (s_click < s_nclicks) {   /* per click: 2 polls released (the game first waits for a release, 0x775F0),
@@ -280,6 +297,8 @@ int main(int argc, char **argv)
             g_stop_at_addr = (uint32_t)strtoul(argv[++i], NULL, 0);   /* M7: stop at the N-th pass of the */
             g_stop_at_count = atoi(argv[++i]);                         /* comparison point ADDR (port_checkpoint) */
         }
+        else if (strcmp(argv[i], "--snap-after") == 0 && i + 1 < argc)
+            s_snap_at = (uint64_t)atoi(argv[++i]) * 1000u;   /* diagnostics (snap_hook) */
         else if (strcmp(argv[i], "--srd") == 0 && i + 1 < argc)
             s_srd = atoi(argv[++i]);                  /* the original's /SRDn: the self-running demo (M7) */
         else if (strcmp(argv[i], "--overview") == 0)
@@ -329,6 +348,10 @@ int main(int argc, char **argv)
     if (s_frame_path != NULL || s_nclicks > 0)   /* start-up polls the keyboard too; the menu's first poll is its click
                                                     wait (0x4F6CE) */
         fg_set_input_hook(s_nclicks > 0 ? script_hook : save_frame_and_exit);
+    if (s_snap_at != 0) {
+        s_snap_at += plat_ticks_ms();
+        fg_set_input_hook(snap_hook);
+    }
     if (s_srd != 0) {   /* the parser's /SRDn, 0x102E9..0x10356: n = atoi of what follows "SRD"; outside 3..8 it is 8
                            (0x10322..0x1032D); "%d player Self Running Demo in effect." (0x1033D); [0xF40BA] = n */
         int n = s_srd < 3 || s_srd > 8 ? 8 : s_srd;

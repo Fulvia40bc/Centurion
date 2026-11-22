@@ -3,9 +3,10 @@
 # DOSBox-X: the self-running demo with eight computers (advciv_srd8.conf: AC_MAIN /NT /SRD8). Prints the new game's
 # seed (read at 0x117E0, right after main stores the clock seed at 0x117DA: give it to the port's --seed), then stops
 # at the autosave's entry 0x5E8EC COUNT times and dumps the data object at every EVERY-th stop (default 1) to
-# C:\DOSBox-X\advciv\NAME_k.bin (k = 1..COUNT, the port's --stop-at 0x5E8EC k). The run copy's saves and ACIV.CFG (the
-# kaboom3 counter, anim.c) are put back afterwards. M7 (Claude, 21 Nov).
-name=$1; count=$2; every=${3:-1}
+# C:\DOSBox-X\advciv\NAME_k.bin (k = 1..COUNT, the port's --stop-at 0x5E8EC k). ADDR=0x55258 PAST=0x5526D stop at the
+# end-of-round save instead (the port's --stop-at 0x55258 k: one stop per round). The run copy's saves and ACIV.CFG
+# (the kaboom3 counter, anim.c) are put back afterwards. M7 (Claude, 21 Nov).
+name=$1; count=$2; every=${3:-1}; ADDR=${ADDR:-0x5E8EC}; PAST=${PAST:-0x5E904}
 D() { powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\work\AdvCiv\tools\dosbox\drive.ps1' "$@" 2>&1; }
 R=/c/work/advciv_run; B=$(mktemp -d)
 cp -p $R/SAVGAMEA.DAT $R/savgameb.dat $R/ACIV.CFG $B/ || exit 1
@@ -38,17 +39,17 @@ D dbg "D 0188:2C3C5C" > /dev/null
 row=$(D dbgscreen | grep -E '^0188:002C3C5C' | head -1)
 seed=$(echo "$row" | awk '{printf "0x%s%s%s%s", $5, $4, $3, $2}')
 echo "seed $seed"
-bp 0x5E8EC; D dbgkey F5 > /dev/null; sleep 1
+bp $ADDR; D dbgkey F5 > /dev/null; sleep 1
 for k in $(seq 1 $count); do
-  wait_stop 0x5E8EC || exit 1
+  wait_stop $ADDR || exit 1
   if [ $((k % every)) -eq 0 ]; then
     rm -f /c/DOSBox-X/advciv/${name}_$k.bin
     D dbg "MEMDUMPBIN 0188:2A9000 72C00 ${name}_$k.bin" > /dev/null; sleep 2
-    echo "${name}_$k saved"
+    echo "${name}_$k saved $(date +%H:%M)"
   fi
   [ $k -eq $count ] && break
-  # a breakpoint does not fire again after F5 from its own address: run past it (0x5E904) and re-arm
-  bp 0x5E904; D dbgkey F5 > /dev/null; sleep 1
-  wait_stop 0x5E904 || exit 1
-  bp 0x5E8EC; D dbgkey F5 > /dev/null; sleep 1
+  # a breakpoint does not fire again after F5 from its own address: run past it (PAST) and re-arm
+  bp $PAST; D dbgkey F5 > /dev/null; sleep 1
+  wait_stop $PAST || exit 1
+  bp $ADDR; D dbgkey F5 > /dev/null; sleep 1
 done
