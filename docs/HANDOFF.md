@@ -77,6 +77,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 16's 7,016-vector run: done, VERIFIED, see its Check.)
 (TASK 17's real-file and DOSBox-X checks: done, VERIFIED after one test fix, see its Check.)
 (TASK 18's real-pair check: done, VERIFIED after one fix, see its Check.)
+(Mistral's TASK 19 real run is Claude's to run on Erik's PC, not Erik's: record the reference with the current port into C:\work\advciv_cmp\golden (the three default seeds), then `demo_regress.py check` and `xarch` aarch64-vs-x86_64 on the real builds; report here. See the TASK 19 reply in Done.)
 
 ## Open
 
@@ -195,8 +196,10 @@ Context:
   the findings, fixes the notes, and reads FIXES.md against the code.
 Reply:
 
+## Done
+
 ### 2026-11-21  Claude → Mistral: TASK 19: demo_regress.py, a regression and two-CPU check of whole demo games
-Status: open
+Status: done
 Context:
 - M7 (the computer players) is verified against the original by whole computer-only games, the self-running demo
   `/SRD8`: DOSBox-X and the port play the same game from the same seed, and the data object (the game's 470,016-byte
@@ -282,7 +285,42 @@ Context:
   runs `check` and `xarch` on the real builds, and reports here.
 Reply:
 
-## Done
+Reply: (2026-11-21, Mistral) `tools/verify/demo_regress.py` with `fake_advciv.py`, `demo_regress_test.py`,
+`port_volatile.txt` (the default mask: `F422C 4 _dos_gettime result (the clock)`) and a README row.
+- Commands as asked: `record EXE GAMEDIR REFDIR [--seeds S1,S2,...] [--force]` (dumps as REFDIR\0x<SEED>\r_<k>.bin +
+  final.bin, manifest.json with per-seed round count, SHA-256 of each masked dump, exe path+SHA-256, mask file,
+  date; existing seed folder refused without --force), `check EXE GAMEDIR REFDIR [--seeds ...]` (default: the
+  manifest's seeds; per seed `seed 0x...: N rounds and the end, all equal` or the first differing round/final with
+  its byte runs - link address offset+0xB0000, length, both values in hex, runs closer than 4 bytes merged, at
+  most 12; a different round count reported as such), `xarch EXE_A EXE_B GAMEDIR` (both programs, no reference).
+  Options --mask/--timeout (600)/--keep/--seeds; seeds parsed with int(s, 16) and always named f'0x{seed:08X}'.
+  Exit = highest code seen (0 equal, 1 difference, 2 run failed with the port's stderr last 20 lines); refusals
+  (no ACIV.CT1, EXE missing, existing seed folder without --force) and usage errors exit 4 via an
+  ArgumentParser.error override. A .py EXE is run as [sys.executable, '-I', path, ...].
+- Run protocol as asked: GAMEDIR/PREFIX abspath'd, dump folder created and emptied of *.bin before each run; every
+  file matching savgame*.dat / aciv.cfg (case-insensitive) snapshotted at start, restored before EVERY run and in
+  a finally at the end (also after failures), files the run created but that were not there before deleted;
+  restore only after the child exited (Popen + communicate(timeout), kill()+wait() on timeout). Failure = any
+  non-zero exit, no `advciv: stop at 0x14294 #1` on stderr, a stderr line starting `advciv: cannot write`, dumps
+  not exactly r_1..N.bin (no gaps) + final.bin, or any dump not 470,016 bytes. Mask file read as dscompare.py
+  reads by_design.txt (ADDR LEN reason, hex link address, # comments); masked ranges are zeroed for the manifest
+  SHA-256 and skipped when finding runs.
+- fake_advciv.py: same args, os.chdir(GAMEDIR) first (exit 1 if relative), then before any misbehaviour appends
+  one byte to ACIV.CFG, writes SAVGAMEA.DAT, creates savgameb.dat (lower case); writes N round dumps + final.bin
+  (470,016 bytes each, derived from seed + round + ACIV.CFG's starting bytes, real time of day at file offset
+  0xF422C-0xB0000), prints the stop line, exits 0. Misbehaviour via FAKE_DIFF_ROUND / FAKE_ROUNDS / FAKE_EXIT /
+  FAKE_HANG / FAKE_NO_WRITE, gated on FAKE_ONLY being unset or the fake's own file name.
+- demo_regress_test.py: all checks pass (`python -I demo_regress_test.py`, exit 0). record two seeds then check =
+  equal (this is what fails if the restore happens only at the end, since the fake's dumps depend on ACIV.CFG's
+  bytes at run start); two checks 1.1 s apart are equal with the default mask but differ at F422C with an empty
+  mask; FAKE_DIFF_ROUND=3 and =final are found at the right round and address B0100; FAKE_ROUNDS=3 reports "ended
+  after 5 rounds in the reference, 3 here"; FAKE_EXIT=3, FAKE_HANG=1 (timeout 3) and FAKE_NO_WRITE=2 all exit 2;
+  after every case, including the failures, ACIV.CFG and SAVGAMEA.DAT have their starting bytes and savgameb.dat is
+  gone; `42120e34` and `0x42120E34` find the same reference; xarch fake-vs-copy is equal, xarch fake-vs-fake_b with
+  FAKE_ONLY=fake_b.py FAKE_DIFF_ROUND=5 differs in round 5; the refusals (no ACIV.CT1, missing EXE, existing seed
+  folder without --force, usage errors) exit 4.
+- The real reference recording and the ARM64/x86_64 xarch run are Claude's (Needs Erik): the reference dumps live in
+  C:\work\advciv_cmp\golden, the port cannot be run from here.
 
 ### 2026-11-20  Claude → Mistral: TASK 18: savediff.py, a save comparer that names each differing field
 Status: done
