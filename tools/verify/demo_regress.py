@@ -316,12 +316,20 @@ def cmd_record(args):
                 shutil.rmtree(tmp_new, ignore_errors=True)
                 raise
             old = None
-            if os.path.isdir(sdir):
-                old = os.path.join(refdir, f'.{name}.old{os.getpid()}')
-                os.rename(sdir, old)
-            os.rename(tmp_new, sdir)
-            if old is not None:
-                shutil.rmtree(old, ignore_errors=True)
+            try:
+                if os.path.isdir(sdir):
+                    old = os.path.join(refdir, f'.{name}.old{os.getpid()}')
+                    os.rename(sdir, old)
+                os.rename(tmp_new, sdir)
+                if old is not None:
+                    shutil.rmtree(old, ignore_errors=True)
+            except BaseException:
+                # a failed swap leaves no leftover (TASK 21): drop the new recording, put the old folder back;
+                # the manifest is not touched (it is written only after the swap), so the reference stays valid
+                shutil.rmtree(tmp_new, ignore_errors=True)
+                if old is not None and os.path.isdir(old) and not os.path.isdir(sdir):
+                    os.rename(old, sdir)
+                raise
             manifest['seeds'][name] = entry
             tmp_man = manifest_path + f'.tmp{os.getpid()}'
             with open(tmp_man, 'w') as f:

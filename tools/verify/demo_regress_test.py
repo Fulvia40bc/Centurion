@@ -252,6 +252,58 @@ def main():
               'old reference intact after failed --force')
         check(not any(f.startswith('.0x') for f in os.listdir(ref)), 'temp seed folder left behind')
 
+        # TASK 21: a failed swap of a re-recorded seed folder leaves no leftover - the new recording's
+        # .<seed>.tmp<pid> folder is removed, an already-renamed .<seed>.old<pid> is renamed back, the manifest
+        # stays as it was, exit 2 with the traceback
+        def run_record_force():
+            old_argv = sys.argv
+            sys.argv = ['demo_regress.py', 'record', FAKE, g, ref, '--seeds', '0x28132309', '--force']
+            try:
+                try:
+                    return DRMOD.main()
+                except SystemExit as e:
+                    return e.code
+            finally:
+                sys.argv = old_argv
+
+        def refdir_state():
+            st = {}
+            for fn in sorted(os.listdir(ref)):
+                p = os.path.join(ref, fn)
+                if os.path.isfile(p):
+                    st[fn] = open(p, 'rb').read()
+                else:
+                    st[fn] = {f: open(os.path.join(p, f), 'rb').read() for f in sorted(os.listdir(p))}
+            return st
+
+        state_before = refdir_state()
+        sdir_path = os.path.join(ref, '0x28132309')
+        real_rename = os.rename
+
+        # (a) the first rename (old seed folder -> .old<pid>) fails
+        def fail_old_rename(src, dst):
+            if src == sdir_path:
+                raise OSError(5, 'simulated WinError 5: a file of the old folder is held open')
+            return real_rename(src, dst)
+
+        with mock.patch('os.rename', fail_old_rename):
+            rc = run_record_force()
+        check(rc == 2, f'swap failure, old rename: rc {rc}')
+        check(refdir_state() == state_before, 'swap failure, old rename: REFDIR unchanged (old seed folder, old manifest, no .tmp/.old)')
+        check(game_state_ok(g), 'swap failure, old rename: game folder restored')
+
+        # (b) the second rename (tmp_new -> seed folder) fails after the old folder was renamed away
+        def fail_new_rename(src, dst):
+            if dst == sdir_path and '.tmp' in src:
+                raise OSError(5, 'simulated WinError 5: a file of the new recording is held open')
+            return real_rename(src, dst)
+
+        with mock.patch('os.rename', fail_new_rename):
+            rc = run_record_force()
+        check(rc == 2, f'swap failure, new rename: rc {rc}')
+        check(refdir_state() == state_before, 'swap failure, new rename: REFDIR holds exactly the old seed folder (same bytes) and the old manifest')
+        check(game_state_ok(g), 'swap failure, new rename: game folder restored')
+
         # 19b #7: on any exception while the port runs (Ctrl+C), the child is killed and waited for
         class FakeP:
             def __init__(self):
