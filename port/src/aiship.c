@@ -734,6 +734,7 @@ L_64200:   /* the next stage */
                     }
             }
         }
+        port_checkpoint(0x64361u);                                      /* port (M7): the budget's inputs (comparison point) */
         f6332C(total);                                                  /* 0x64361 */
         port_checkpoint(0x64366u);                                      /* port (M7): the budget applied (comparison point) */
     }
