@@ -6,8 +6,10 @@
 # C:\DOSBox-X\advciv\NAME_k.bin (k = 1..COUNT, the port's --stop-at 0x5E8EC k). ADDR=0x55258 PAST=0x5526D stop at the
 # end-of-round save instead (the port's --stop-at 0x55258 k: one stop per round). The run copy's saves and ACIV.CFG
 # (the kaboom3 counter, anim.c) are put back afterwards. FROM=k skips the dumps before stop k. SEED=0x... replays
-# that game (written over the clock seed at 0x117E0). When a stop does not come within WAIT s, hang() takes a raw screenshot (DOSBox-X's capture folder), breaks into the debugger, prints EIP
-# and dumps the data object to NAME_hang.bin. M7 (Claude, 21 Nov).
+# that game (written over the clock seed at 0x117E0). When a stop does not come within WAIT s, hang() takes a raw
+# screenshot (DOSBox-X's capture folder), breaks into the debugger, prints EIP and dumps the data object to
+# NAME_hang.bin. Stop a run by killing its bash (TaskStop on a wrapper leaves this script running, and its exit
+# trap then kills whatever DOSBox-X is running). M7 (Claude, 21-22 Nov).
 name=$1; count=$2; every=${3:-1}; ADDR=${ADDR:-0x5E8EC}; PAST=${PAST:-0x5E904}; FROM=${FROM:-1}
 D() { powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\work\AdvCiv\tools\dosbox\drive.ps1' "$@" 2>&1; }
 R=/c/work/advciv_run; B=$(mktemp -d)
