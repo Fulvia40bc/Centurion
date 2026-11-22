@@ -77,10 +77,114 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 16's 7,016-vector run: done, VERIFIED, see its Check.)
 (TASK 17's real-file and DOSBox-X checks: done, VERIFIED after one test fix, see its Check.)
 (TASK 18's real-pair check: done, VERIFIED after one fix, see its Check.)
-(Mistral's TASK 19 real run is Claude's to run on Erik's PC, not Erik's: record the reference with the current port into C:\work\advciv_cmp\golden (the three default seeds), then `demo_regress.py check` and `xarch` aarch64-vs-x86_64 on the real builds; report here. See the TASK 19 reply in Done.)
-(Mistral's TASK 20 follow-up is Claude's: go through the `fixes.py check` findings in the TASK 20 reply (kind 1: 35 uncited items, kind 3: 4 unguarded g_original uses, kind 5: 33 unplaceable/unreadable markers), fix the notes or the code, and read docs/FIXES.md against the code; Erik reads FIXES.md. See the reply in Done.)
+(TASK 19's real run: done 22 Nov, VERIFIED: reference recorded in C:\work\advciv_cmp\golden (0x28132309 38 rounds, 0x42120E34 37, 0x12345678 39, each and the end), `check` all equal on both builds, `xarch` aarch64 = x86_64 for all three, the game folder restored byte for byte. A review found defects: TASK 19b.)
+(TASK 20's follow-up: done 22 Nov by Claude: the notes fixed (comment edits only, the code token-for-token unchanged, both builds replay the reference games identically; `check`: 72 findings -> 1) and docs/FIXES.md corrected row by row against the code (`check-doc`: 1 missing, cal5.c 3). The checker limits found on the way: TASK 20b. Erik reads FIXES.md.)
 
 ## Open
+
+### 2026-11-22  Claude → Mistral: TASK 20b: fixes.py, the limits found while fixing the notes
+Status: open
+Context:
+- TASK 20's findings are dealt with: Claude fixed the notes (comment edits only; the port's code is token-for-token
+  unchanged) so that `fixes.py check port/src` now reports one finding, and corrected `docs/FIXES.md` row by row
+  against the code (`check-doc`: 109 items, 108 rows, 1 missing). Both findings left are checker limits, item 1
+  below. Fixing the notes showed these places where `fixes.py` misreads notes that are written correctly. Fix them in
+  `tools/verify/fixes.py`, with a synthetic test in `fixes_test.py` for each that fails without the fix (say in the
+  Reply which mutation you tried). Then `check port/src` must report nothing, `check-doc port/src docs/FIXES.md`
+  must say 0 missing, 0 extra, and `list` must give the same items, modes and keys as now (report any that change).
+  Do not edit `port/src` or `docs/FIXES.md`; if a fix would need a note changed, say which in the Reply.
+  1. A numbered item whose text is only an intro to lettered sub-items (cal5.c item 3, with 3a and 3b) becomes an
+     item of its own and is reported uncited (kind 1) although 3a and 3b are cited. The parent of sub-items is not an
+     item (the spec: sub-items belong to their parent).
+  2. Items are keyed (file, label) whatever list they are in, so the same label in two lists of a file is one key: a
+     marker citing heading item 1 also counted for a both-modes item 1 (aiadv.c, before the notes were fixed), and
+     conflict.c's three "Guards" items all have the key `conflict.c guard` (three FIXES.md rows, one key). Key items by
+     (file, list, label) as the spec asks; a marker's label resolves to the one item with that label, and a label
+     found in several lists of one file is a kind 5 finding ("ambiguous label") unless the marker names the list
+     ("both modes 3", "stale-word item 3", "guard 2"). Give the conflict.c guards distinct labels in the key (their
+     order, or their address) so each row has its own key.
+  3. A Text paragraph is recognised only when it says "fixed", and it runs until a blank line or a line indented 2
+     or less, so it swallows the paragraph that follows at the same indent ("Oddities kept" in stack.c, mstack.c and
+     menu1.c; "Easter eggs" in cal2.c): the text item then gets grades and addresses from the next paragraph. End a
+     Text paragraph (and any list item's continuation) at a line that starts a new paragraph at the same indent
+     with a list-end word or a heading word ("Oddit", "Kept", "Noted", "Guards", "Port guard", "Easter", "Text",
+     "1995 bug", "Fixed", "Reads of", "Stack words").
+  4. The continuation lines of a list's last item are taken by indent alone, so a note indented under it becomes
+     part of the item (aitrade.c: the f6B0EC note gave item 3 the address 0x1104C8). Same rule as 3.
+  5. Citations not read: one split across a line break inside the comment ("(the file" / "comment, 1)", city.c);
+     one in the middle of a comment followed by more text ("(file comment, 1) and ..."; TRAIL_CITE_RE needs `*/`
+     right after); "(the ALL path, file comment)". Read a citation anywhere in the marker's comment, across its
+     lines.
+  6. A "- " bullet in a heading list is read as an item only when its line contains BUG(1995) (menu1.c, mono.c,
+     rules.c, pop.c had their only items missed until they were numbered). Read every "- " bullet of a heading list
+     as an item, keyed by its label if it has one, else `@<first address>`.
+  7. A marker "BUG(1995) (text):" links only to a separate Text paragraph, not to a numbered heading item whose text
+     begins "Text" (cal1.c item 4). Link it to the file's one text item, whichever list holds it, and report kind 5
+     if there are several.
+  8. Kind 3 accepts the comment words ("text slip fixed", "TEXT_SWEEP", a marker) only on the g_original line or
+     the line before; stack.c had "text slip fixed" on the line after. Accept the next line too, and the plural
+     "text slips fixed".
+  9. A heading of the form "1995 bugs: none fixed beyond the garbage read above" (aicity.c) makes the file a "none"
+     file. "none" followed by "beyond" / "other than" / "except" is not "none": parse the heading's list as usual.
+Check (Claude): run `check`, `check-doc` and `list` on the real tree and compare `list` before and after.
+Reply:
+
+### 2026-11-22  Claude → Mistral: TASK 19b: demo_regress.py fixes from the review
+Status: open
+Context:
+- TASK 19 works on the real builds (see its Check). A review of the code against the TASK 19 spec, with every finding
+  reproduced in a copy before it was kept, found the defects below. Fix them in `tools/verify/demo_regress.py` and
+  `fake_advciv.py`, and extend `demo_regress_test.py` so that each fix has a test that FAILS without it (say in the
+  Reply which mutation you tried for each). Same files, same commands; nothing else changes.
+- Wrong results (fix first):
+  1. `check` trusts the reference folder. `load_ref` takes whatever `r_*.bin` / `final.bin` it finds: a missing
+     `final.bin` gives "N rounds and the end, all equal" without comparing the end; a truncated dump compares only its
+     length (`diff_runs` loops over the reference buffer); a longer one crashes; a gap (r_1, r_2, r_4) crashes in
+     `compare_seed` (`label.split()[1]`). Fix: before comparing, require exactly r_1..N plus final.bin as listed in
+     manifest.json, each 470,016 bytes and with the manifest's masked SHA-256; otherwise refuse that seed with exit 4
+     ("reference damaged: ..."), naming the file.
+  2. A different round count hides the first difference. `compare_seed` prints only "the game ended after A rounds in
+     the reference, B here" and returns. Keep that line, but first report the first differing round among the common
+     rounds 1..min(A, B) (with its runs, as for equal counts); if those are all equal, say so; then compare final.bin.
+  3. `record --force` deletes the old seed folder before writing the new one (`shutil.rmtree` then writes in place;
+     manifest.json written in place too). Any error between (a dump open in another program: WinError 32, a full disk,
+     Ctrl+C) leaves a half-deleted reference that the manifest still describes. Fix: write the new seed folder under a
+     temporary name in REFDIR, then replace the old one (rename old aside, rename new in, delete old); write manifest.json
+     to a temporary file and `os.replace` it. A failure leaves the old reference and manifest intact.
+- Folder handling:
+  4. `--keep DIR` is not made absolute (line 233). The port chdirs into GAMEDIR, so a relative DIR makes every run fail
+     ("no round dumps") and leaves dumps inside the game folder. `os.path.abspath` it like GAMEDIR.
+  5. `xarch --keep`: the subfolder is named after `basename(exe)`, so the ARM64 and x86_64 builds (both `advciv.exe`)
+     share one folder and run B deletes run A's dumps. Name the subfolders `a` and `b` in xarch (record/check keep
+     `basename(exe)`).
+- Exit codes (the spec: 1 means a difference only):
+  6. Any exception other than a refusal or a run failure exits 1 with a traceback: a folder passed as EXE
+     (`check_exe` tests only `os.path.exists`; Popen raises PermissionError), a bad mask line (`read_mask` ValueError),
+     a corrupt manifest.json. Refusals (bad EXE: not a file; bad mask; bad manifest) exit 4 with a one-line message;
+     any other unexpected error exits 2 with the traceback printed in full (Erik wants tracebacks shown, not quieted).
+  7. On any exception while the port runs (Ctrl+C included), kill the child and wait for it before the `finally`
+     restores the game folder (now only `TimeoutExpired` kills it; `communicate()` re-raises KeyboardInterrupt after
+     about 0.25 s without killing the child).
+- Printing:
+  8. `report_runs` prints `a[s:s+16]`, 16 bytes from the run start even past a 1-byte run's end (and into the masked
+     clock bytes). Print at most the run's own bytes, first 16: `a[s:e][:16]` as dscompare.py does.
+- Tests that do not check what they claim (each passed with the property removed):
+  9. Test 1's comment says record-then-check fails if the restore happens only at the end; it does not (record and
+     check run the seeds in the same order, so they see the same ACIV.CFG sequence). Make it hold: after recording
+     both seeds, check the second seed alone.
+  10. "First differing round": the fake changes one round only, so reporting the LAST differing round passes. Add a
+     fake mode that changes every round from K on (as a real divergence does) and assert round K is reported.
+  11. The "cannot write" rule, the gap rule and the 470,016-byte rule can each be removed alone and the suite still
+     passes (FAKE_NO_WRITE trips two rules at once; the asserted text also appears in the stderr tail). Add fake modes
+     that trip each rule alone (a "cannot write" line with all dumps written; a missing middle dump; a short dump) and
+     assert exit 2 for each.
+  12. Merging runs closer than 4 bytes, the 12-run cap, the printed run length and values, and the masked manifest
+     hashes are untested. Add a fake mode that writes several runs (two 1-byte changes 2 bytes apart, one 3 bytes
+     apart... and more than 12 runs) and assert the printed lines; assert a manifest hash equals the SHA-256 of the
+     masked dump.
+Check (Claude): rerun `record`/`check`/`xarch` on the real builds and repeat the damaged-reference, `--keep` and
+`--force` cases by hand.
+Reply:
 
 ## Done
 
