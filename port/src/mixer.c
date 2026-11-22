@@ -14,6 +14,8 @@ typedef struct {
     int volume;
     int gl, gr;
     int active;
+    int loops;           /* read when the data runs out (mix_start); mix_play uses 1 */
+    uint32_t gen;        /* bumped by every mix_start on this voice, for the id */
 } mix_voice;
 
 struct mixer {
@@ -100,11 +102,128 @@ int mix_play(mixer *m, const wav_sound *s, int volume, int pan)
             vc->volume = volume;
             vc->gl = gl;
             vc->gr = gr;
+            vc->loops = 1;
             vc->active = 1;
             return vi;
         }
     }
     return -1;
+}
+
+static int mix_id_of(const mix_voice *vc, int vi)
+{
+    uint32_t id32 = ((uint32_t)vi + 8u * vc->gen) & 0x7FFFFFFFu;   /* wraps inside int range, never negative */
+    int id;
+
+    memcpy(&id, &id32, sizeof id);
+    return id;
+}
+
+static mix_voice *mix_find_id(mixer *m, int id, int *vi_out)
+{
+    int vi;
+
+    if (m == NULL || id < 0)
+        return NULL;
+    vi = id & 7;
+    if (vi >= MIX_VOICES)
+        return NULL;
+    if (!m->v[vi].active || mix_id_of(&m->v[vi], vi) != id)
+        return NULL;                        /* stale: ended, stopped, or the voice was reused */
+    if (vi_out != NULL)
+        *vi_out = vi;
+    return &m->v[vi];
+}
+
+int mix_start(mixer *m, const wav_sound *s, int volume, int loops)
+{
+    int vi;
+
+    if (m == NULL || s == NULL)
+        return -1;
+    if (s->samples == NULL || s->frames == 0)
+        return -1;                          /* AIL does not start an empty sample */
+    if (volume < 0)
+        volume = 0;
+    if (volume > 127)
+        volume = 127;
+    for (vi = 0; vi < MIX_VOICES; vi++) {
+        if (!m->v[vi].active) {
+            mix_voice *vc = &m->v[vi];
+
+            vc->gen++;                      /* the previous play on this voice, if any, is now stale */
+            vc->s = s;
+            vc->p = 0;
+            vc->step = ((uint64_t)s->rate << 32) / MIX_OUT_RATE;
+            vc->volume = volume;
+            vc->gl = 128;                   /* pan 64 */
+            vc->gr = 128;
+            vc->loops = loops;
+            vc->active = 1;
+            return mix_id_of(vc, vi);
+        }
+    }
+    return -1;
+}
+
+int mix_active(const mixer *m, int id)
+{
+    const mix_voice *vc;
+    int vi;
+
+    if (m == NULL || id < 0)
+        return 0;
+    vi = id & 7;
+    if (vi >= MIX_VOICES)
+        return 0;
+    vc = &m->v[vi];
+    if (!vc->active || mix_id_of(vc, vi) != id)
+        return 0;
+    if (vc->s == NULL || vc->s->samples == NULL)
+        return 0;
+    if ((uint32_t)(vc->p >> 32) >= vc->s->frames && vc->loops == 1)
+        return 0;                           /* the data has run out and the count says end */
+    return 1;
+}
+
+void mix_halt(mixer *m, int id)
+{
+    mix_voice *vc = mix_find_id(m, id, NULL);
+
+    if (vc != NULL)
+        vc->active = 0;
+}
+
+void mix_volume(mixer *m, int id, int volume)
+{
+    mix_voice *vc = mix_find_id(m, id, NULL);
+
+    if (vc == NULL)
+        return;
+    if (volume < 0)
+        volume = 0;
+    if (volume > 127)
+        volume = 127;
+    vc->volume = volume;
+}
+
+void mix_loops(mixer *m, int id, int loops)
+{
+    mix_voice *vc = mix_find_id(m, id, NULL);
+
+    if (vc != NULL)
+        vc->loops = loops;
+}
+
+void mix_music_volume(mixer *m, int volume)
+{
+    if (m == NULL)
+        return;
+    if (volume < 0)
+        volume = 0;
+    if (volume > 127)
+        volume = 127;
+    m->music_volume = volume;
 }
 
 void mix_stop(mixer *m, int voice)
@@ -174,12 +293,25 @@ void mix_render(mixer *m, int16_t *out, int frames)
                 uint32_t fi;
                 uint32_t frac;
 
-                if (!vc->active || vc->s == NULL || vc->s->samples == NULL)
+                if (!vc->active)
                     continue;
+                if (vc->s == NULL || vc->s->samples == NULL) {
+                    vc->active = 0;             /* a 0-frame voice does not stay active forever */
+                    continue;
+                }
                 pos = vc->p;
                 fi = (uint32_t)(pos >> 32);
-                if (fi >= vc->s->frames) {      /* the voice ends when i >= frames */
-                    vc->active = 0;
+                if (fi >= vc->s->frames) {      /* the data ran out: the loop count is read now */
+                    if (vc->loops == 0) {
+                        vc->p &= 0xFFFFFFFFull; /* again from frame 0, keeping the resampling fraction */
+                        continue;
+                    }
+                    if (vc->loops > 1) {
+                        vc->loops--;
+                        vc->p &= 0xFFFFFFFFull;
+                        continue;
+                    }
+                    vc->active = 0;             /* loops == 1: the voice ends */
                     continue;
                 }
                 frac = (uint32_t)((pos >> 16) & 0xFFFFu);

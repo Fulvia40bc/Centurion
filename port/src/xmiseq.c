@@ -24,6 +24,10 @@ struct xmi_seq {
     uint32_t pending;
     int eot;
     int stopped;
+    int paused;            /* xmi_seq_pause: time does not advance, nothing is emitted */
+    int seq_loops;         /* what happens at FF 2F (xmi_seq_set_loops, default 1) */
+    int vol_scale;         /* xmi_seq_set_volume, 0..127, default 127; CC7 goes out as raw * vol_scale / 127 */
+    int8_t shadow[16][128]; /* the last raw value of every controller sent, -1 = never sent */
     uint32_t loops_done;
 };
 
@@ -50,6 +54,40 @@ static void seq_note_off(xmi_seq *s, int ch, int key)
     s->pending--;
 }
 
+/* the pause emission (AIL_stop_sequence): note-off for every sounding note, forget them (resume does not
+   re-sound them), and CC64 0 on each channel whose sustain shadow is down */
+static void seq_pause_notes(xmi_seq *s)
+{
+    int ch, key;
+
+    for (ch = 0; ch < 16; ch++)
+        for (key = 0; key < 128; key++)
+            if (s->pend[ch][key].active)
+                seq_note_off(s, ch, key);
+    s->pending = 0;
+    for (ch = 0; ch < 16; ch++) {
+        if (s->shadow[ch][64] >= 64) {
+            uint8_t msg[3];
+
+            msg[0] = (uint8_t)(0xB0u | (unsigned)ch);
+            msg[1] = 64;
+            msg[2] = 0;
+            seq_emit(s, msg, 3);
+            s->shadow[ch][64] = 0;
+        }
+    }
+}
+
+/* back to the first event, keeping the channel shadows (an FF 2F rewind) */
+static void seq_rewind_pos(xmi_seq *s, uint64_t t)
+{
+    if (s->song->count > 0)
+        s->shift = (int64_t)t - (int64_t)s->song->ev[0].tick;
+    s->index = 0;
+    s->depth = 0;
+    s->eot = 0;
+}
+
 /* handle the event at s->index, whose effective tick is t */
 static void seq_event(xmi_seq *s, uint64_t t)
 {
@@ -57,9 +95,22 @@ static void seq_event(xmi_seq *s, uint64_t t)
     uint8_t st = e->status;
     uint8_t msg[3];
 
-    if (st == 0xFFu) {              /* end of track (FF 2F) */
-        s->eot = 1;
-        s->index = s->song->count;
+    if (st == 0xFFu) {              /* end of track (FF 2F): the loop count decides */
+        if (s->seq_loops == 0) {    /* rewind (the channel shadows are kept) and go on, forever */
+            seq_rewind_pos(s, t);
+            s->loops_done++;
+        } else {
+            s->seq_loops--;
+            if (s->seq_loops == 0) {
+                seq_pause_notes(s); /* pause its notes and done (the count is now 0: a later rewind without a
+                                       new count loops forever) */
+                s->eot = 1;
+                s->index = s->song->count;
+            } else {
+                seq_rewind_pos(s, t);
+                s->loops_done++;
+            }
+        }
         return;
     }
     if ((st & 0xF0u) == 0x80u) {    /* note-off events in the list are skipped */
@@ -127,9 +178,7 @@ static void seq_event(xmi_seq *s, uint64_t t)
                     } else {
                         s->index++;
                     }
-                } else {                /* value < 64: break out of the loop */
-                    if (s->depth > 0)
-                        s->depth--;
+                } else {                /* value < 64: ignored (AIL), not a break */
                     s->index++;
                 }
             } else if (num == 119) {     /* callback trigger */
@@ -141,9 +190,10 @@ static void seq_event(xmi_seq *s, uint64_t t)
             }
             return;
         }
+        s->shadow[ch][num] = (int8_t)val;    /* the shadow keeps the raw value */
         msg[0] = st;
         msg[1] = e->d1;
-        msg[2] = e->d2;
+        msg[2] = (num == 7) ? (uint8_t)((val * s->vol_scale) / 127) : e->d2;   /* CC7 scaled by the volume */
         seq_emit(s, msg, 3);
         s->index++;
         return;
@@ -168,6 +218,9 @@ xmi_seq *xmi_seq_new(const xmi_song *song, xmi_out_fn out, xmi_trigger_fn trig, 
     s->out = out;
     s->trig = trig;
     s->user = user;
+    s->seq_loops = 1;
+    s->vol_scale = 127;
+    memset(s->shadow, 0xFF, sizeof s->shadow);   /* -1 = never sent */
     return s;
 }
 
@@ -176,8 +229,8 @@ void xmi_seq_advance(xmi_seq *s, uint32_t ticks)
     uint64_t target;
     uint32_t guard = 0;
 
-    if (s == NULL)
-        return;
+    if (s == NULL || s->paused)
+        return;                                 /* paused: time does not advance, nothing is emitted */
     target = s->now + (uint64_t)ticks;
     if (!s->stopped) {
         for (;;) {
@@ -235,6 +288,71 @@ void xmi_seq_stop(xmi_seq *s)
                 seq_note_off(s, ch, key);
     s->pending = 0;
     s->stopped = 1;
+}
+
+void xmi_seq_pause(xmi_seq *s)
+{
+    if (s == NULL)
+        return;
+    if (!s->paused && !s->stopped)
+        seq_pause_notes(s);
+    s->paused = 1;
+}
+
+void xmi_seq_resume(xmi_seq *s)
+{
+    if (s == NULL)
+        return;
+    s->paused = 0;                              /* from the same event and the same remaining delay */
+}
+
+void xmi_seq_rewind(xmi_seq *s)
+{
+    if (s == NULL)
+        return;
+    if (!s->paused && !s->stopped)
+        seq_pause_notes(s);                     /* pause if playing */
+    s->index = 0;
+    s->shift = 0;
+    s->now = 0;                                 /* back to tick 0 */
+    s->eot = 0;
+    s->stopped = 0;
+    s->paused = 1;
+    s->depth = 0;                               /* FOR slots cleared */
+    s->pending = 0;                             /* note queue empty */
+    memset(s->shadow, 0xFF, sizeof s->shadow);  /* shadows cleared to -1; loop count and volume are kept */
+}
+
+void xmi_seq_set_loops(xmi_seq *s, int n)
+{
+    if (s == NULL)
+        return;
+    s->seq_loops = n;
+}
+
+void xmi_seq_set_volume(xmi_seq *s, int v)
+{
+    int ch;
+
+    if (s == NULL)
+        return;
+    if (v < 0)
+        v = 0;
+    if (v > 127)
+        v = 127;
+    if (v == s->vol_scale)
+        return;
+    s->vol_scale = v;
+    for (ch = 0; ch < 16; ch++) {               /* resend the scaled CC7 where the song set one */
+        if (s->shadow[ch][7] >= 0) {
+            uint8_t msg[3];
+
+            msg[0] = (uint8_t)(0xB0u | (unsigned)ch);
+            msg[1] = 7;
+            msg[2] = (uint8_t)((s->shadow[ch][7] * v) / 127);
+            seq_emit(s, msg, 3);
+        }
+    }
 }
 
 uint32_t xmi_seq_loops(const xmi_seq *s)
