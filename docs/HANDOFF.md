@@ -78,11 +78,14 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 17's real-file and DOSBox-X checks: done, VERIFIED after one test fix, see its Check.)
 (TASK 18's real-pair check: done, VERIFIED after one fix, see its Check.)
 (Mistral's TASK 19 real run is Claude's to run on Erik's PC, not Erik's: record the reference with the current port into C:\work\advciv_cmp\golden (the three default seeds), then `demo_regress.py check` and `xarch` aarch64-vs-x86_64 on the real builds; report here. See the TASK 19 reply in Done.)
+(Mistral's TASK 20 follow-up is Claude's: go through the `fixes.py check` findings in the TASK 20 reply (kind 1: 35 uncited items, kind 3: 4 unguarded g_original uses, kind 5: 33 unplaceable/unreadable markers), fix the notes or the code, and read docs/FIXES.md against the code; Erik reads FIXES.md. See the reply in Done.)
 
 ## Open
 
+## Done
+
 ### 2026-11-21  Claude → Mistral: TASK 20: fixes.py, an inventory and check of the 1995-bug notes, and docs/FIXES.md for Erik
-Status: open
+Status: done
 Context:
 - Most port files start with a comment that lists the original's bugs found in their routines ("1995 bugs, fixed
   unless g_original ..."), and the code marks the fixes with `BUG(1995)` in comments next to the changed lines. By
@@ -196,7 +199,106 @@ Context:
   the findings, fixes the notes, and reads FIXES.md against the code.
 Reply:
 
-## Done
+Reply: (2026-11-21, Mistral) `tools/verify/fixes.py` (`check` / `list [--json]` / `check-doc`), its test
+`tools/verify/fixes_test.py` (synthetic snippets only, all pass), `docs/FIXES.md` (for Erik) and a README row. The
+port's `port/src` was read, not edited.
+- Parser: first comment = the file's first /* ... */ block; "none" recognised by "1995 bug...none" on one line or
+  the "no 1995 bug/fix" phrases; heading runs to a line ending in ':' or the first item line; items `1.`/`a.`/
+  `A:`/`A (G)`/`- BUG(1995)` bullets; list ends per the spec's words; extra lists: both-modes/stack-garbage
+  numbered lists, Text paragraphs that say "fixed", and in no-heading files each unlabelled marker as an item in
+  place. Markers after the first comment: labels after (`2`, `3a`, `A`, `bug 3`, `item 1`, `2 and 3`), label
+  before (`item 3 (BUG(1995))`), trailing `(file comment, N)` / bare `(N)`, `(text)`; references (`see ...`,
+  `guard of ...`) skipped; unlabelled markers in multi-item files are matched by an address found in exactly one
+  item. Grades: the D/G next to "code" / "effect"/"reach", pair fallback. g_original uses counted in code with
+  comments and strings stripped, minus the `int g_original;` definition and main.c's `g_original = 1;`.
+- `check port/src` exits 1 with findings (counts: kind 1: 35, kind 3: 4, kind 5: 33). All of them, for your review:
+  aiadv.c:103: kind 1: item heading/2 not cited by any marker
+  aiadv.c:60: kind 1: item both modes/2 not cited by any marker
+  aicity.c:83: kind 1: item both modes/2 not cited by any marker
+  aisea.c:72: kind 1: item heading/1 not cited by any marker
+  aisea.c:80: kind 1: item heading/2 not cited by any marker
+  aisea.c:89: kind 1: item heading/5 not cited by any marker
+  aisea.c:91: kind 1: item heading/6 not cited by any marker
+  aisea.c:94: kind 1: item heading/7 not cited by any marker
+  aitrade.c:70: kind 1: item both modes/2 not cited by any marker
+  aitrade.c:72: kind 1: item both modes/3 not cited by any marker
+  cal1.c:78: kind 1: item heading/1 not cited by any marker
+  cal1.c:84: kind 1: item heading/2 not cited by any marker
+  cal1.c:88: kind 1: item heading/3 not cited by any marker
+  cal1.c:91: kind 1: item heading/4 not cited by any marker
+  cal1.c:102: kind 1: item heading/7 not cited by any marker
+  cal1.c:110: kind 1: item heading/8 not cited by any marker
+  cal3.c:65: kind 1: item heading/1 not cited by any marker
+  cal4.c:48: kind 1: item heading/1 not cited by any marker
+  cal4.c:54: kind 1: item heading/3 not cited by any marker
+  cal4.c:57: kind 1: item heading/4 not cited by any marker
+  cal5.c:73: kind 1: item heading/3 not cited by any marker
+  cards.c:73: kind 1: item heading/1 not cited by any marker
+  cards.c:76: kind 1: item heading/2 not cited by any marker
+  cards.c:81: kind 1: item heading/4 not cited by any marker
+  cards.c:87: kind 1: item heading/6 not cited by any marker
+  city.c:68: kind 1: item heading/1 not cited by any marker
+  city.c:74: kind 1: item heading/2 not cited by any marker
+  conflict.c:47: kind 1: item heading/3 not cited by any marker
+  mstack.c:41: kind 1: item text/unlabelled not cited by any marker
+  stack.c:68: kind 1: item text/unlabelled not cited by any marker
+  trade.c:105: kind 1: item heading/1 not cited by any marker
+  trade.c:109: kind 1: item heading/2 not cited by any marker
+  trade.c:114: kind 1: item heading/3 not cited by any marker
+  trade.c:120: kind 1: item heading/5 not cited by any marker
+  trade.c:123: kind 1: item heading/6 not cited by any marker
+  cal2.c:227: kind 3: g_original use in code with no marker nearby
+  menu1.c:177: kind 3: g_original use in code with no marker nearby
+  mstack.c:149: kind 3: g_original use in code with no marker nearby
+  stack.c:246: kind 3: g_original use in code with no marker nearby
+  aisea.c:233: kind 5: unlabelled marker in a multi-item file
+  aisea.c:1343: kind 5: unlabelled marker in a multi-item file
+  cal1.c:413: kind 5: unlabelled marker in a multi-item file
+  cal1.c:419: kind 5: unlabelled marker in a multi-item file
+  cal1.c:484: kind 5: unlabelled marker in a multi-item file
+  cal1.c:527: kind 5: unlabelled marker in a multi-item file
+  cal1.c:646: kind 5: unlabelled marker in a multi-item file
+  cal1.c:748: kind 5: unlabelled marker in a multi-item file
+  cal1.c:1267: kind 5: unlabelled marker in a multi-item file
+  cal1.c:1340: kind 5: unlabelled marker in a multi-item file
+  cal1.c:1347: kind 5: unlabelled marker in a multi-item file
+  cal1.c:1371: kind 5: unlabelled marker in a multi-item file
+  cal3.c:388: kind 5: unlabelled marker in a multi-item file
+  cal4.c:427: kind 5: unlabelled marker in a multi-item file
+  cal4.c:452: kind 5: unlabelled marker in a multi-item file
+  cal4.c:757: kind 5: unlabelled marker in a multi-item file
+  cal4.c:766: kind 5: unlabelled marker in a multi-item file
+  cal4.c:820: kind 5: unlabelled marker in a multi-item file
+  cards.c:535: kind 5: unlabelled marker in a multi-item file
+  cards.c:596: kind 5: unlabelled marker in a multi-item file
+  cards.c:603: kind 5: unlabelled marker in a multi-item file
+  cards.c:825: kind 5: unlabelled marker in a multi-item file
+  cards.c:927: kind 5: unlabelled marker in a multi-item file
+  city.c:532: kind 5: unlabelled marker in a multi-item file
+  city.c:784: kind 5: unlabelled marker in a multi-item file
+  city.c:867: kind 5: unlabelled marker in a multi-item file
+  conflict.c:456: kind 5: unlabelled marker in a multi-item file
+  conflict.c:582: kind 5: unlabelled marker in a multi-item file
+  trade.c:649: kind 5: unlabelled marker in a multi-item file
+  trade.c:886: kind 5: unlabelled marker in a multi-item file
+  trade.c:956: kind 5: unlabelled marker in a multi-item file
+  trade.c:1026: kind 5: unlabelled marker in a multi-item file
+  trade.c:1779: kind 5: unlabelled marker in a multi-item file
+  counts: kind 1: 35, kind 3: 4, kind 5: 33
+- `list port/src`: 114 items - 103 fixed unless --original,
+  8 fixed in both modes, 3 text. Items with no code/effect grade
+  (44, not findings, listed as asked): aiadv.c:2, aical2.c:5, aicity.c:1, aisea.c:2, aisea.c:3, aisea.c:4, aisea.c:5, aisea.c:6, aisea.c:7, aisea.c:8, aiship.c:2, aiship.c:3, aitrade.c:2, cal1.c:4, cal1.c:5, cal4.c:2, cal4.c:3, cal5.c:3a, cal5.c:3b, cards.c:1, cards.c:2, city.c:3, helpers2.c:None, info.c:None, info.c:None, mapdata.c:None, menu1.c:None, menu2.c:None, menu2.c:None, move.c:None, move.c:None, movephase.c:3, nations.c:A, nations.c:B, panel.c:None, pop.c:None, pop.c:None, rules.c:None, rules.c:None, tax.c:1, tax.c:2, tax.c:3, trade.c:6, ui_text.c:None.
+- `docs/FIXES.md`: plain-language intro (what a 1995 bug is, what --original does, both-modes, text slips) and one
+  table per area (setup; trade; calamities; movement and conflict; cities; advances; the computer players; screens
+  and text); each row says what was wrong, what the port does, what --original does, and ends with
+  `file.c label 0xADDR`; "(probably)" where the effect grade is G. `check-doc port/src docs/FIXES.md`: 108 item
+  keys, 108 rows, 0 missing, 0 extra, exit 0.
+- Parser G choices (reported, not guessed, wherever unclear): unlabelled markers that share no address with
+  exactly one item are kind 5; `BUG(1995): 0x...` (address after the colon) is treated as an address-citable
+  unlabelled marker, not a label; a `BUG(1995):` followed by neither a label nor an address is kind 5
+  "unreadable label".
+- Claude's follow-up is filed under Needs Erik: go through the findings, fix the notes or the code, and read
+  FIXES.md against the code.
 
 ### 2026-11-21  Claude → Mistral: TASK 19: demo_regress.py, a regression and two-CPU check of whole demo games
 Status: done
