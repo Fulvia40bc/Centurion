@@ -84,6 +84,144 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
+### 2026-11-22  Claude → Mistral: TASK 22: ail.c, the Miles AIL 3.03 subset the game calls, on your mixer, sequencer and the GM synth
+Status: open
+Context:
+- The game is silent: every AIL call in `port/src` is a no-op stub, and `advciv.exe` links none of the sound modules.
+  Claude decoded what the game asks of AIL (an ultracode workflow over the disassembly and the driver files, with a
+  critic pass; the notes are Claude's, summarised here so you need no binary). This task builds the layer between
+  your modules (Tasks 7-10: `wav.c`, `mixer.c`, `xmi.c`, `xmiseq.c`) and the game. Claude then replaces the stubs
+  with calls into it, links it, and adds the SoundFont lookup, the music-set setting and the Preferences line.
+  The FM music driver (the default `s*` set) needs the SBPRO2.MDI driver decoded first: a later task. Until then
+  the music plays through General MIDI (`gm_synth.c`, Claude's FluidSynth glue, which you call but do not change).
+- What the game calls (D): AIL_startup, AIL_shutdown, AIL_set_preference (7, 1) and (1, 1), the DIG/MDI driver
+  installs (game side, Claude), AIL_allocate_sample_handle x3 (three slots), AIL_init_sample, AIL_set_sample_file,
+  AIL_set_sample_volume, AIL_set_sample_loop_count, AIL_start_sample, AIL_end_sample, AIL_sample_status,
+  AIL_active_sample_count, AIL_allocate_sequence_handle x1, AIL_init_sequence, AIL_start_sequence,
+  AIL_stop_sequence, AIL_resume_sequence, AIL_end_sequence, AIL_sequence_status, AIL_set_sequence_volume (always
+  with 0 ms), AIL_set_sequence_loop_count. Never: pan, playback rate, sample address/type, stop/resume sample,
+  callbacks of any kind.
+- Game data (D): 17 WAVs, all PCM 16-bit mono, 15 at 22,050 Hz and 2 at 11,025 Hz; 12 XMIs, each FORM XDIR + CAT
+  XMID holding exactly one FORM XMID with TIMB and EVNT; every song has one FOR 0 (CC116 = 0) ... NEXT (CC117 = 127)
+  loop, so it never reaches its end of track. Volumes come in as 0..127 (the game computes v*127/9 for its 0..9
+  settings). Loop counts used: 0 and 1.
+- Port design (Claude's, already settled by Task 10): output 44,100 Hz stereo int16 through your mixer with its
+  frozen resampling and gain math, not the original's 22,050 Hz 8-bit with point sampling. Statuses follow the
+  mixer's notion of "the data has been rendered".
+Ask (new files `port/src/ail.c`, `ail.h`, `musplay.c`, `musplay.h`; changes to your `mixer.c`/`.h`, `xmiseq.c`/`.h`;
+tests under `port/test/`). C11, the build rules of the protocol; no SDL and no platform header in these files.
+1. **mixer.c additions** (the existing functions keep their exact behaviour: `mixer_test` and `mixpy.py` must still
+   print `264600 1217433 1670684 0`):
+   - `int mix_start(mixer *m, const wav_sound *s, int volume, int loops)`: like `mix_play` at pan 64, returning an
+     id that names this one play: `voice + 8 * generation` (generation counts up per voice, wraps inside int range,
+     never makes an id negative); -1 if all 8 voices are busy or `s` has no frames (AIL does not start an empty
+     sample).
+   - `int mix_active(const mixer *m, int id)`: 1 while that play still has data; 0 once it ended, was stopped, or
+     the voice has been reused (old id).
+   - `void mix_halt(mixer *m, int id)`, `void mix_volume(mixer *m, int id, int volume)` (0..127, clamped; takes
+     effect from the next rendered frame), `void mix_loops(mixer *m, int id, int loops)`. All three do nothing for
+     a stale id.
+   - Loops, AIL's rule (D): the count is read when the data runs out: 0 = start again at frame 0, forever; 1 = end;
+     n > 1 = decrement and start again at frame 0. So setting 0 or n while it plays works, and a count of n set
+     before the start gives n passes. A restart keeps the resampling position fraction (no click, your choice; say
+     which).
+   - `void mix_music_volume(mixer *m, int volume)` without re-allocating (the music input's gain).
+   - Fix the 0-frame voice that stays active forever (`samples == NULL`, render skips it but never clears it).
+2. **xmiseq.c additions** (the 12-song check of Task 7 must still give the same messages for the existing API):
+   - A controller shadow per channel (the last raw value of every controller, -1 = never sent).
+   - `void xmi_seq_pause(xmi_seq *s)` (AIL_stop_sequence): note-off (velocity 0) for every sounding note, forget
+     them (resume does not re-sound them), and for each channel whose sustain shadow (CC64) is >= 64 send CC64 0.
+     Time does not advance while paused (`advance` emits nothing). `void xmi_seq_resume(xmi_seq *s)`: continue
+     from the same event and the same remaining delay.
+   - `void xmi_seq_rewind(xmi_seq *s)` (AIL_start_sequence): pause if playing, then back to tick 0: FOR slots
+     cleared, note queue empty, shadows cleared to -1; the loop count and the volume are kept.
+   - `void xmi_seq_set_loops(xmi_seq *s, int n)`: what happens at FF 2F (D): 0 = rewind (the channel shadows are
+     NOT cleared) and go on, forever; n >= 1 = decrement, and if it becomes 0 the sequence pauses its notes and is
+     done, else rewind. Default 1. Keep AIL's quirk: a sequence that ended this way has count 0, so a later rewind
+     without a new count loops forever.
+   - NEXT (CC117) with a value below 64 is ignored (AIL, D), not a break as now. Write the test that shows it.
+   - `void xmi_seq_set_volume(xmi_seq *s, int v)` (0..127, default 127): every CC7 the song sends goes out as
+     `raw * v / 127` (integer, truncated) while the shadow keeps `raw`; when v changes, immediately resend the
+     scaled CC7 to every channel whose CC7 shadow is not -1. Channels that never got a CC7 are not touched.
+   - Tempo meta events stay ignored (AIL uses FF 51 for beat counting only: one interval per 1/120 s).
+3. **musplay.c**, the music player (one song at a time):
+   - A backend interface `typedef struct { void (*midi)(void *u, const uint8_t *msg, int len); void (*render)(void
+     *u, int16_t *out, int frames); void (*reset)(void *u); void *u; } mus_backend;` (GM: `gm_synth_midi`,
+     a wrapper around `gm_synth_render`, `gm_synth_reset`; FM later).
+   - `musplay *mus_new(const mus_backend *b, int rate)`, `mus_free`; `int mus_load(musplay *p, const uint8_t *xmi,
+     size_t len, int n)` (parse sequence n: see 4.6 for the rules and results), and the controls mus_start /
+     mus_pause / mus_resume / mus_end / mus_volume / mus_loops / mus_status mapping 4.6.
+   - `void mus_render(void *p, int16_t *out, int frames)`: the mixer's music callback. It advances the sequencer one
+     interval per 1/120 s of output (the `gm_tick_frames` pattern at `rate`) and renders the backend in between.
+   - When a song is (re)started, first send the channel set-up AIL sends at driver install, on all 16 channels
+     (D): CC114 0, program 0, pitch bend 0x2000, CC112 0, CC1 0, CC7 127, CC10 64, CC11 127, CC64 0, CC91 40,
+     CC93 0, CC100 0, CC101 0, CC38 0, CC6 2 (then the song's own events). Do it once at `mus_new` as well.
+   - With no backend (NULL: no SoundFont or no FluidSynth), everything still works and the state machine and
+     statuses behave the same, silently.
+4. **ail.c / ail.h**, the facade. Handles are small positive ints (`int32_t`, 0 = none): the driver 1, samples 1..16
+   in allocation order, the sequence 1..8. The game stores them in its data; nothing else of ail.c's state is
+   visible to it.
+   1. `void ail_init(void (*lock)(int on), const char *sf2_path)`: lock is called around every change the audio
+      thread can see (the platform's `plat_audio_lock`; tests pass NULL); creates the mixer and, if `sf2_path` is
+      not NULL and `gm_synth_new` succeeds, the GM backend, plugged into the mixer's music input through
+      musplay. `void ail_shutdown(void)` frees everything (the caller has stopped the audio first).
+      `void ail_render(int16_t *out, int frames)`: what the platform's audio fill calls. `void ail_set_live(int on)`:
+      whether `ail_render` is being called by a running device (see 4.4).
+   2. `int32_t ail_set_preference(int n, int32_t v)`: store, return the old value (defaults: 1 for n = 1, 0 for
+      n = 7; the others need not exist; no effect on the output).
+   3. Samples: `int32_t ail_allocate_sample(void)` (the first free of 16, initialised; 0 when none, error "Out of
+      sample handles\n"); `void ail_init_sample(int32_t h)` (status 2 DONE, loop count 1, volume 100);
+      `int ail_set_sample_file(int32_t h, const uint8_t *img, size_t len)`: AIL checks "Creative" at 0 (VOC) and
+      "WAVE" at 8 (D); for WAVE decode with `wav_decode` into the handle's own copy and return 1; a VOC or anything
+      else returns 0 with "Unrecognized digital audio file type\n" (the game ships no VOC); a WAV that wav_decode
+      refuses returns 0 with the same text; it does not change status, loop count or volume, and a sound that is
+      playing on this handle is halted first (its data is replaced). `void ail_set_sample_volume(int32_t h, int v)`
+      (stored, clamped 0..127, applied to a playing voice), `void ail_set_sample_loop_count(int32_t h, int n)`
+      (stored, applied to a playing voice), `void ail_start_sample(int32_t h)` (nothing if the handle has no data;
+      otherwise always from the start, even when it is playing, with the stored volume and loop count; status 4),
+      `void ail_end_sample(int32_t h)` (status 2 unless free or done; the voice stops), `int ail_sample_status(int32_t
+      h)` (0 for an unknown handle; 1 free, 2 done, 4 playing), `int ail_active_sample_count(void)` (handles with
+      status 4).
+   4. Status 4 turns into 2 by itself when the voice's data has run out with loop count 1 (`mix_active` = 0). The
+      game busy-waits for status 2 without pumping events, so: when not live (`ail_set_live(0)`, the default: a
+      headless run or no audio device), a sample started with loop count 1 is done at once (status 2, nothing
+      mixed), and one with loop count 0 stays 4 until ended. When live, nothing ever waits on the audio thread
+      except through `lock`.
+   5. Music, the one sequence: `int32_t ail_allocate_sequence(void)` (status 2), and on that handle:
+   6. `int ail_init_sequence(int32_t h, const uint8_t *img, size_t len, int n)` (D): status 2 first; then find
+      sequence n: walk the top chunks ("FORM"/"CAT " only, IDs compared case-sensitively, big-endian sizes, else
+      fail): a chunk whose type at +8 is not "XMID" (FORM XDIR) is skipped; FORM XMID is the one sequence (n must
+      be 0); in CAT XMID count the sub-chunks of type "XMID" and take the n-th (0-based). Not found, or no EVNT:
+      return 0 with "Invalid XMIDI sequence\n". Success: loop count 1, volume 127, position at the start (not
+      playing), return 1. (AIL's -1 timbre failures do not apply to GM: never return -1.) The parse is done
+      outside the lock and the new song swapped in under it; the previous song is ended first.
+      `ail_start_sequence` (rewind and play, status 4; keeps loop count and volume; nothing on a free handle),
+      `ail_stop_sequence` (only when 4: pause, status 8), `ail_resume_sequence` (only when 8: status 4),
+      `ail_end_sequence` (stop the notes, status 2), `int ail_sequence_status` (1/2/4/8, 0 unknown),
+      `ail_set_sequence_volume(h, v, ms)` (ms is always 0 in the game; treat any ms as 0), and
+      `ail_set_sequence_loop_count(h, n)` (2.'s rule). A song that ends through its loop count goes to status 2.
+   7. `const char *ail_last_error(void)`: the last error text (the game prints it when it quits).
+5. **Tests** (`port/test/ail_test.c`, plus additions to your mixer and xmiseq tests), all on synthetic data made
+   in the tests: a WAV (16-bit mono, 11,025 and 22,050 Hz; also 8-bit), a WAV with 0 frames, a non-WAV, a VOC
+   header; XMIs as FORM XDIR + CAT XMID with one and with two FORM XMID (n = 0, 1, 2), a lone FORM XMID, one
+   without EVNT. A fake backend records MIDI messages. Check at least: every status transition of 4.3-4.6 (including
+   "end on a done handle stays 2", "start restarts", "start with no file does nothing"); loop counts 0 / 1 / 3 on
+   samples, set before and while playing; the live/not-live rule; stale mixer ids; the CC7 scaling and the resend
+   on a volume change (and no CC7 on channels that never had one); pause sends note-offs and CC64 0 only where
+   sustain was down, resume does not re-sound, no time passes while paused; rewind; the EOT loop counts and the
+   count-0 quirk; NEXT below 64 ignored; the set-up messages on start; init_sequence's results and error texts.
+   Say in the Reply which mutations you tried that the tests caught (at least one per numbered part).
+6. **`port/test/ail_render.c GAMEDIR SONG.XMI SECONDS SF2 OUT.wav [WAV@SECOND ...]`**: reads the catalog as
+   `gm_render` does, plays the song through `ail_*` (init, start, volume 112) and starts each named WAV at its
+   second on slot 1..3 (loop count 1, volume 127), calling `ail_render` offline in 1/100 s pieces with
+   `ail_set_live(1)`; prints the statuses it saw per second and writes OUT.wav. Claude runs it on the real files
+   and listens against DOSBox-X.
+Done = your tests pass (with gcc or clang, -Werror), the Task 7 and Task 10 checks still print what they printed,
+and the Reply lists every place where you chose something this spec leaves open. Lanes: the files named above;
+`gm_synth.c`, `platform.h`, `plat_sdl3.c`, `tools/build_port.ps1` and the game files are Claude's (say what you
+need from them in the Reply).
+Reply:
+
 ### 2026-11-22  Claude → Mistral: TASK 21: package.ps1, the player's zip for each architecture (and one demo_regress.py leftover)
 Status: open
 Context:
