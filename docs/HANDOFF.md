@@ -80,6 +80,208 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 
 ## Open
 
+### 2026-11-21  Claude → Mistral: TASK 20: fixes.py, an inventory and check of the 1995-bug notes, and docs/FIXES.md for Erik
+Status: open
+Context:
+- Most port files start with a comment that lists the original's bugs found in their routines ("1995 bugs, fixed
+  unless g_original ..."), and the code marks the fixes with `BUG(1995)` in comments next to the changed lines. By
+  default the port runs the fixed code; with `--original` (`g_original` in the code) it keeps the original
+  behaviour where that can be reproduced. Some fixes apply "in both modes" (the original read stack garbage, which
+  cannot be reproduced). Text slips are fixed the same way, marked either `BUG(1995) (text)` or
+  `text slip fixed (TEXT_SWEEP.md)`.
+- The notes were written over five days by several agents, so their style varies a lot (a review measured it, see
+  below). Today the list exists only in those comments. Erik wants one plain list; Claude wants a tool that finds
+  where the notes and the code disagree, and a list of what it could not read. **The tool is an inventory with a
+  lint, not a strict parser**: when in doubt, report the place (kind 5) instead of guessing.
+- Lanes: you write `tools/verify/fixes.py`, its test `tools/verify/fixes_test.py` (synthetic C snippets only) and
+  `docs/FIXES.md`, and add a row to `tools/verify/README.md`. You **read** `port/src` but do not edit it: the
+  findings go into your Reply for Claude, who fixes the notes or the code. Plain Python 3, no packages, `python -I`.
+  No EXE knowledge needed.
+
+- **What is in the files** (D: measured by a reviewer over `port/src/*.c` on 21 Nov):
+  - 198 occurrences of `BUG(1995)`: 39 inside the file's first comment (headings like "each marked BUG(1995) in the
+    code", item lines, references to other files such as aiadv.c:100 "adv.c's BUG(1995) 4"), about 159 in later
+    comments, none in code. **Only occurrences after the end of the file's first comment are markers**; inside the
+    first comment `BUG(1995)` is item text. Of the markers, about 100 have no label right after `BUG(1995)`.
+  - 133 uses of `g_original` in code (comments and string literals stripped), plus mentions in comments.
+  - 34 of the 89 `.c` files have no "1995 bug" heading at all; some of them still have markers or fixes
+    (helpers2.c:289, mapdata.c:235, ui_text.c:236, menu1.c:118-120 / :177).
+
+- **Header lists** (in the first comment):
+  - The heading contains "1995 bug" (`1995 bugs, fixed unless g_original (...):`, `1995 bugs (fixed unless
+    g_original):`, `1995 bug fixed (...)`, `1995 bugs (graded code / effect). ...`). It can wrap onto further lines
+    at the same indent (aiadv.c:95-97, aiship.c:82-83, aicity.c:96-97, kit.c:44-45): the heading runs until a line
+    ending in `:` or the first item line.
+  - A "none" heading has no items, even when bullets follow (those are checks or kept oddities: aimove.c:66,
+    ast.c:21, loop.c:128, start.c:58). Recognise "none" anywhere in the first comment, also mid-line:
+    `1995 bug(s): none`, `No 1995 bug`, `No 1995 fix`, `no routine here has a 1995 fix` (dispatch.c:53,
+    formulas.c:4, census.c:23).
+  - Item labels: `1.` `2.` ...; sub-items `a.` `b.` under a number (cited as `3a`); capitals in three files:
+    nations.c (`BUG(1995) A:` / `BUG(1995) B (7 players only):` at the item line's start), ship.c (`A.` `B.` `C.`),
+    saveload.c (`A (G)`, no dot); `-` bullets (aistart.c:82 `- BUG(1995), fixed (review), ...`). A capital is a label
+    only when followed by `.`, `:` or ` (` at the indent of the list's first item; `D` and `G` alone are grades,
+    never labels (adv.c:88 `G (reach).` is a wrapped grade line).
+  - The list ends at the first line at the heading's indent that does not start an item, or at a line at any
+    indent that starts with `Kept`, `Oddit`, `Noted`, `Guards`, `Port guard`, `Text`, `Easter`, `Bugs and oddities
+    kept`, or at the comment's end (aiplan.c:70: a deeper "Kept as the original" sub-paragraph is not part of the
+    list).
+  - Fixes also sit outside the heading's list. Collect these too, each as its own list (key items by
+    (file, list, label): labels overlap between lists in aitrade.c and aiadv.c):
+    1. numbered lists whose intro says "fixed in both modes" or "Stack words read before they are written" or
+       "Reads of stack garbage" (aitrade.c:62, its item 1 cited by aitrade.c:318 `BUG(1995) item 1`; aiadv.c:56-76,
+       item 3, which the heading's list cites as "2. Item 3 of the stale words above"; aicity.c:76-81);
+    2. `Text ...` / `Text slip(s) ...` paragraphs that say "fixed" (cal2.c:117 TIGRUS → TIGRIS, fixed at cal2.c:227;
+       mono.c:64; stack.c:68; mstack.c:41), as text items;
+    3. in a file with no heading, each unlabelled marker as an item in place.
+  - Grades: about a third of the items use `(D / G)`-style parentheses; most give them in prose (`D (code), G
+    (reach: ...)` adv.c:82, `D code, G reach (...)` aiq.c:79, `(D; G: only the screen)` cards.c:86, `Grades D
+    (arithmetic and tables), G (effect)` info.c:62, `A (G)` saveload.c:23). The code grade is the first `D`/`G` next
+    to "code" (or the first of an `X / Y` pair); the effect grade the first `D`/`G` next to "effect", "reach" or
+    after `G:` (or the second of the pair). Sub-items inherit their parent's grade; text items have none. The
+    heading's "grades D code / G effect" is a legend. **A missing grade is not a finding**: list such items
+    separately in the Reply.
+  - Addresses: `\b-?0x[0-9A-Fa-f]{4,6}\b`, skipping ones followed by "bytes" and negative ones. FIXES.md shows the
+    item's first address (normally the routine); `--json` keeps them all.
+
+- **Markers** (after the first comment): `BUG(1995)` with an optional `:` and then a label: `2`, `3a`, `A`,
+  `bug 3` (aisea.c:613), `item 1`, `fix 2`, `2 and 3` (two labels, cal2.c:492), with any words after it ignored
+  (`C fixed` ship.c:579, `3 (unreachable)` aiship.c:1162). `fixed` alone is not a label (aisea.c:233). Many
+  markers cite their item at the end of the comment instead: `(file comment, 1)`, `(file comment, bug 2)`,
+  `(the file comment)`, or a bare `(4)` / `(3a)` before `*/` (aical2.c:469, :1087, aical1.c:327, cal3.c:658,
+  end.c:204). `(text)` / `text` = a text fix, no label. A label before the marker counts too
+  (aiadv.c:803 `stale-word item 3 (BUG(1995))`). References are not markers: `see BUG(1995) below`
+  (helpers2.c:274), `the guard of BUG(1995) N` (cards.c:883), `the BUG(1995) guard of` (pop.c:311). An unlabelled
+  marker in a file with several items: match it to the item sharing one of its addresses (found in exactly one
+  item); otherwise report it as kind 5 "unlabelled marker in a multi-item file", once per marker.
+
+- **Ask 1: `fixes.py check [SRCDIR]`** (default `port/src`), per `.c` file:
+  1. an item no marker cites (labelled, by trailing citation, or by address; a file's only item is cited by any
+     marker in that file). Items from the "fixed in both modes" lists count too;
+  2. a marker whose label is not an item of that file;
+  3. a `g_original` use in code (comments and strings stripped; not the definition `int g_original;` in state.c nor
+     the option `g_original = 1;` in main.c) with no marker in the same function and none within 15 lines, and no
+     `port guard` or `text slip fixed` / `TEXT_SWEEP` comment on the same line or the line before it. A function
+     body = a `{` at column 0 through the next `}` at column 0;
+  4. a "none" file that has markers or code uses of `g_original` (expected: none after the extra lists above are
+     read; aicity.c's fix is in its "fixed in both modes" list);
+  5. what it could not read: an unparseable heading or item, an unreadable label, an unlabelled marker it cannot
+     place (file:line each).
+  One line per finding, `file:line: kind N: text`, grouped by kind, then the counts per kind. Exit 0 with no
+  findings, 1 otherwise. A first run will report findings: list them all in your Reply.
+- **Ask 2: `fixes.py list [SRCDIR] [--json]`**: one record per item (not per marker): file, list, label, mode
+  (`fixed unless --original` / `fixed in both modes` / `text`, from the item or its list's intro), code and effect
+  grades, addresses, the item's text joined into one line, and the file:line of every marker attached to it. A
+  marker becomes its own record only in a file with no list. FIXES.md is written from this.
+- **Ask 3: `docs/FIXES.md`**, for Erik. Plain language, short sentences, no jargon a player would not know:
+  - At the top: what a "1995 bug" is here; what `--original` does (the original behaviour where it can be
+    reproduced; "fixed in both modes" where it cannot, and why); the counts (fixed by default, fixed in both modes,
+    text fixes).
+  - Then one table per area (setup, trade, calamities, movement and conflict, cities, advances, the computer
+    players, screens and text). Each row: what was wrong, in one sentence a player can follow; what the port does;
+    what `--original` does; where (`file.c`, the label, the first address). Write the sentences yourself from the
+    item text; hex only in the last column. No grades in the table, but "(probably)" in the sentence when the
+    effect grade is G.
+  - A last line: "Generated from the notes on <date> by `tools/verify/fixes.py list`; the sentences are Mistral's."
+  - `fixes.py check-doc` checks that every item from `list` appears in FIXES.md (by file and label) and reports rows
+    FIXES.md has that `list` does not know.
+- **Tests** (`fixes_test.py`): synthetic files for each heading style (wrapped, "none" with bullets, mid-line
+  "none"), each item label style, a "fixed in both modes" list and a text paragraph, each marker style (label,
+  colon-label, `bug N`, two labels, trailing `(file comment, N)` and bare `(N)`, label before the marker,
+  references), `BUG(1995)` inside the first comment (not a marker), `g_original` in a comment and a string (not
+  counted), the definition and the option assignment (not counted), a port-guard line, an uncited item, a stray
+  marker, an unparseable heading.
+- **Done** = the three commands work on `port/src`, the tests pass, and the Reply gives: the `check` findings by
+  kind, the counts from `list`, the items with no grade, and FIXES.md covering every item. Claude then goes through
+  the findings, fixes the notes, and reads FIXES.md against the code.
+Reply:
+
+### 2026-11-21  Claude → Mistral: TASK 19: demo_regress.py, a regression and two-CPU check of whole demo games
+Status: open
+Context:
+- M7 (the computer players) is verified against the original by whole computer-only games, the self-running demo
+  `/SRD8`: DOSBox-X and the port play the same game from the same seed, and the data object (the game's 470,016-byte
+  memory image; link address 0xB0000 at file offset 0) is compared at the end of every round. That match is the
+  reference. From now on changes (hot seat, M9; fixes) must not change it, and the ARM64 and x86_64 builds must
+  keep agreeing. This script checks both in a few minutes, with no DOSBox-X.
+- The port has what it needs (commit 11894bd; V on Erik's PC): one headless run writes every round of a demo game:
+  ```
+  advciv.exe C:\abs\GAMEDIR --srd 8 --seed 0x28132309 --play --dump-every 0x55258 C:\abs\OUT\r_
+             --dump-ds C:\abs\OUT\final.bin --stop-at 0x14294 1
+  ```
+  - `--dump-every 0x55258 PREFIX` writes the data object to `PREFIX1.bin`, `PREFIX2.bin`, ... at each end-of-round
+    save (pass k = round k) and goes on. `--stop-at 0x14294 1` stops at the game's end (the Final Civilization
+    Standings), writes `--dump-ds` there, prints `advciv: stop at 0x14294 #1` on stderr and exits 0. Compare
+    `final.bin` too, as a last "round" named `final`: it covers what happens after the last end-of-round save (a
+    game won by conquest in mid-round has no end-of-round save for that round).
+  - Failure = any exit code other than 0 (3 = `advciv: 0x... is not ported yet`, 1 = start-up failed), no stop
+    line, any stderr line starting `advciv: cannot write` (the port goes on after a failed dump), or dumps that are
+    not exactly `PREFIX1..N.bin` with no gaps plus `final.bin`, each 470,016 bytes.
+  - The port changes into GAMEDIR before it writes anything, so pass **absolute** paths for GAMEDIR and PREFIX
+    (`os.path.abspath`), create the dump folder first, and empty it of `*.bin` before each run.
+  - With those options the port opens no window. Never run `advciv.exe` without `--dump-every`, `--dump-ds` or
+    `--headless-frame`: without them it opens a window on Erik's screen.
+  - Seeds are hex, with or without `0x`: parse with `int(s, 16)`; the folder name, the manifest key and the
+    argument passed to the port are always `f'0x{seed:08X}'`.
+  - A whole game takes about 50 s on ARM64 (x86_64 runs emulated on Erik's ARM64 PC, about the same). The three
+    default seeds give 38, 37 and 39 end-of-round dumps (V: all three end at 0x14294 with exit 0).
+  - The port writes into the game folder: `SAVGAMEA.DAT` (each phase), `savgameb.dat` (each round's end), and
+    `ACIV.CFG` (the kaboom3 Easter egg's counter, which carries over between games and changes the random draws).
+    So: at the start, snapshot every file whose name matches `savgame*.dat` or `aciv.cfg` (case-insensitive) with
+    its bytes. Before **every** run and at the end (`try/finally`, also after a failure or Ctrl+C) rewrite those,
+    and delete any other matching file the run created. Restore only after the child has exited: use
+    `subprocess.run(..., capture_output=True, timeout=...)` (it kills and waits), or `Popen` with `communicate`,
+    and on timeout `kill()` then `wait()`. Without this, the second run of the same seed plays a different game.
+  - The only bytes that differ between two runs, on the same or the other CPU, are the time-of-day result at
+    0xF422C (4 bytes; V: 38 rounds, ARM64 vs x86_64, the other 470,012 bytes equal). Mask ranges with a file in the
+    format of `tools/verify/by_design.txt` (`ADDR LEN reason`: hex address, decimal or 0x length, `#` comments;
+    see how `dscompare.py` reads it). Default: a new `tools/verify/port_volatile.txt` holding
+    `F422C 4 _dos_gettime result (the clock)`.
+- Plain Python 3, no packages, `python -I`, in `tools/verify/` with a README row. No game data in the repo: the
+  reference dumps live outside it (Claude keeps them in `C:\work\advciv_cmp\golden`). You cannot run the port: test
+  with the fake port below; Claude runs the real one.
+
+- **Ask: `tools/verify/demo_regress.py`**, three commands:
+  - `record EXE GAMEDIR REFDIR [--seeds S1,S2,...] [--force]`: plays each seed and keeps the dumps as
+    `REFDIR\0x<SEED>\r_<k>.bin` and `final.bin`, plus `REFDIR\manifest.json`: per seed the round count, the SHA-256
+    of each masked dump, the exe's path and SHA-256, the mask file used, and the date. It refuses to overwrite an
+    existing seed folder without `--force`.
+  - `check EXE GAMEDIR REFDIR [--seeds ...]`: plays each seed (default: every seed in the manifest) into a
+    temporary folder and compares with the reference round by round. Per seed it prints `seed 0x...: N rounds and
+    the end, all equal`, or the **first** differing round (or `final`) with its differing byte runs (runs closer
+    than 4 bytes merged), at most 12: link address (offset + 0xB0000), length, both values in hex (first 16 bytes).
+    A different round count is a difference too ("the game ended after 38 rounds in the reference, 41 here").
+  - `xarch EXE_A EXE_B GAMEDIR [--seeds ...]`: plays each seed with both programs and compares them the same way
+    (no reference needed).
+  - Options: `--mask FILE` (default `port_volatile.txt` next to the script), `--timeout S` per run (default 600; a
+    timeout is a failure), `--keep DIR` (keep the new dumps there instead of a temporary folder; one subfolder per
+    seed and program). Default seeds: `0x28132309,0x42120E34,0x12345678` (the first two are the games verified
+    against DOSBox-X).
+  - It goes on through all seeds and exits with the highest code seen: 0 all equal, 1 a difference, 2 a run failed
+    (then print the port's stderr, last 20 lines). Refusals (no `ACIV.CT1` in GAMEDIR, EXE missing, existing seed
+    folder without `--force`) and usage errors exit 4 (override `ArgumentParser.error` so argparse does not use 2).
+- **The fake port** (`tools/verify/fake_advciv.py`; when an EXE path ends in `.py` the script runs it as
+  `[sys.executable, '-I', path, ...]`): it parses the same arguments, `os.chdir(GAMEDIR)` first (exit 1 if GAMEDIR
+  is relative), and then, before any misbehaviour:
+  - reads `ACIV.CFG` and appends one byte to it; writes `SAVGAMEA.DAT` and creates `savgameb.dat` (lower case);
+  - writes N end-of-round dumps and `final.bin`, 470,016 bytes each, derived from the seed, the round and the bytes
+    `ACIV.CFG` had at the start of the run (so a missed restore changes the dumps), with the real time of day at
+    offset 0xF422C - 0xB0000;
+  - prints the stop line and exits 0.
+  Misbehaviour comes from environment variables, applied only when `FAKE_ONLY` is unset or equals the fake's own
+  file name (so a test can copy the fake to `fake_b.py` and break only that one): `FAKE_DIFF_ROUND=k` (one byte
+  changed at round k; `final` allowed), `FAKE_ROUNDS=n`, `FAKE_EXIT=3`, `FAKE_HANG=1`, `FAKE_NO_WRITE=k` (prints
+  `advciv: cannot write ...` for round k and skips it).
+- **Tests** (`demo_regress_test.py`, a synthetic game folder in a temp dir with an empty `ACIV.CT1`, an `ACIV.CFG`
+  and one `SAVGAMEA.DAT`): record with two seeds then check = equal (this fails if the restore happens only at the
+  end); the clock difference is masked; a one-byte difference is found at the right round and address, also in
+  `final`; a shorter game is reported; exit 3, a hang, and `FAKE_NO_WRITE` are failures (exit 2); after every case,
+  including the failures, `ACIV.CFG` and `SAVGAMEA.DAT` have their starting bytes and `savgameb.dat` is gone;
+  seeds `42120e34` and `0x42120E34` find the same reference; `xarch` with `fake_advciv.py` and a copy `fake_b.py`
+  with `FAKE_ONLY=fake_b.py FAKE_DIFF_ROUND=5`; refusals exit 4.
+- **Done** = the tests pass and the README row is added. Then Claude records the reference with the current port,
+  runs `check` and `xarch` on the real builds, and reports here.
+Reply:
+
 ## Done
 
 ### 2026-11-20  Claude → Mistral: TASK 18: savediff.py, a save comparer that names each differing field
