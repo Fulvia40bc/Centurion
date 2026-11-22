@@ -5,8 +5,10 @@
 # at the autosave's entry 0x5E8EC COUNT times and dumps the data object at every EVERY-th stop (default 1) to
 # C:\DOSBox-X\advciv\NAME_k.bin (k = 1..COUNT, the port's --stop-at 0x5E8EC k). ADDR=0x55258 PAST=0x5526D stop at the
 # end-of-round save instead (the port's --stop-at 0x55258 k: one stop per round). The run copy's saves and ACIV.CFG
-# (the kaboom3 counter, anim.c) are put back afterwards. M7 (Claude, 21 Nov).
-name=$1; count=$2; every=${3:-1}; ADDR=${ADDR:-0x5E8EC}; PAST=${PAST:-0x5E904}
+# (the kaboom3 counter, anim.c) are put back afterwards. FROM=k skips the dumps before stop k. When a stop does not
+# come within WAIT s, hang() takes a raw screenshot (DOSBox-X's capture folder), breaks into the debugger, prints EIP
+# and dumps the data object to NAME_hang.bin. M7 (Claude, 21 Nov).
+name=$1; count=$2; every=${3:-1}; ADDR=${ADDR:-0x5E8EC}; PAST=${PAST:-0x5E904}; FROM=${FROM:-1}
 D() { powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\work\AdvCiv\tools\dosbox\drive.ps1' "$@" 2>&1; }
 R=/c/work/advciv_run; B=$(mktemp -d)
 cp -p $R/SAVGAMEA.DAT $R/savgameb.dat $R/ACIV.CFG $B/ || exit 1
@@ -22,6 +24,14 @@ wait_stop() {   # wait (up to WAIT s, default 900) for a stop at link address $1
   local want e; want=$(printf 'EIP=00%X' $(( $1 + 0x202000 )))
   for i in $(seq 1 ${WAIT:-900}); do e=$(stopped_at); [ "$e" = "$want" ] && return 0; sleep 1; done
   echo "no stop at $1 ($e)"; return 1
+}
+hang() {
+  D menu "Take raw screenshot" > /dev/null; sleep 2
+  D menu "Start DOSBox-X Debugger" > /dev/null; sleep 2
+  echo "hang: $(D dbgscreen | grep -o 'EIP=[0-9A-F]*' | head -1) $(date +%H:%M)"
+  rm -f /c/DOSBox-X/advciv/${name}_hang.bin
+  D dbg "MEMDUMPBIN 0188:2A9000 72C00 ${name}_hang.bin" > /dev/null; sleep 2
+  D dbgscreen > /c/DOSBox-X/advciv/${name}_hang.txt
 }
 bp() { D dbg "BPDEL *" > /dev/null; D dbg "BP 0180:$(printf '%X' $(( $1 + 0x202000 )))" > /dev/null; }
 taskkill //IM dosbox-x.exe //F > /dev/null 2>&1; sleep 2
@@ -41,8 +51,8 @@ seed=$(echo "$row" | awk '{printf "0x%s%s%s%s", $5, $4, $3, $2}')
 echo "seed $seed"
 bp $ADDR; D dbgkey F5 > /dev/null; sleep 1
 for k in $(seq 1 $count); do
-  wait_stop $ADDR || exit 1
-  if [ $((k % every)) -eq 0 ]; then
+  wait_stop $ADDR || { hang; exit 1; }
+  if [ $k -ge $FROM ] && [ $((k % every)) -eq 0 ]; then
     rm -f /c/DOSBox-X/advciv/${name}_$k.bin
     D dbg "MEMDUMPBIN 0188:2A9000 72C00 ${name}_$k.bin" > /dev/null; sleep 2
     echo "${name}_$k saved $(date +%H:%M)"
@@ -50,6 +60,6 @@ for k in $(seq 1 $count); do
   [ $k -eq $count ] && break
   # a breakpoint does not fire again after F5 from its own address: run past it (PAST) and re-arm
   bp $PAST; D dbgkey F5 > /dev/null; sleep 1
-  wait_stop $PAST || exit 1
+  wait_stop $PAST || { hang; exit 1; }
   bp $ADDR; D dbgkey F5 > /dev/null; sleep 1
 done

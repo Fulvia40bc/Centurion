@@ -32,5 +32,9 @@ F6058 1 the DOS video mode at start-up (0x7E044; the port skips it)
 11B100 0x320 AIL 3.03, Fastgraph and Watcom runtime BSS (the XMIDI driver state with its "TIMB" tag, the program path argv[0]); referenced only by library code
 EED74 0x10 heap handles: the RESTART snapshots [0xEED74], [0xEED78], [0xEED7C], [0xEED80] (port load_heap handles vs malloc addresses)
 F5240 0x78 heap handles: the World State Stack's 30 blocks [0xF5240+4i], [0xF5268+4i], [0xF5290+4i] (port handles vs malloc addresses)
-10F2C8 4 SHIPAI: clock() at the construction search's start (0x6296C); the original reads the PC's clock, the port its virtual clock (wat_clock). The durations summed from it (0x10F2C0, 0x10F2CC) stay compared
+10F2C8 4 SHIPAI: clock() at the construction search's start (0x6296C); the original reads the PC's clock, the port its virtual clock (wat_clock)
 10F2D0 4 SHIPAI: clock() before each trial plan (0x10F2D0, as 0x10F2C8)
+10F2C0 4 SHIPAI: the summed trial-plan time (0x10F2C0, with 0x10F2CC): real time in the original (non-zero from round 3 of an /SRD8 game), 0 on the port's virtual clock; the budget it feeds never cut a search in the rounds compared (the plans and their counts 0x10F2C4/0x10F2DC match)
+10F2CC 4 SHIPAI: the summed trial-plan time of this search (as 0x10F2C0)
+10F2D4 8 SHIPAI: the search's elapsed time and average plan time (f6332C, from 0x10F2C8 and 0x10F2CC, as 0x10F2C0)
+F6E94 0x28 cal5 route buffer, 10 entries: the high nibble of entries that are not depth-0 hits and the entries past the count are the original's stack garbage (the port's 0 / {0x0F,0xFF,0xFF,0xFF}; cal5.c "Kept as the original"); the fields the runs compare match (round 8 of an /SRD8 game)
