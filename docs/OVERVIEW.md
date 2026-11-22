@@ -675,14 +675,27 @@ Only PBEM (dropped) and f15FE0's loose-file fallback still stop the port.
   - a local the original reads before it writes is often a stale local of a sibling frame at the same depth, and
     then deterministic: model it (aiplan.c's s_slot38), do not zero it;
   - the save writer writes 0xEF3C4 and 0xEE20C (the reader reads them into 0xEED84 and 0x109E84);
-  - the kaboom3 counter lives in aciv.cfg across games: every run script restores ACIV.CFG with the saves.
+  - the kaboom3 counter lives in aciv.cfg across games: every run script restores ACIV.CFG with the saves;
+  - the original times the computers' ship search with the real clock (SHIPAI f6332C: budget = int16 [0xBB3E8] *
+    9500 / 100 hundredths of a second). Under emulation a trial takes about 1.6 s, so the budget cuts the search
+    where the port, whose virtual clock stands still inside a search, never does ("an infinitely fast PC", by
+    design). A whole-game compare therefore lifts it: run_srd.sh NOBUDGET=1 pokes the word to 32767 (by_design.txt);
+  - a stale word can be inherited from a call deeper down too: f49A1C's nested f46CBC calls start from
+    f48028's [ebp-0x34] (aiplan.c, the round-11 fix of 22 Nov).
 - **Check (V), DOSBox-X:**
   - the R4 game (seven computers) from slot 0: all seven movement plans (0 unexplained bytes at 0x55A64);
     "AutoSaved after MOVEMENT" and "after CITY SUPPORT - R4" byte-identical; the data object at ACQUIRE GOODS 0
     unexplained bytes;
   - `/SRD8` from the original's clock seed: the data object at each of the first 38 autosaves (round 1 to round 3's
-    taxation) 0 unexplained bytes; a whole game compared at every end-of-round save (`tools/dosbox/run_srd.sh` with
-    ADDR=0x55258), see below.
+    taxation) 0 unexplained bytes;
+  - a whole `/SRD8` game, seed 0x5917060E, `--original` (22 Nov): DOSBox-X with SEED=0x5917060E NOBUDGET=1
+    ADDR=0x55258 (`tools/dosbox/run_srd.sh`) against the port's `--dump-every 0x55258`. All 39 end-of-round saves
+    and the Final Civilization Standings screen (Egypt 3,879 down to Babylon 3,072; the port's `--snap-after`) match
+    byte for byte except one word: from round 24 the port's roll counter [0x108198] is 20 higher (2,525 rolls in
+    round 24 against 2,505). The counter picks a table row by `ctr % 10`, so a gap of 20 changes no roll; its cause
+    is being traced (every roll of round 24 logged in both).
+  - `tools/verify/demo_regress.py` keeps three whole port games as the reference (record, check, xarch): the
+    regression check after any AI change.
 - The port's own demo with seed 0x12345678 plays 40 rounds, deterministic run to run, and ends on Final Civilization
   Standings (Assyria 3,762) at EXIT, where the original waits too (f14294's f78BA4, D 0x14630).
 
