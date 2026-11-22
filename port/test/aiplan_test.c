@@ -915,6 +915,7 @@ int m49A1C(int v30, int v34, int v24, int v2C)
     v1C = (int32_t)D32(0x1079B4u);
     v18 = v30 + 1;
     aiplan_test_f48028(&v20, lst, v30, v34, 0xA);
+    ms_slot38 = 0x00310000;   /* 0x4803A: 0x48028's [ebp-0x34] = &v20, the first nested 0x46CBC's avail */
     for (v28 = 0; v28 < v20; v28++)
         if (lst[v28] == v2C) {
             lst[v28] = -1;

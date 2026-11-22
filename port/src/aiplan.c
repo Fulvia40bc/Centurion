@@ -66,6 +66,11 @@
           a target-less source when that is positive. The port keeps the word in s_slot38 (below); for the list pointer
           it uses SLOT38_LIST_PTR: avail is only tested against 0 and reduced by attack sizes (D: 0x474D1, 0x47708,
           0x478AA, 0x46E51, 0x471A5), so any value larger than a nation's 55 tokens behaves alike (G).
+          0x46CBC's other caller, 0x49A1C (0x49B74), calls 0x48028 first (0x49A87, one stack argument: its ebp is 4
+          lower), whose [ebp-0x34] = eax = &c (0x4803A, a stack address) is the same word, and nothing is called in
+          between (0x49A8C..0x49B74): its first 0x46CBC starts from that pointer too (SLOT38_LIST_PTR), the later ones
+          from the previous one's avail. Those trials are undone, but their 0x474A0 rolls advance [0x108198] (Claude,
+          22 Nov: the DOSBox-X compare of round 11 of /SRD8 seed 0x5917060E, 110 more rolls in the original).
         Both are the original's behaviour in both modes (no g_original split): they only steer the computers' choices.
      Kept as the original (AI choices, deterministic):
      - 0x46BB8 clears 4 bytes of the int32[160] mark array 0x107EE4 (memset(*(int **)0xC2860, 0, 4): entry 0 only), so
@@ -554,6 +559,7 @@ int f49A1C(int t, int n, int k, int exclude)
     saved = S32(MOVECNT);                                                /* 0x49A67 */
     r = t + 1;
     f48028(&c, l, t, n, 0x0A);                                           /* 0x49A87 */
+    s_slot38 = SLOT38_LIST_PTR;          /* its [ebp-0x34] = &c (0x4803A): the first f46CBC's avail (file comment) */
     for (i = 0; i < c; i++)                                              /* 0x49A99 */
         if (l[i] == exclude) {                                           /* 0x49AAE */
             l[i] = -1;                                                   /* 0x49AB5 */
