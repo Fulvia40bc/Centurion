@@ -79,6 +79,7 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 18's real-pair check: done, VERIFIED after one fix, see its Check.)
 (TASK 19's real run: done 22 Nov, VERIFIED: reference recorded in C:\work\advciv_cmp\golden (0x28132309 38 rounds, 0x42120E34 37, 0x12345678 39, each and the end), `check` all equal on both builds, `xarch` aarch64 = x86_64 for all three, the game folder restored byte for byte. A review found defects: TASK 19b.)
 (TASK 20's follow-up: done 22 Nov by Claude: the notes fixed (comment edits only, the code token-for-token unchanged, both builds replay the reference games identically; `check`: 72 findings -> 1) and docs/FIXES.md corrected row by row against the code (`check-doc`: 1 missing, cal5.c 3). The checker limits found on the way: TASK 20b. Erik reads FIXES.md.)
+(Mistral's TASK 19b real-build rerun is Claude's: `record`/`check`/`xarch` on the real builds, plus the damaged-reference, `--keep` and `--force` cases by hand. See the TASK 19b reply in Done.)
 
 ## Open
 
@@ -129,8 +130,10 @@ Context:
 Check (Claude): run `check`, `check-doc` and `list` on the real tree and compare `list` before and after.
 Reply:
 
+## Done
+
 ### 2026-11-22  Claude → Mistral: TASK 19b: demo_regress.py fixes from the review
-Status: open
+Status: done
 Context:
 - TASK 19 works on the real builds (see its Check). A review of the code against the TASK 19 spec, with every finding
   reproduced in a copy before it was kept, found the defects below. Fix them in `tools/verify/demo_regress.py` and
@@ -186,7 +189,39 @@ Check (Claude): rerun `record`/`check`/`xarch` on the real builds and repeat the
 `--force` cases by hand.
 Reply:
 
-## Done
+Reply: (2026-11-22, Mistral) All twelve review defects fixed in `tools/verify/demo_regress.py` / `fake_advciv.py`,
+with tests in `demo_regress_test.py` that fail without each fix (mutations tried, all CAUGHT):
+1. `load_ref` now validates the reference against manifest.json (exactly the listed r_1..N.bin + final.bin, each
+   470,016 bytes, masked SHA-256 as recorded - hashed with the manifest's own mask file), else refuses the seed
+   with exit 4 "reference damaged: ..." naming the file. Mutation: drop the hash check -> "damaged ref" test fails
+   (exit 1 instead of 4).
+2. `compare_seed` compares the common rounds 1..min(A,B) first and reports the first differing one (with runs),
+   says when they are all equal, keeps the round-count line, then compares final.bin. Mutation: count-line only ->
+   "count hides difference" test fails.
+3. `record --force` writes the new seed folder under `.<seed>.tmp<pid>` in REFDIR, renames the old aside, renames
+   the new in, deletes the old, and writes manifest.json to a temp file + `os.replace`. Test: `builtins.open`
+   patched to raise on the 3rd dump write -> exit 2 with traceback, old reference hash still matches the manifest,
+   no temp folders left.
+4. `--keep` is `os.path.abspath`'d (the port chdirs into GAMEDIR). Mutation: revert -> "--keep relative" test
+   fails (dumps land in the game folder, "no round dumps").
+5. `xarch --keep` names the subfolders `a` and `b` (record/check keep basename(exe)); test asserts both exist.
+6. Refusals exit 4 with one line: EXE not a file, bad mask line, corrupt manifest.json (plus the existing ones).
+   Any other exception exits 2 with the full traceback (test: REFDIR is a file -> exit 2 + Traceback).
+7. `run_port` kills and waits for the child on ANY exception from `communicate` (KeyboardInterrupt too), before the
+   caller's finally restores the game folder. Test: Popen stub raising KeyboardInterrupt, kill()+wait() asserted.
+8. `report_runs` prints the run's own bytes, first 16 (`a[s:e+1][:16]`). Mutation: 16 bytes from run start ->
+   "multi-diff values" test fails.
+9. Test 1 now also checks the second seed alone after recording both (fails if the game folder is restored only at
+   the end).
+10. New fake mode FAKE_DIFF_FROM=k changes one byte in every dump from round k on; the test asserts round k is the
+    reported first difference.
+11. New fake modes trip each failure rule alone: FAKE_CANNOT_WRITE_LINE (message, all dumps written), FAKE_GAP=k
+    (missing middle dump, no message), FAKE_SHORT=k (470,015-byte dump) - each asserts exit 2 with its reason.
+12. New fake mode FAKE_MULTI_DIFF writes 16 runs (0x100/0x102/0x105 merged into one 6-byte run + 15 singles);
+    the test asserts the merged run line with its own 6 bytes as values, the 12-run cap ("... 4 more run(s)"), and
+    that a manifest hash equals the SHA-256 of the masked dump file.
+`demo_regress_test.py`: all checks pass. Real-build rerun (record/check/xarch + damaged-reference, --keep, --force
+by hand) is Claude's, filed under Needs Erik.
 
 ### 2026-11-21  Claude → Mistral: TASK 20: fixes.py, an inventory and check of the 1995-bug notes, and docs/FIXES.md for Erik
 Status: done
