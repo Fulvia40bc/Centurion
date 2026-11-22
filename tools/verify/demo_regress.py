@@ -86,7 +86,10 @@ def read_mask(path):
         line = line.split('#', 1)[0]
         f = line.split()
         if len(f) >= 2:
-            addr, ln = int(f[0], 16), int(f[1], 0)
+            try:
+                addr, ln = int(f[0], 16), int(f[1], 0)
+            except ValueError:
+                refuse(f'bad mask line in {path}: {line!r}')
             if LINK_BASE <= addr and addr + ln <= LINK_BASE + DS_SIZE:
                 ranges.append((addr - LINK_BASE, ln))          # file offsets in the dump
     return ranges
@@ -151,6 +154,10 @@ def run_port(exe, gamedir, workdir, seed, timeout):
         p.kill()
         out, err = p.communicate()
         raise RunFailure(f'timeout after {timeout} s', err)
+    except BaseException:
+        p.kill()                       # Ctrl+C too: kill and wait before the caller's finally restores the folder
+        p.wait()
+        raise
     if p.returncode != 0:
         raise RunFailure(f'exit {p.returncode}', err)
     if STOP_LINE not in err:
@@ -201,7 +208,7 @@ def report_runs(label, a, b, ranges, max_runs=12):
     print(f'  {label}: {len(runs)} differing byte run(s)')
     for s, e in runs[:max_runs]:
         print(f'    {s + LINK_BASE:06X}..{e + LINK_BASE:06X} ({e - s + 1:3d})  '
-              f'ref {a[s:s + 16].hex()}  new {b[s:s + 16].hex()}')
+              f'ref {a[s:e + 1][:16].hex()}  new {b[s:e + 1][:16].hex()}')
     if len(runs) > max_runs:
         print(f'    ... {len(runs) - max_runs} more run(s)')
     return runs
@@ -212,25 +219,13 @@ def ordered_keys(dumps):
     return rounds + (['final'] if 'final' in dumps else [])
 
 
-def first_diff(ref, new, ranges):
-    """None if equal (masked), else ('round N'/'final', runs). A different round count is a difference."""
-    rk, nk = ordered_keys(ref), ordered_keys(new)
-    if len([k for k in rk if k != 'final']) != len([k for k in nk if k != 'final']):
-        return ('count', None)
-    for k in rk:
-        if k not in new:
-            return (str(k), None)
-        runs = diff_runs(ref[k], new[k], ranges)
-        if runs:
-            return (f'round {k}' if k != 'final' else 'final', runs)
-    return None
-
-
-def play(exe, gamedir, snap, seed, args, tag):
+def play(exe, gamedir, snap, seed, args, tag, subname=None):
     """Restore the game folder, run once into a work folder (temp, or --keep), restore again on failure too."""
     restore(gamedir, snap)
     if args.keep:
-        workdir = os.path.join(args.keep, seed_name(seed), re.sub(r'[^\w.-]', '_', os.path.basename(exe)))
+        if subname is None:
+            subname = re.sub(r'[^\w.-]', '_', os.path.basename(exe))
+        workdir = os.path.join(os.path.abspath(args.keep), seed_name(seed), subname)
     else:
         workdir = tempfile.mkdtemp(prefix='demo_regress_')
     try:
@@ -256,8 +251,8 @@ def common_args(ap):
 
 
 def check_exe(exe):
-    if not os.path.exists(exe):
-        refuse(f'exe {exe} not found')
+    if not os.path.isfile(exe):
+        refuse(f'exe {exe} is not a file')
 
 
 def check_gamedir(gamedir):
@@ -271,7 +266,10 @@ def load_manifest(refdir):
     path = os.path.join(refdir, 'manifest.json')
     if not os.path.exists(path):
         refuse(f'no manifest.json in {refdir} (run record first)')
-    return json.load(open(path))
+    try:
+        return json.load(open(path))
+    except (OSError, ValueError) as e:
+        refuse(f'bad manifest.json in {refdir}: {e}')
 
 
 def cmd_record(args):
@@ -300,19 +298,35 @@ def cmd_record(args):
                 if not args.keep:
                     shutil.rmtree(workdir, ignore_errors=True)
                 continue
+            # write the new seed folder under a temporary name, then swap it in: a failure anywhere below
+            # leaves the old reference and the manifest intact
+            tmp_new = os.path.join(refdir, f'.{name}.tmp{os.getpid()}')
+            shutil.rmtree(tmp_new, ignore_errors=True)
+            os.makedirs(tmp_new)
+            try:
+                entry = {'rounds': len([k for k in dumps if k != 'final']),
+                         'dumps': {}, 'exe': exe, 'exe_sha256': sha256_file(exe) if not exe.endswith('.py') else '',
+                         'mask': os.path.basename(args.mask), 'date': datetime.date.today().isoformat()}
+                for k in ordered_keys(dumps):
+                    fn = f'r_{k}.bin' if k != 'final' else 'final.bin'
+                    with open(os.path.join(tmp_new, fn), 'wb') as f:
+                        f.write(dumps[k])
+                    entry['dumps'][fn] = hashlib.sha256(masked(dumps[k], ranges)).hexdigest()
+            except BaseException:
+                shutil.rmtree(tmp_new, ignore_errors=True)
+                raise
+            old = None
             if os.path.isdir(sdir):
-                shutil.rmtree(sdir)
-            os.makedirs(sdir)
-            entry = {'rounds': len([k for k in dumps if k != 'final']),
-                     'dumps': {}, 'exe': exe, 'exe_sha256': sha256_file(exe) if not exe.endswith('.py') else '',
-                     'mask': os.path.basename(args.mask), 'date': datetime.date.today().isoformat()}
-            for k in ordered_keys(dumps):
-                fn = f'r_{k}.bin' if k != 'final' else 'final.bin'
-                with open(os.path.join(sdir, fn), 'wb') as f:
-                    f.write(dumps[k])
-                entry['dumps'][fn] = hashlib.sha256(masked(dumps[k], ranges)).hexdigest()
+                old = os.path.join(refdir, f'.{name}.old{os.getpid()}')
+                os.rename(sdir, old)
+            os.rename(tmp_new, sdir)
+            if old is not None:
+                shutil.rmtree(old, ignore_errors=True)
             manifest['seeds'][name] = entry
-            json.dump(manifest, open(manifest_path, 'w'), indent=1, sort_keys=True)
+            tmp_man = manifest_path + f'.tmp{os.getpid()}'
+            with open(tmp_man, 'w') as f:
+                json.dump(manifest, f, indent=1, sort_keys=True)
+            os.replace(tmp_man, manifest_path)
             print(f'seed {name}: {entry["rounds"]} rounds and the end, recorded in {sdir}')
             if not args.keep:
                 shutil.rmtree(workdir, ignore_errors=True)
@@ -321,42 +335,81 @@ def cmd_record(args):
     return code
 
 
-def load_ref(refdir, seed):
+def load_ref(refdir, seed, manifest, ranges):
+    """The reference for one seed, validated against manifest.json: exactly the listed r_1..N.bin + final.bin,
+    each 470,016 bytes and with the manifest's masked SHA-256; otherwise refuse (exit 4) naming the file."""
     name = seed_name(seed)
     sdir = os.path.join(refdir, name)
-    if not os.path.isdir(sdir):
+    entry = manifest['seeds'].get(name) if isinstance(manifest.get('seeds'), dict) else None
+    if entry is None or not isinstance(entry.get('dumps'), dict):
         refuse(f'no reference for seed {name} in {refdir} (record it first, or pass --seeds)')
+    want = entry['dumps']
+    # validate with the mask the reference was recorded with (the manifest's mask file), not the current --mask
+    ref_ranges = ranges
+    mname = entry.get('mask')
+    for cand in (mname, os.path.join(HERE, os.path.basename(mname or ''))):
+        if cand and os.path.exists(cand):
+            ref_ranges = read_mask(cand)
+            break
+    have = {}
+    if os.path.isdir(sdir):
+        for f in os.listdir(sdir):
+            if f == 'final.bin' or re.fullmatch(r'r_\d+\.bin', f):
+                have[f] = os.path.join(sdir, f)
+    if set(have) != set(want):
+        refuse(f'reference damaged: {sdir} holds {sorted(have)}, manifest.json lists {sorted(want)}')
     dumps = {}
-    for k in sorted((int(m.group(1)) for f in os.listdir(sdir)
-                     for m in [re.fullmatch(r'r_(\d+)\.bin', f)] if m)):
-        dumps[k] = open(os.path.join(sdir, f'r_{k}.bin'), 'rb').read()
-    fp = os.path.join(sdir, 'final.bin')
-    if os.path.exists(fp):
-        dumps['final'] = open(fp, 'rb').read()
-    if not dumps:
-        refuse(f'no dumps in {sdir}')
+    for fn in sorted(want, key=lambda f: (f == 'final.bin', int(f[2:-4]) if f != 'final.bin' else 0)):
+        path = have[fn]
+        data = open(path, 'rb').read()
+        if len(data) != DS_SIZE:
+            refuse(f'reference damaged: {path} is {len(data)} bytes, expected {DS_SIZE}')
+        if hashlib.sha256(masked(data, ref_ranges)).hexdigest() != want[fn]:
+            refuse(f'reference damaged: {path} masked SHA-256 does not match manifest.json')
+        dumps['final' if fn == 'final.bin' else int(fn[2:-4])] = data
     return dumps
 
 
 def compare_seed(seed, ref, new, ranges, what):
-    """Print the per-seed line; return 0 (equal) or 1 (difference)."""
+    """Print the per-seed lines; return 0 (equal) or 1 (difference). A different round count does not hide the
+    first difference: the common rounds are compared first, then final.bin."""
     rrounds = len([k for k in ref if k != 'final'])
     nrounds = len([k for k in new if k != 'final'])
+    common = min(rrounds, nrounds)
+    first = None
+    for k in range(1, common + 1):
+        if k in ref and k in new:
+            runs = diff_runs(ref[k], new[k], ranges)
+            if runs:
+                first = (k, runs)
+                break
     if rrounds != nrounds:
+        if first:
+            k = first[0]
+            print(f'seed {seed_name(seed)}: first difference in round {k}')
+            report_runs(f'round {k}', ref[k], new[k], ranges)
+        else:
+            print(f'seed {seed_name(seed)}: the common rounds 1..{common} are all equal')
         print(f'seed {seed_name(seed)}: the game ended after {rrounds} rounds in the {what}, {nrounds} here')
+        if 'final' in ref and 'final' in new:
+            runs = diff_runs(ref['final'], new['final'], ranges)
+            if runs:
+                print(f'seed {seed_name(seed)}: first difference in final')
+                report_runs('final', ref['final'], new['final'], ranges)
         return 1
-    d = first_diff(ref, new, ranges)
-    if d is None:
-        print(f'seed {seed_name(seed)}: {rrounds} rounds and the end, all equal')
-        return 0
-    label, runs = d
-    if label == 'count':
-        print(f'seed {seed_name(seed)}: different dump sets')
+    if first:
+        k = first[0]
+        print(f'seed {seed_name(seed)}: first difference in round {k}')
+        report_runs(f'round {k}', ref[k], new[k], ranges)
         return 1
-    print(f'seed {seed_name(seed)}: first difference in {label}')
-    report_runs(label, ref[int(label.split()[1]) if label != 'final' else 'final'],
-                new[int(label.split()[1]) if label != 'final' else 'final'], ranges)
-    return 1
+    if 'final' in ref and 'final' in new:
+        runs = diff_runs(ref['final'], new['final'], ranges)
+        if runs:
+            print(f'seed {seed_name(seed)}: first difference in final')
+            report_runs('final', ref['final'], new['final'], ranges)
+            return 1
+    print(f'seed {seed_name(seed)}: {rrounds} rounds and the end, all equal')
+    return 0
 
 
 def cmd_check(args):
@@ -375,7 +428,7 @@ def cmd_check(args):
     code = 0
     try:
         for seed in seeds:
-            ref = load_ref(refdir, seed)
+            ref = load_ref(refdir, seed, manifest, ranges)
             dumps, err, workdir, fail = play(exe, gamedir, snap, seed, args, 'check')
             if fail is not None:
                 code = max(code, run_failed(seed, fail, err))
@@ -401,13 +454,13 @@ def cmd_xarch(args):
     code = 0
     try:
         for seed in seeds:
-            da, ea, wa, fa = play(exea, gamedir, snap, seed, args, 'xarch')
+            da, ea, wa, fa = play(exea, gamedir, snap, seed, args, 'xarch', subname='a')
             if fa is not None:
                 code = max(code, run_failed(seed, f'{os.path.basename(exea)}: {fa}', ea))
                 if not args.keep:
                     shutil.rmtree(wa, ignore_errors=True)
                 continue
-            db, eb, wb, fb = play(exeb, gamedir, snap, seed, args, 'xarch')
+            db, eb, wb, fb = play(exeb, gamedir, snap, seed, args, 'xarch', subname='b')
             if fb is not None:
                 code = max(code, run_failed(seed, f'{os.path.basename(exeb)}: {fb}', eb))
             else:
@@ -436,7 +489,14 @@ def main():
     a = ap.parse_args()
     if not getattr(a, 'cmd', None):
         ap.error('need a command: record, check or xarch')
-    return a.func(a)
+    try:
+        return a.func(a)
+    except SystemExit:
+        raise
+    except BaseException:
+        import traceback
+        traceback.print_exc()          # unexpected errors exit 2 with the full traceback (Erik wants them shown)
+        return 2
 
 
 if __name__ == '__main__':

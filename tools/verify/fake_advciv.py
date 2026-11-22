@@ -13,11 +13,17 @@ at the start of the run (so a missed restore changes the dumps), with the real t
 
 Misbehaviour comes from environment variables, applied only when FAKE_ONLY is unset or equals this file's own name
 (so a test can copy the fake to fake_b.py and break only that copy):
-  FAKE_DIFF_ROUND=k   change one byte in dump k (a round number, or "final")
-  FAKE_ROUNDS=n       write n round dumps instead of the default 5
-  FAKE_EXIT=3         exit with that code (after the game-folder side effects, before any dump)
-  FAKE_HANG=1         sleep forever (the runner's timeout kills it)
-  FAKE_NO_WRITE=k     print "advciv: cannot write ..." for round k and skip that dump (a gap)
+  FAKE_DIFF_ROUND=k        change one byte in dump k (a round number, or "final")
+  FAKE_DIFF_FROM=k         change one byte in every dump from round k on (and in final)
+  FAKE_MULTI_DIFF=1        one dump with several byte runs: 0x100, 0x102, 0x105 (merged, gaps < 4) and 15 single
+                           runs at 0x1000 + 8i (more than the 12-run print cap)
+  FAKE_ROUNDS=n            write n round dumps instead of the default 5
+  FAKE_EXIT=3              exit with that code (after the game-folder side effects, before any dump)
+  FAKE_HANG=1              sleep forever (the runner's timeout kills it)
+  FAKE_NO_WRITE=k          print "advciv: cannot write ..." for round k and skip that dump (message + gap)
+  FAKE_CANNOT_WRITE_LINE=1 print the "cannot write" line but write every dump (the message rule alone)
+  FAKE_GAP=k               skip dump k with no message (the gap rule alone)
+  FAKE_SHORT=k             write dump k one byte short (the 470,016-byte rule alone)
 """
 import hashlib
 import os
@@ -95,7 +101,25 @@ def main():
         return 0
     rounds = int(env('FAKE_ROUNDS', str(DEFAULT_ROUNDS)))
     diff_round = env('FAKE_DIFF_ROUND')
+    diff_from = env('FAKE_DIFF_FROM')
+    multi = env('FAKE_MULTI_DIFF')
     no_write = env('FAKE_NO_WRITE')
+    gap = env('FAKE_GAP')
+    short = env('FAKE_SHORT')
+    cannot_line = env('FAKE_CANNOT_WRITE_LINE')
+
+    def taint(buf, k):
+        if diff_round == str(k) or (diff_from is not None and k != 'final' and k >= int(diff_from)) \
+                or (diff_from is not None and k == 'final'):
+            buf[DIFF_OFF] ^= 0xFF
+        if multi:
+            for off in (0x100, 0x102, 0x105):
+                buf[off] ^= 0xFF
+            for i in range(15):
+                buf[0x1000 + 8 * i] ^= 0xFF
+        if short is not None and str(k) == short:
+            return buf[:DS_SIZE - 1]
+        return buf
 
     os.makedirs(os.path.dirname(prefix) or '.', exist_ok=True)
     os.makedirs(os.path.dirname(final) or '.', exist_ok=True)
@@ -103,16 +127,14 @@ def main():
         if no_write is not None and str(k) == no_write:
             print(f'advciv: cannot write {prefix}{k}.bin', file=sys.stderr)
             continue
-        buf = dump_bytes(seed, k, cfg)
-        if diff_round == str(k):
-            buf[DIFF_OFF] ^= 0xFF
+        if gap is not None and str(k) == gap:
+            continue
         with open(f'{prefix}{k}.bin', 'wb') as f:
-            f.write(buf)
-    buf = dump_bytes(seed, 'final', cfg)
-    if diff_round == 'final':
-        buf[DIFF_OFF] ^= 0xFF
+            f.write(taint(dump_bytes(seed, k, cfg), k))
+    if cannot_line is not None:
+        print('advciv: cannot write (but all dumps were written)', file=sys.stderr)
     with open(final, 'wb') as f:
-        f.write(buf)
+        f.write(taint(dump_bytes(seed, 'final', cfg), 'final'))
     print('advciv: stop at 0x14294 #1', file=sys.stderr)
     return 0
 
