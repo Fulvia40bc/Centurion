@@ -5,8 +5,8 @@
 # at the autosave's entry 0x5E8EC COUNT times and dumps the data object at every EVERY-th stop (default 1) to
 # C:\DOSBox-X\advciv\NAME_k.bin (k = 1..COUNT, the port's --stop-at 0x5E8EC k). ADDR=0x55258 PAST=0x5526D stop at the
 # end-of-round save instead (the port's --stop-at 0x55258 k: one stop per round). The run copy's saves and ACIV.CFG
-# (the kaboom3 counter, anim.c) are put back afterwards. FROM=k skips the dumps before stop k. When a stop does not
-# come within WAIT s, hang() takes a raw screenshot (DOSBox-X's capture folder), breaks into the debugger, prints EIP
+# (the kaboom3 counter, anim.c) are put back afterwards. FROM=k skips the dumps before stop k. SEED=0x... replays
+# that game (written over the clock seed at 0x117E0). When a stop does not come within WAIT s, hang() takes a raw screenshot (DOSBox-X's capture folder), breaks into the debugger, prints EIP
 # and dumps the data object to NAME_hang.bin. M7 (Claude, 21 Nov).
 name=$1; count=$2; every=${3:-1}; ADDR=${ADDR:-0x5E8EC}; PAST=${PAST:-0x5E904}; FROM=${FROM:-1}
 D() { powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\work\AdvCiv\tools\dosbox\drive.ps1' "$@" 2>&1; }
@@ -48,6 +48,13 @@ wait_stop 0x117E0 || exit 1
 D dbg "D 0188:2C3C5C" > /dev/null
 row=$(D dbgscreen | grep -E '^0188:002C3C5C' | head -1)
 seed=$(echo "$row" | awk '{printf "0x%s%s%s%s", $5, $4, $3, $2}')
+if [ -n "$SEED" ]; then   # replay a known game: write SEED over the clock seed main has just stored
+  D dbg "SM 0188:2C3C5C $(printf '%08X' $((SEED)) | sed -E 's/(..)(..)(..)(..)/\4 \3 \2 \1/')" > /dev/null
+  D dbg "D 0188:2C3C5C" > /dev/null
+  row=$(D dbgscreen | grep -E '^0188:002C3C5C' | head -1)
+  seed=$(echo "$row" | awk '{printf "0x%s%s%s%s", $5, $4, $3, $2}')
+  [ $((seed)) -eq $((SEED)) ] || { echo "seed not set ($seed)"; exit 1; }
+fi
 echo "seed $seed"
 bp $ADDR; D dbgkey F5 > /dev/null; sleep 1
 for k in $(seq 1 $count); do
