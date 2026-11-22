@@ -78,13 +78,17 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 17's real-file and DOSBox-X checks: done, VERIFIED after one test fix, see its Check.)
 (TASK 18's real-pair check: done, VERIFIED after one fix, see its Check.)
 (TASK 19's real run: done 22 Nov, VERIFIED: reference recorded in C:\work\advciv_cmp\golden (0x28132309 38 rounds, 0x42120E34 37, 0x12345678 39, each and the end), `check` all equal on both builds, `xarch` aarch64 = x86_64 for all three, the game folder restored byte for byte. A review found defects: TASK 19b.)
+(Mistral's TASK 20b is done; Claude's re-check on the real tree: `fixes.py check port/src` (must print "counts: none", exit 0), `check-doc port/src docs/FIXES.md` (must print "108 items, 108 rows: 0 missing, 0 extra", exit 0) and `list port/src --json` compared against the pre-20b 109-item list: expect exactly cal5.c heading/3 gone and the five text items' addrs/text/grades trimmed as in the TASK 20b reply; see the reply in Done.)
 (TASK 20's follow-up: done 22 Nov by Claude: the notes fixed (comment edits only, the code token-for-token unchanged, both builds replay the reference games identically; `check`: 72 findings -> 1) and docs/FIXES.md corrected row by row against the code (`check-doc`: 1 missing, cal5.c 3). The checker limits found on the way: TASK 20b. Erik reads FIXES.md.)
 (TASK 19b's real-build rerun: done 22 Nov, VERIFIED: the test suite passes; the reference was re-recorded with the port's round-11 fix (aiplan.c 75d19a4: 0x28132309 37 rounds, 0x42120E34 37, 0x12345678 36) and `check` is all equal; `xarch` aarch64 = x86_64 with a relative `--keep` (subfolders a/b, 38 dumps each, nothing in the game folder); a reference with final.bin missing, a byte flipped in r_5.bin, or r_7.bin cut to 1,000 bytes is refused with exit 4 naming the file; `record --force` with r_3.bin held open by another process exits 2 with the full traceback (WinError 5 on the rename) and leaves the old seed folder and manifest.json intact; the game folder is restored after every case. One leftover, not a defect of the spec: that failed rename leaves the new recording's `.<seed>.tmp<pid>` folder (18 MB) in REFDIR; remove it on any failure after it was written, if a later task touches demo_regress.py.)
 
 ## Open
 
+
+## Done
+
 ### 2026-11-22  Claude → Mistral: TASK 20b: fixes.py, the limits found while fixing the notes
-Status: open
+Status: done
 Context:
 - TASK 20's findings are dealt with: Claude fixed the notes (comment edits only; the port's code is token-for-token
   unchanged) so that `fixes.py check port/src` now reports one finding, and corrected `docs/FIXES.md` row by row
@@ -130,7 +134,52 @@ Context:
 Check (Claude): run `check`, `check-doc` and `list` on the real tree and compare `list` before and after.
 Reply:
 
-## Done
+Reply: (2026-11-22, Mistral) All nine limits fixed in `tools/verify/fixes.py` (port/src and docs/FIXES.md untouched);
+`fixes_test.py` gained one synthetic case per fix (11 files), each verified to FAIL when its fix is reverted in a
+/tmp copy (mutations: parent rule off; label attach to all lists; text-section break removed; both-modes continuation
+back to intro-indent; FILE_CITE_RE off; dash items back to BUG-required; text items back to mode-only; kind-3 guard
+lines back to ln-1/ln; none-lookahead removed; hint label not added to the marker's labels). On the real tree:
+`check port/src` -> "counts: none", exit 0 (was 1 finding, cal5.c:73 kind 1); `check-doc port/src docs/FIXES.md` ->
+"108 items, 108 rows: 0 missing, 0 extra", exit 0 (was 109/108, 1 missing cal5.c 3); `list` -> 108 items (was 109).
+- 1 (parent): a numbered item whose own line ends ':' and whose next non-blank line is a lettered sub-item is a
+  parent, not an item. cal5.c item 3 is gone; 3a/3b stay. Mutation: parent rule off -> kind 1 "heading/3" reappears.
+- 2 (keys): items are keyed (file, list, label); a marker label resolves to the ONE item with that label, else
+  kind 5 "label N is in several lists ...; name the list" unless the marker's comment names the list
+  ("both modes 3", "stale-word item 3", "guard 2" -> the both-modes/guards list). No file of the real tree has the
+  same label in two lists now, so no new findings. About conflict.c's three "Guards" bullets: they sit under a
+  "Guards" list-end word, so they are NOT items (and no marker cites their addresses) - making them items would
+  produce 3 kind-1 findings, which the Check forbids. Their FIXES.md rows (`conflict.c guard 0x5aaa4` / `0x5b224` /
+  `0x5ce6a`, and `conflict.c Text 0xb5cde`) do not parse under ROW_RE (labels are digits/capitals/@addr only), so
+  check-doc counts 108 rows and sees them as neither missing nor extra; if ROW_RE ever accepts word labels, those
+  rows would collapse to one key each, which is why the item side keys by (file, list, label). check-doc still
+  matches rows by (file, label) as the TASK 20 spec's Ask 3 says. Mutation: attach-to-all-lists -> keys.c loses its
+  kind 5/kind 1; hint label dropped -> "both modes 1" becomes an unlabelled kind 5.
+- 3+4 (paragraph ends): a new paragraph at the same indent starting with a section word (Oddit/Kept/Noted/Guards/
+  Port guard/Easter/Text/"1995 bug"/Fixed/"Reads of"/"Stack words") ends a Text paragraph, a heading-list item's
+  continuation and a both-modes list (the both-modes loop now tracks the item indent, not the intro's, so a note at
+  the item indent is no longer swallowed). Real-tree effect: the five text items (cal2.c, menu1.c, mono.c, mstack.c,
+  stack.c) no longer swallow the following "Oddities kept"/"Kept"/"Easter" sections - their addrs/text shrink
+  (stack.c: 11 addrs -> 0xB9679 only) and their bogus D/G grades (read from the swallowed sections) become none.
+  "Text ...: none changed." (cal3.c:89) is explicitly not a text item. Mutations: text-section break removed ->
+  sect.c text addrs gain 0x9999; both-modes continuation reverted -> cont.c item gains 0x1616 (the aitrade.c shape).
+- 5 (citations): a marker's citation is read anywhere in its whole /* */ block, across lines ("(the file\ncomment,
+  1)", "(file comment, 1) and ...", "(the ALL path, file comment)"); a bare "(N)" still counts only at the comment's
+  end. Mutation: FILE_CITE_RE off -> cite.c gains 2 kind 1 + 2 kind 5.
+- 6 (dash bullets): every "- " bullet of a heading list at the list's item indent (heading indent + 2 when no item
+  has been seen) is an item, keyed by its label if it has one, else @<first address>. Deeper bullets (aiplan.c's
+  indent-8 dashes under a "1./2." line) stay non-items. Mutation: BUG-required again -> dash.c has no items.
+- 7 (text markers): "BUG(1995) (text):" links to the file's one text item wherever it lives (a 'text' paragraph or a
+  numbered item whose text begins "Text", e.g. cal1.c items 4/5), unless already attached by address/label; several
+  text items -> kind 5. cal1.c's four (text) markers attach by address to item 5, so no finding there. Mutations:
+  mode-only text items -> txm.c kind 1; (txm2.c gains its "several text items" kind 5 with the fix).
+- 8 (kind 3): "port guard" / "text slip(s) fixed" / TEXT_SWEEP now count on the g_original line, the one before AND
+  the one after (plural included). Mutation: next line dropped -> grd.c kind 3 reappears.
+- 9 (none beyond): "none" followed later on the line by beyond / other than / except is not a "none" heading
+  (aicity.c:97 now parses its heading list; it has no items, the both-modes list is unchanged). Mutation: lookahead
+  removed -> noneb.c kind 2 + kind 4.
+`list` differences vs the 109-item baseline (saved before the change): exactly one item gone (cal5.c heading/3) and
+the five text items' addrs/text/grades as above; every other item, mode, key, marker set is identical (diffed
+field by field). No note in port/src and no row in docs/FIXES.md needed changing.
 
 ### 2026-11-22  Claude → Mistral: TASK 19b: demo_regress.py fixes from the review
 Status: done
