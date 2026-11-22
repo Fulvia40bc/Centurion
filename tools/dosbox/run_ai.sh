@@ -10,10 +10,10 @@ name=$1; sy=$2; addr=$3; count=$4; steps=$5
 P=/c/work/AdvCiv/tools/dosbox/pokeclick.sh
 D() { powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\work\AdvCiv\tools\dosbox\drive.ps1' "$@" 2>&1; }
 R=/c/work/advciv_run; B=$(mktemp -d)
-cp -p $R/SAVGAMEA.DAT $R/savgameb.dat $B/ || exit 1
+cp -p $R/SAVGAMEA.DAT $R/savgameb.dat $R/ACIV.CFG $B/ || exit 1   # ACIV.CFG: the kaboom3 counter lives there (anim.c)
 finish() { taskkill //IM dosbox-x.exe //F > /dev/null 2>&1; sleep 1
            [ -n "$KEEP_SAVES_TO" ] && mkdir -p "$KEEP_SAVES_TO" && cp -p $R/SAVGAMEA.DAT $R/savgameb.dat "$KEEP_SAVES_TO"/
-           cp -p $B/SAVGAMEA.DAT $B/savgameb.dat $R/; rm -rf $B; }
+           cp -p $B/SAVGAMEA.DAT $B/savgameb.dat $B/ACIV.CFG $R/; rm -rf $B; }
 trap finish EXIT
 wait_stop() {   # wait (up to WAIT s, default 300) for the debugger to stop at link address $1
   local want; want=$(printf 'EIP=00%X' $(( $1 + 0x202000 )))

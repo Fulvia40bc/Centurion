@@ -88,7 +88,7 @@ static int stop_at(uint32_t addr, const char *how)
    The frame is then compared with the DOSBox-X capture in the map window and the mini-map only. */
 static const char *s_map_state;
 static int s_press = -1, s_mouse_x = -1, s_mouse_y = -1, s_overview, s_through_start, s_play, s_stop_at_loop,
-           s_stop_at_wait;
+           s_stop_at_wait, s_srd;
 
 /* not_ported's hook: with --dump-ds the data object (and with --headless-frame the frame) where the port stops, the
    comparison point with the original at the same call */
@@ -280,6 +280,8 @@ int main(int argc, char **argv)
             g_stop_at_addr = (uint32_t)strtoul(argv[++i], NULL, 0);   /* M7: stop at the N-th pass of the */
             g_stop_at_count = atoi(argv[++i]);                         /* comparison point ADDR (port_checkpoint) */
         }
+        else if (strcmp(argv[i], "--srd") == 0 && i + 1 < argc)
+            s_srd = atoi(argv[++i]);                  /* the original's /SRDn: the self-running demo (M7) */
         else if (strcmp(argv[i], "--overview") == 0)
             s_overview = 1;
         else if (strcmp(argv[i], "--press") == 0 && i + 1 < argc)
@@ -327,6 +329,13 @@ int main(int argc, char **argv)
     if (s_frame_path != NULL || s_nclicks > 0)   /* start-up polls the keyboard too; the menu's first poll is its click
                                                     wait (0x4F6CE) */
         fg_set_input_hook(s_nclicks > 0 ? script_hook : save_frame_and_exit);
+    if (s_srd != 0) {   /* the parser's /SRDn, 0x102E9..0x10356: n = atoi of what follows "SRD"; outside 3..8 it is 8
+                           (0x10322..0x1032D); "%d player Self Running Demo in effect." (0x1033D); [0xF40BA] = n */
+        int n = s_srd < 3 || s_srd > 8 ? 8 : s_srd;
+
+        fprintf(stderr, "%d player Self Running Demo in effect.\n", n);
+        setD16(0xF40BAu, (uint16_t)n);                /* 0x1034D */
+    }
     if (setjmp(s_jb_F58D4) != 0) {   /* main 0x11036 setjmp(0xF58D4): the in-game START NEW GAME (0x3FE9B) lands here
                                         and goes on at 0x1103B (the continuous test /C is not ported) */
         if (D16(0xF40C0u) == 0)                       /* 0x11155 */
@@ -337,7 +346,24 @@ int main(int argc, char **argv)
     for (;;) {   /* main 0x111A2..0x113FE: the menu, and for a new game the setup screens; CANCEL returns to 0x11168 */
         int restored = 0;
 
-        rc = title_menu();
+        if (S16(0xF40BAu) != 0) {                     /* 0x11198: the self-running demo skips the menu (0x111A9..0x111D7) */
+            uint8_t f = (uint8_t)(D8(0xE1624u) | 0x04u);   /* 0x111AF a new game */
+
+            setD8(0xE1624u, f);
+            setD8(0xE1624u, (uint8_t)(f & 0x7Fu));   /* 0x111BD not PBEM */
+            f78884();                                 /* 0x111C3 */
+            {                                         /* 0x111C8 fg_erase: the screen to colour 0 */
+                int c = fg_getcolor();
+
+                fg_setcolor(0);
+                fg_rect(0, 639, 0, 479);
+                fg_setcolor(c);
+            }
+            f788AC();                                 /* 0x111CD */
+            f3CFE4(DSTR(0xB0C8Fu));                   /* 0x111D7 the fade-in to pal.pal */
+            rc = -0x45;
+        } else
+            rc = title_menu();
         if (rc == -0x46) {                            /* RESTORE A SAVED GAME: main 0x11557 */
             if (!title_restore()) {                   /* 0x115A9; the game goes on at 0x115B0 */
                 title_menu_again();                   /* cancelled: back to 0x11168 */

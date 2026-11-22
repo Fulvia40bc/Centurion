@@ -155,6 +155,7 @@ void f5E8EC(int phase)
     uint32_t crc;
     uint8_t b[4];
 
+    port_checkpoint(0x5E8ECu);   /* port (M7): the autosave's entry, a comparison point (--stop-at 0x5E8EC N) */
     /* 0x5E904..0x5E913: the 61-byte local [ebp-0x60] starts as a copy of 0xC6E00 (zeros), so the description's tail
        written by f5E9B0 is zeros (Claude, 2026-11-19: the tail was uninitialised; checked against the original's
        autosaves). Then description = sprintf("AutoSaved after %s - R%d", phase name, int16 [0xF40FC]); the phase

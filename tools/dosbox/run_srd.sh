@@ -1,0 +1,54 @@
+#!/bin/bash
+# run_srd.sh NAME COUNT [EVERY]
+# DOSBox-X: the self-running demo with eight computers (advciv_srd8.conf: AC_MAIN /NT /SRD8). Prints the new game's
+# seed (read at 0x117E0, right after main stores the clock seed at 0x117DA: give it to the port's --seed), then stops
+# at the autosave's entry 0x5E8EC COUNT times and dumps the data object at every EVERY-th stop (default 1) to
+# C:\DOSBox-X\advciv\NAME_k.bin (k = 1..COUNT, the port's --stop-at 0x5E8EC k). The run copy's saves and ACIV.CFG (the
+# kaboom3 counter, anim.c) are put back afterwards. M7 (Claude, 21 Nov).
+name=$1; count=$2; every=${3:-1}
+D() { powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'C:\work\AdvCiv\tools\dosbox\drive.ps1' "$@" 2>&1; }
+R=/c/work/advciv_run; B=$(mktemp -d)
+cp -p $R/SAVGAMEA.DAT $R/savgameb.dat $R/ACIV.CFG $B/ || exit 1
+finish() { taskkill //IM dosbox-x.exe //F > /dev/null 2>&1; sleep 1
+           cp -p $B/SAVGAMEA.DAT $B/savgameb.dat $B/ACIV.CFG $R/; rm -rf $B; }
+trap finish EXIT
+stopped_at() {   # the EIP when the debugger is stopped, else nothing
+  local s; s=$(D dbgscreen)
+  echo "$s" | tail -2 | grep -q '(Running)' && return
+  echo "$s" | grep -o 'EIP=[0-9A-F]*' | head -1
+}
+wait_stop() {   # wait (up to WAIT s, default 900) for a stop at link address $1
+  local want e; want=$(printf 'EIP=00%X' $(( $1 + 0x202000 )))
+  for i in $(seq 1 ${WAIT:-900}); do e=$(stopped_at); [ "$e" = "$want" ] && return 0; sleep 1; done
+  echo "no stop at $1 ($e)"; return 1
+}
+bp() { D dbg "BPDEL *" > /dev/null; D dbg "BP 0180:$(printf '%X' $(( $1 + 0x202000 )))" > /dev/null; }
+taskkill //IM dosbox-x.exe //F > /dev/null 2>&1; sleep 2
+powershell.exe -NoProfile -Command "Start-Process -FilePath 'C:\DOSBox-X\dosbox-x.exe' -ArgumentList '-conf','C:\work\AdvCiv\tools\dosbox\advciv_srd8.conf' -WorkingDirectory 'C:\DOSBox-X\advciv'"
+sleep 4
+# into protected mode first: the clock read before the seed (int 21h AH=2Ch, 0x1178E) stops there; a breakpoint on
+# the game's selector set in real mode never fires
+D menu "Start DOSBox-X Debugger" > /dev/null; sleep 1
+D dbg "BPDEL *" > /dev/null; D dbg "BPINT 21 2C" > /dev/null; D dbgkey F5 > /dev/null
+for i in $(seq 1 120); do e=$(stopped_at); [ -n "$e" ] && break; sleep 1; done
+[ -n "$e" ] || { echo "no stop on int 21h AH=2Ch"; exit 1; }
+bp 0x117E0; D dbgkey F5 > /dev/null; sleep 1
+wait_stop 0x117E0 || exit 1
+D dbg "D 0188:2C3C5C" > /dev/null
+row=$(D dbgscreen | grep -E '^0188:002C3C5C' | head -1)
+seed=$(echo "$row" | awk '{printf "0x%s%s%s%s", $5, $4, $3, $2}')
+echo "seed $seed"
+bp 0x5E8EC; D dbgkey F5 > /dev/null; sleep 1
+for k in $(seq 1 $count); do
+  wait_stop 0x5E8EC || exit 1
+  if [ $((k % every)) -eq 0 ]; then
+    rm -f /c/DOSBox-X/advciv/${name}_$k.bin
+    D dbg "MEMDUMPBIN 0188:2A9000 72C00 ${name}_$k.bin" > /dev/null; sleep 2
+    echo "${name}_$k saved"
+  fi
+  [ $k -eq $count ] && break
+  # a breakpoint does not fire again after F5 from its own address: run past it (0x5E904) and re-arm
+  bp 0x5E904; D dbgkey F5 > /dev/null; sleep 1
+  wait_stop 0x5E904 || exit 1
+  bp 0x5E8EC; D dbgkey F5 > /dev/null; sleep 1
+done
