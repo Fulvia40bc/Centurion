@@ -38,3 +38,4 @@ F5240 0x78 heap handles: the World State Stack's 30 blocks [0xF5240+4i], [0xF526
 10F2CC 4 SHIPAI: the summed trial-plan time of this search (as 0x10F2C0)
 10F2D4 8 SHIPAI: the search's elapsed time and average plan time (f6332C, from 0x10F2C8 and 0x10F2CC, as 0x10F2C0)
 F6E94 0x28 cal5 route buffer, 10 entries: the high nibble of entries that are not depth-0 hits and the entries past the count are the original's stack garbage (the port's 0 / {0x0F,0xFF,0xFF,0xFF}; cal5.c "Kept as the original"); the fields the runs compare match (round 8 of an /SRD8 game)
+F6E90 4 cal5 sort's swap word (f1DEAC, 0x1DF2F..0x1DFF1): the last route entry it moved, with the same stack-garbage high nibble as F6E94 (round 12 of /SRD8 seed 0x5917060E)
