@@ -6,7 +6,9 @@
 # C:\DOSBox-X\advciv\NAME_k.bin (k = 1..COUNT, the port's --stop-at 0x5E8EC k). ADDR=0x55258 PAST=0x5526D stop at the
 # end-of-round save instead (the port's --stop-at 0x55258 k: one stop per round). The run copy's saves and ACIV.CFG
 # (the kaboom3 counter, anim.c) are put back afterwards. FROM=k skips the dumps before stop k. SEED=0x... replays
-# that game (written over the clock seed at 0x117E0). When a stop does not come within WAIT s, hang() takes a raw
+# that game (written over the clock seed at 0x117E0). NOBUDGET=1 lifts the computers' ship-search time budget (the
+# original times it with the real clock, so under emulation it cuts searches the port, whose clock stands still in
+# a search, never cuts; by_design.txt lists the word). When a stop does not come within WAIT s, hang() takes a raw
 # screenshot (DOSBox-X's capture folder), breaks into the debugger, prints EIP and dumps the data object to
 # NAME_hang.bin. Stop a run by killing its bash (TaskStop on a wrapper leaves this script running, and its exit
 # trap then kills whatever DOSBox-X is running). M7 (Claude, 21-22 Nov).
@@ -58,6 +60,13 @@ if [ -n "$SEED" ]; then   # replay a known game: write SEED over the clock seed 
   [ $((seed)) -eq $((SEED)) ] || { echo "seed not set ($seed)"; exit 1; }
 fi
 echo "seed $seed"
+if [ -n "$NOBUDGET" ]; then   # the computers' ship search as on an infinitely fast PC, like the port (aiship.c)
+  # int16 [0xBB3E8] = 100 is the search's time budget in percent (f6332C: 9500 hundredths); 32767 makes it 8.6 hours
+  D dbg "SM 0188:2B43E8 FF 7F" > /dev/null
+  D dbg "D 0188:2B43E8" > /dev/null
+  D dbgscreen | grep -qE '^0188:002B43E8 FF 7F' || { echo "budget not set"; exit 1; }
+  echo "budget word 0xBB3E8 = 32767"
+fi
 bp $ADDR; D dbgkey F5 > /dev/null; sleep 1
 for k in $(seq 1 $count); do
   wait_stop $ADDR || { hang; exit 1; }
