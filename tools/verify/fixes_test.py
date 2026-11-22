@@ -125,6 +125,166 @@ int far(void) {
 }
 '''
 
+# ---- TASK 20b: one synthetic case per fix, each fails without the fix ----
+
+# fix 1: a numbered item whose line ends ':' and only introduces lettered sub-items is a parent, not an item
+PARENT = r'''/* Test PARENT.
+   1995 bugs, fixed unless g_original:
+     1. 0x1111 cited below (D code, G effect).
+     3. The runs have no bound (D / G):
+        a. 0x2222 sub a.
+        b. 0x3333 sub b.
+*/
+int g_original;
+int f(void) { return g_original ? 1 : 0; }   /* BUG(1995) 3a */
+int g(void) { return g_original ? 2 : 0; }   /* BUG(1995) 3b */
+int h(void) { return g_original ? 3 : 0; }   /* BUG(1995) 1 */
+'''
+
+# fix 2: keys are (file, list, label); a label in several lists is kind 5 unless the marker names the list
+KEYS = r'''/* Test KEYS.
+   1995 bugs, fixed unless g_original:
+     1. 0x4444 heading one (D code, G effect).
+     2. 0x4555 heading two (D code, G effect).
+   Stack words read before they are written, fixed in both modes:
+     1. 0x5555 stale one, fixed in both modes.
+*/
+int g_original;
+int f(void) { return g_original ? 1 : 0; }   /* BUG(1995) 1: ambiguous, names no list */
+int g(void) { return g_original ? 2 : 0; }   /* BUG(1995) both modes 1 */
+int h(void) { return g_original ? 3 : 0; }   /* BUG(1995) 2 */
+'''
+
+# fix 3: a Text paragraph ends at a new same-indent paragraph starting with a section word
+SECT = r'''/* Test SECT.
+   1995 bugs, fixed unless g_original:
+     1. 0x1212 one (D code, G effect).
+   Text slips fixed (TEXT_SWEEP.md): "X" -> "Y" (0xB123).
+   Oddities kept (D):
+     - 0x9999 an oddity, not a fix.
+*/
+int g_original;
+int f(void) { return g_original ? 1 : 0; }   /* BUG(1995) 1 */
+int g(void) { return g_original ? 2 : 0; }   /* BUG(1995) (text) */
+'''
+
+# fix 4: a note at the item indent after a both-modes item's continuation is not part of the item
+CONT = r'''/* Test CONT.
+   1995 bugs, fixed unless g_original:
+     5. 0x1313 five (D code, G effect).
+   Stack words read before they are written, fixed in both modes:
+     1. 0x1414 stale one, fixed in both modes; its word is read
+        before it is written (0x1515).
+     f6B0EC's note at the item indent (0x1616) is not part of item 1.
+*/
+int g_original;
+int f(void) { return g_original ? 1 : 0; }   /* BUG(1995) 5 */
+int g(void) { return g_original ? 2 : 0; }   /* BUG(1995) both modes 1 */
+'''
+
+# fix 5: citations are read anywhere in the marker's comment, across lines
+CITE = r'''/* Test CITE.
+   1995 bugs, fixed unless g_original:
+     1. 0x1717 one (D code, G effect).
+     2. 0x1818 two (D code, G effect).
+*/
+int g_original;
+int f(void) {
+    return g_original ? 1 : 0;   /* BUG(1995): the first one
+                                    (the file
+                                    comment, 1) and more text */
+}
+int g(void) {
+    return g_original ? 2 : 0;   /* BUG(1995): the second (file comment, 2); trailing words */
+}
+'''
+
+# fix 6: every "- " bullet of a heading list is an item (keyed @<first address> without a label)
+DASH = r'''/* Test DASH.
+   1995 bugs, fixed unless g_original:
+     - 0x1919 dash one (D code, G effect).
+     - 0x1A1A dash two (D code, G effect).
+   Kept as the original:
+     - 0x1B1B kept, not an item.
+*/
+int g_original;
+int f(void) { return g_original ? 1 : 0; }   /* BUG(1995): dash one (0x1919) */
+int g(void) { return g_original ? 2 : 0; }   /* BUG(1995): dash two (0x1A1A) */
+'''
+
+# fix 6, negative: deeper dash bullets under a non-item line are not items (aiplan.c's shape)
+DASH2 = r'''/* Test DASH2. 1995 bugs (graded code / effect). Prose:
+     1./2. a combined label line, not an item:
+        - 0x1C1C deep dash one.
+        - 0x1D1D deep dash two.
+   Kept as the original:
+     - 0x1E1E kept.
+*/
+int g_original;
+int f(void) { return g_original ? 1 : 0; }   /* BUG(1995): nothing, no items in this file */
+'''
+
+# fix 7: "BUG(1995) (text):" links to the file's one text item, whichever list holds it
+TXTM = r'''/* Test TXTM.
+   1995 bugs, fixed unless g_original:
+     1. 0x1F1F one (D code, G effect).
+     2. Text, 0xBEEF (Erik's ruling): "X" -> "Y".
+*/
+int g_original;
+int f(void) { return g_original ? 1 : 0; }   /* BUG(1995) 1 */
+int g(void) { return g_original ? 2 : 0; }   /* BUG(1995) (text) */
+'''
+
+# fix 7, several text items: kind 5
+TXTM2 = r'''/* Test TXTM2.
+   1995 bugs, fixed unless g_original:
+     1. 0x2020 one (D code, G effect).
+     2. Text, 0xB111 (ruling): "A" -> "B".
+     3. Text, 0xB222 (ruling): "C" -> "D".
+*/
+int g_original;
+int f(void) { return g_original ? 1 : 0; }   /* BUG(1995) 1 */
+int g(void) { return g_original ? 2 : 0; }   /* BUG(1995) (text) */
+'''
+
+# fix 8: kind-3 guard words count on the next line too, and in the plural
+GRD = r'''/* Test GRD.
+   1995 bugs, fixed unless g_original:
+     1. 0x2121 one (D code, G effect).
+*/
+int g_original;
+int f(void) { return g_original ? 1 : 0; }   /* BUG(1995) 1 */
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+int far(void) {
+    return g_original ? 3 : 0;
+    /* text slips fixed (TEXT_SWEEP.md) */
+}
+'''
+
+# fix 9: "none" followed by beyond / other than / except is not "none"
+NONEB = r'''/* Test NONEB. 1995 bugs: none fixed beyond the garbage read above.
+     1. 0x2222 one (D code, G effect).
+*/
+int g_original;
+int f(void) { return g_original ? 1 : 0; }   /* BUG(1995) 1 */
+'''
+
+T20B = {'parent.c': PARENT, 'keys.c': KEYS, 'sect.c': SECT, 'cont.c': CONT, 'cite.c': CITE,
+        'dash.c': DASH, 'dash2.c': DASH2, 'txtm.c': TXTM, 'txtm2.c': TXTM2, 'grd.c': GRD, 'noneb.c': NONEB}
+
 MAIN = 'int g_original;\nint main(void) { g_original = 1; return 0; }\n'   # the option assignment: not counted
 
 STATE = 'int g_original;\n'                                                # the definition: not counted
@@ -222,6 +382,63 @@ def main():
     with contextlib.redirect_stdout(buf):
         rc = fixes.run_check_doc(tmp, doc)
     check(rc == 1 and 'not in FIXES.md' in buf.getvalue(), f'check-doc missing: {rc} {buf.getvalue()}')
+
+    # ---- TASK 20b cases ----
+    for name, src in T20B.items():
+        write(tmp, name, src)
+    rc, out = run_check(tmp)
+    lines = out.splitlines()
+
+    def findings_for(name):
+        return [l for l in lines if l.startswith(name + ':') and not l.startswith('counts:')]
+
+    # fix 1: parent.c is clean and its list has 1, 3a, 3b but not 3
+    check(not findings_for('parent.c'), f'parent.c findings: {findings_for("parent.c")}')
+    # fix 2: keys.c reports the ambiguous label (kind 5) and the uncited heading item 1 (kind 1)
+    kf = findings_for('keys.c')
+    check(any('kind 5' in l and 'several lists' in l and 'label 1' in l for l in kf), f'keys.c kind 5: {kf}')
+    check(any('kind 1' in l and 'heading/1' in l for l in kf), f'keys.c kind 1: {kf}')
+    check(not any('kind 1' in l and 'both modes/1' in l for l in kf), f'keys.c both modes/1 should be cited via the hint: {kf}')
+    # fix 3: sect.c is clean
+    check(not findings_for('sect.c'), f'sect.c findings: {findings_for("sect.c")}')
+    # fix 4: cont.c is clean
+    check(not findings_for('cont.c'), f'cont.c findings: {findings_for("cont.c")}')
+    # fix 5: cite.c is clean (both citations read mid-comment / across lines)
+    check(not findings_for('cite.c'), f'cite.c findings: {findings_for("cite.c")}')
+    # fix 6: dash.c is clean; dash2.c has no items and no findings
+    check(not findings_for('dash.c'), f'dash.c findings: {findings_for("dash.c")}')
+    check(not findings_for('dash2.c'), f'dash2.c findings: {findings_for("dash2.c")}')
+    # fix 7: txm.c is clean; txm2.c reports several text items (kind 5)
+    check(not findings_for('txtm.c'), f'txtm.c findings: {findings_for("txtm.c")}')
+    check(any('kind 5' in l and 'several text items' in l for l in findings_for('txtm2.c')), f'txtm2.c kind 5: {findings_for("txtm2.c")}')
+    # fix 8: grd.c has no kind 3 (the "text slips fixed" is on the next line)
+    check(not any('kind 3' in l for l in findings_for('grd.c')), f'grd.c kind 3: {findings_for("grd.c")}')
+    # fix 9: noneb.c is clean and its item is read (without the fix: kind 2, label 1 not an item)
+    check(not findings_for('noneb.c'), f'noneb.c findings: {findings_for("noneb.c")}')
+
+    buf = io.StringIO()
+    with contextlib.redirect_stdout(buf):
+        fixes.run_list(tmp, True)
+    recs = json.loads(buf.getvalue())
+    by = {(r['file'], r['list'], r['label']): r for r in recs}
+    # fix 1: no item 3 in parent.c; sub-items 3a/3b present
+    check(('parent.c', 'heading', '3') not in by, f'parent.c must not have item 3: {sorted(k for k in by if k[0] == "parent.c")}')
+    check(('parent.c', 'heading', '3a') in by and ('parent.c', 'heading', '3b') in by, 'parent.c sub-items 3a/3b')
+    # fix 3: the text item of sect.c has only its own address
+    check(by[('sect.c', 'text', None)]['addrs'] == ['0xb123'], f'sect.c text addrs: {by[("sect.c", "text", None)]["addrs"]}')
+    # fix 4: the both-modes item of cont.c stops before the note at the item indent
+    check(by[('cont.c', 'both modes', '1')]['addrs'] == ['0x1414', '0x1515'],
+          f'cont.c both-modes addrs: {by[("cont.c", "both modes", "1")]["addrs"]}')
+    # fix 6: dash bullets are items keyed @<first address>; dash2.c's deep dashes are not list items
+    dash_items = [r for r in recs if r['file'] == 'dash.c' and r['list'] == 'heading']
+    check(sorted(r['addrs'][0] for r in dash_items) == ['0x1919', '0x1a1a'] and all(r['label'] is None for r in dash_items),
+          f'dash.c items: {dash_items}')
+    check(not any(r['file'] == 'dash2.c' and r['list'] in ('heading', 'both modes', 'text') for r in recs),
+          f'dash2.c must have no list items: {[r for r in recs if r["file"] == "dash2.c"]}')
+    # fix 7: the (text) marker of txm.c is attached to the numbered "Text" item
+    check(by[('txtm.c', 'heading', '2')]['markers'] != [], f'txtm.c item 2 markers: {by[("txtm.c", "heading", "2")]}')
+    # fix 9: noneb.c's heading list is parsed (item 1 exists)
+    check(('noneb.c', 'heading', '1') in by, f'noneb.c items: {[r for r in recs if r["file"] == "noneb.c"]}')
 
     if fails == 0:
         print('fixes_test: all checks pass')
