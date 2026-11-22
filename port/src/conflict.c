@@ -48,14 +48,14 @@
         (uninitialised stack in the original), instead of pair[j], the nation that loses the token. Fixed: pair[j]. With
         g_original the port reads its zeroed entry past the list (the original's stack garbage cannot be reproduced),
         so the rule then only sets the compaction flag.
-   Guards in both modes (the original's behaviour cannot be reproduced; D code, G unreachable in play):
-     - 0x5AAA4's list of contested records is 60 ints ([ebp-0x144]); a 61st entry would overwrite its own locals (the
+   Fixed in both modes (port guards: the original's behaviour cannot be reproduced; D code, G unreachable in play):
+     4. 0x5AAA4's list of contested records is 60 ints ([ebp-0x144]); a 61st entry would overwrite its own locals (the
        nation loop counter, then show). The port's list has room for all 157 records.
-     - 0x5B224's attacker [ebp-0x10] is uninitialised when the nation count +1 is not 0 but no marker +2..+12 is
+     5. 0x5B224's attacker [ebp-0x10] is uninitialised when the nation count +1 is not 0 but no marker +2..+12 is
        positive: only the factions 12 / 13 there (markers +0x0D / +0x0E), or inconsistent records. The port then
        clears the pending plunder and returns: no attack. (Starting it at 0 would not be a no-op: the "tokens of
        nation 0", byte +0x0E, are the marker of nation 13, 13 >= every threshold, so "nation 0" would take the city.)
-     - 0x5CDE8 divides by the number of nations with losses (idiv, 0x5CE6A): 0 faults in the original (a calamity or a
+     6. 0x5CDE8 divides by the number of nations with losses (idiv, 0x5CE6A): 0 faults in the original (a calamity or a
        conflict where only nations not in play lose). The port uses column width 0 then (nothing is drawn: the same
        loop finds no column).
    Kept as the original:
@@ -69,10 +69,10 @@
        the data object, so even an over-long hand behaves as in the original.
      - 0x5B588's groups are formed by the tokens at the start (+50 with Metalworking), never updated: each pass round
        the groups takes one token from every member that still has one (D).
-   Text (Erik's ruling of 19 Nov, obvious errors only, --original keeps them):
+   Text (Erik's ruling of 19 Nov, obvious errors only; fixed unless g_original):
      - "%s,you have no stock to pillage with." (0xB5CDE) -> "%s, you have no stock to pillage with." (missing space).
-     - For M7 (0x5BF30, not ported): "%s, choosing number units to transfer from stock to treasury." (0xB5D16) lacks
-       "of"; a missing word is not on the ruling's list: for Erik.
+   Noted (not changed): "%s, choosing number units to transfer from stock to treasury." (0xB5D16, printed by
+     aiship.c's f5BF30, M7) lacks "of"; a missing word is not on the ruling's list: for Erik.
    Easter eggs / oddities: the empty "no conflicts" message 0xB5C52 (a 100 ms home view of the first player, M6_PLAN
    egg 15); the plunder can take a calamity card (it moves with the owner as its giver, f75D84); the losses box has two
    hidden exits -0x50 / -0x51 that only the Civil War's faction buttons use (0x2D3E0's dialog 0xC0214). */
@@ -155,7 +155,7 @@ static void background3(void)
 
 void f5AAA4(int show)
 {
-    int32_t  list[157];   /* [ebp-0x144], 60 ints in the original (the file comment) */
+    int32_t  list[157];   /* [ebp-0x144], 60 ints in the original: BUG(1995) 4 (both modes) */
     int      count;       /* [ebp-0x30] */
     int      any;         /* [ebp-0x20] */
     int      nothing;     /* [ebp-0x1C] */
@@ -364,7 +364,7 @@ void f5B224(uint32_t rec)
         a = (int16_t)(k + 1);                                         /* 0x5B2C8 */
         break;
     }
-    if (a == 0) {   /* guard (file comment): no marker +2..+12 found, [ebp-0x10] uninitialised in the original */
+    if (a == 0) {   /* BUG(1995) 5 (both modes): no marker +2..+12 found, [ebp-0x10] unset in the original */
         setD8(PL_PENDING, 0);
         return;
     }
@@ -715,7 +715,7 @@ int f5CDE8(int anim, const char *title)
             count++;                                                  /* 0x5CE4B */
     }
     width = count == 2 ? 0xC8 : 0x12C;                                /* 0x5CE50..0x5CE5D */
-    colw = count != 0 ? width / count : 0;                            /* 0x5CE6A idiv (0 faults in the original) */
+    colw = count != 0 ? width / count : 0;           /* 0x5CE6A idiv: 0 faults in the original, BUG(1995) 6 (both modes) */
     x0 = count == 2 ? 0xDC : 0xAA;                                    /* 0x5CE6F..0x5CE7C */
     col = 0;                                                          /* 0x5CE86 */
     f3A924();                                                         /* 0x5CE89 */
