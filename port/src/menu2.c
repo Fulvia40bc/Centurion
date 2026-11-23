@@ -23,23 +23,15 @@
    its own static copies, bound to load_heap handles (the sample blocks [0xF6260 + 4s]). A shared AIL helper file
    would merge the three sets (G: Claude's call; dispatch.c and newgame.c are not to be edited by this module).
 
-   Miles AIL calls (port no-ops, marked "AIL (port no-op)"): the port plays its own sound (OVERVIEW §3, §7.2) and the
-   sample voices are not wired to the game yet. Each call keeps the data reads of its arguments (the handles in
+   Miles AIL calls go to snd.c (22 Nov): the port's sound (snd_ail.c on ail.c: Mistral's AIL 3.03 subset on the
+   mixer, the XMIDI sequencer and the GM synth). Each call keeps the data reads of its arguments (the handles in
    [0xF6274] (DIG driver), [0xF6278 + 4s] (sample s), [0xF6284] (the sequence)); none of these calls writes the data
-   object in the original either (AIL's own state lies outside the game's globals or in by-design ranges). Results:
-     AIL_sample_status (0x843E0) -> 2 (SMP_DONE: nothing plays), AIL_active_sample_count (0x85398) -> 0,
-     AIL_sequence_status (0x85C35) -> 2 (SEQ_DONE), AIL_set_sample_file (0x83E4A) -> 1 when a block is given, 0 without
-     one (G: AIL fails on a missing file; that keeps the original's "Effects file" quit for a WAV that cannot be read).
-   The others return nothing anyone reads: AIL_end_sample 0x8419B, AIL_set_sample_volume 0x8427E, AIL_start_sample
-   0x84054, AIL_set_sample_loop_count 0x8436A, AIL_stop_sequence 0x85974, AIL_resume_sequence 0x859E1,
-   AIL_set_sequence_loop_count 0x85BBF, AIL_set_sequence_volume 0x85B3D.
-   How the port's sound would plug in (G, port design): AIL_set_sample_file(slot s, block) becomes wav_decode of the
-   block (load_heap_ptr([0xF6260 + 4s], size)) into a wav_sound kept per slot; AIL_start_sample -> mix_play(mixer,
-   &slot, volume, pan) remembering the voice; AIL_end_sample -> mix_stop(voice); AIL_sample_status -> mix_playing(voice)
-   ? 4 : 2; AIL_active_sample_count -> the number of playing slot voices; AIL_set_sample_volume -> the volume passed to
-   the next mix_play (0..127 as AIL's). The sequence calls go to the music player behind mix_set_music (xmiseq +
-   gm_synth / opl): stop = pause, resume = continue, status 8 while paused, set_sequence_volume -> the music volume.
-   Only these static stubs change; the translated code stays as it is.
+   object in the original either (AIL's own state lies outside the game's globals or in by-design ranges). Without a
+   backend (the unit tests) snd.c gives the old no-op results: AIL_sample_status 2, AIL_active_sample_count 0,
+   AIL_sequence_status 2, AIL_set_sample_file 1 when a block is given, 0 without one (G: AIL fails on a missing file;
+   that keeps the original's "Effects file" quit for a WAV that cannot be read). AIL_set_sample_file takes the image
+   only (AIL reads its header); the port passes the load_heap block and its size, and snd.c gets the bytes. Only
+   these static stubs changed; the translated code stays as it is.
 
    Data (D, read in the code at the addresses given):
      0xF097C  uint8   settings flags: 0x01 sound effects, 0x02 music, 0x04 animations (aciv.cfg byte 0)
@@ -119,6 +111,7 @@
 #include "menu2.h"
 #include "panel.h"
 #include "save.h"
+#include "snd.h"
 #include "state.h"
 #include "ui.h"
 
@@ -157,75 +150,26 @@ static int32_t ail_volume(uint32_t v)
 
 /* ---- Miles AIL 3.03: port no-ops (file comment) ----------------------------------------------------------------- */
 
-static int32_t ail_sample_status(uint32_t sample)          /* AIL (port no-op) 0x843E0 */
+static int32_t ail_sample_status(uint32_t sample) { return snd_sample_status(sample); }         /* 0x843E0 */
+static void ail_end_sample(uint32_t sample) { snd_end_sample(sample); }                           /* 0x8419B */
+static int32_t ail_active_sample_count(uint32_t dig) { return snd_active_sample_count(dig); }     /* 0x85398 */
+static void ail_set_sample_volume(uint32_t sample, int32_t volume) { snd_set_sample_volume(sample, volume); }   /* 0x8427E */
+static void ail_start_sample(uint32_t sample) { snd_start_sample(sample); }                       /* 0x84054 */
+
+/* 0x83E4A AIL_set_sample_file(sample, image, block type 0): AIL reads the header from the image; the port's
+   snd_set_sample_file wants the bytes and their length, so the caller passes the load_heap block and its size */
+static int32_t ail_set_sample_file(uint32_t sample, uint32_t block, long size)
 {
-    (void)sample;
-    return 2;                                               /* SMP_DONE: no sample plays in the port */
+    const uint8_t *p = (block != 0 && size > 0) ? load_heap_ptr(block, (uint32_t)size) : NULL;
+    return snd_set_sample_file(sample, p, p != NULL ? (size_t)size : 0);
 }
 
-static void ail_end_sample(uint32_t sample)                 /* AIL (port no-op) 0x8419B */
-{
-    (void)sample;
-}
-
-static int32_t ail_active_sample_count(uint32_t dig)       /* AIL (port no-op) 0x85398 */
-{
-    (void)dig;
-    return 0;
-}
-
-static void ail_set_sample_volume(uint32_t sample, int32_t volume)   /* AIL (port no-op) 0x8427E */
-{
-    (void)sample;
-    (void)volume;
-}
-
-static void ail_start_sample(uint32_t sample)               /* AIL (port no-op) 0x84054 */
-{
-    (void)sample;
-}
-
-static int32_t ail_set_sample_file(uint32_t sample, uint32_t block, int32_t block_type)   /* AIL (port no-op) 0x83E4A */
-{
-    (void)sample;
-    (void)block_type;
-    return block != 0 ? 1 : 0;                              /* G: AIL fails without a file image */
-}
-
-static void ail_set_sample_loop_count(uint32_t sample, int32_t count)   /* AIL (port no-op) 0x8436A */
-{
-    (void)sample;
-    (void)count;
-}
-
-static void ail_stop_sequence(uint32_t seq)                 /* AIL (port no-op) 0x85974 */
-{
-    (void)seq;
-}
-
-static int32_t ail_sequence_status(uint32_t seq)           /* AIL (port no-op) 0x85C35 */
-{
-    (void)seq;
-    return 2;                                               /* SEQ_DONE (G: the port's music is not wired here) */
-}
-
-static void ail_resume_sequence(uint32_t seq)               /* AIL (port no-op) 0x859E1 */
-{
-    (void)seq;
-}
-
-static void ail_set_sequence_loop_count(uint32_t seq, int32_t count)   /* AIL (port no-op) 0x85BBF */
-{
-    (void)seq;
-    (void)count;
-}
-
-static void ail_set_sequence_volume(uint32_t seq, int32_t volume, int32_t ms)   /* AIL (port no-op) 0x85B3D */
-{
-    (void)seq;
-    (void)volume;
-    (void)ms;
-}
+static void ail_set_sample_loop_count(uint32_t sample, int32_t count) { snd_set_sample_loop_count(sample, count); }   /* 0x8436A */
+static void ail_stop_sequence(uint32_t seq) { snd_stop_sequence(seq); }                           /* 0x85974 */
+static int32_t ail_sequence_status(uint32_t seq) { return snd_sequence_status(seq); }            /* 0x85C35 */
+static void ail_resume_sequence(uint32_t seq) { snd_resume_sequence(seq); }                       /* 0x859E1 */
+static void ail_set_sequence_loop_count(uint32_t seq, int32_t count) { snd_set_sequence_loop_count(seq, count); }   /* 0x85BBF */
+static void ail_set_sequence_volume(uint32_t seq, int32_t volume, int32_t ms) { snd_set_sequence_volume(seq, volume, ms); }   /* 0x85B3D */
 
 /* ---- AIL 3.03's file helpers (static copies, file comment) ------------------------------------------------------ */
 
@@ -358,7 +302,10 @@ void f7B504(int s, const char *name)
         setD32(SLOT_BLOCK(s), f7D334(DSTR(SLOT_NAME(s))));   /* 0x7B766 f7D334(name, 0); 0x7B771 */
     }
     f7CCFD(D32(SLOT_BLOCK(s)), f7D2E8(DSTR(SLOT_NAME(s))));   /* 0x7B784, 0x7B798: lock the block */
-    if (ail_set_sample_file(D32(SLOT_SAMPLE(s)), D32(SLOT_BLOCK(s)), 0) == 0) {   /* 0x7B7B8; 0x7B7C2 jne */
+    if (ail_set_sample_file(D32(SLOT_SAMPLE(s)), D32(SLOT_BLOCK(s)),            /* 0x7B7B8 (block type 0); 0x7B7C2 jne */
+                            size != -2 ? size : f7D2E8(DSTR(SLOT_NAME(s)))) == 0) {   /* port: the image's size */
+        if (snd_last_error()[0] != 0)                 /* AIL writes its error text into its buffer 0x11AF7C (0x98C88, */
+            snprintf((char *)DP(0x11AF7Cu), 0x100, "%s", snd_last_error());   /* 0x98D0A); G: 256 bytes */
         snprintf((char *)DP(0xF5500u), 0x1F4, DSTR(0xB971Bu),   /* 0x7B7E3 "%s\nEffects file:%s,(%d) \n" */
                  DSTR(0x11AF7Cu), DSTR(SLOT_NAME(s)), s);       /* AIL's error text, the name, the slot */
         f44CAC();                                     /* 0x7B7EB */

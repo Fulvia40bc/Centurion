@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include "ui.h"
 #include "fg.h"
+#include "snd.h"
 
 /* Heap pointers the original keeps in 32-bit data fields cannot live in the data object on a 64-bit host, so the port
    keeps them here (G: the port's convention until ui.h gets one). [0xF522C] = the fg_imagebuf buffer, malloc'd by the
@@ -176,7 +177,8 @@ _Noreturn void f44CAC(void)
     /* 0x44D10 fg_setvpage(0): makes page 0 visible; the port has one page (LIBRARY_CALLS: no-op). */
     /* 0x44D1F fg_setmode([0xF6058]): back to the DOS video mode; the port's window closes when the process ends. */
     printf(DSTR(0xB4596u), DSTR(0xF5500u));           /* 0x44D31 printf("%s\n", 0xF5500) (0x7D555 = printf) */
-    /* 0x44D43 AIL_shutdown() if [0xF625B]: the port's own sound stops when the process ends. */
+    if (D8(0xF625Bu) != 0)                            /* 0x44D36..0x44D41: the sound system is up */
+        snd_shutdown();                               /* 0x44D43 AIL_shutdown (snd.c) */
     f78508();                                         /* 0x44D48 */
     exit(0);                                          /* 0x44D4F (0x7D578 = exit) */
 }

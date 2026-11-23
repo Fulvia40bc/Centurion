@@ -5,7 +5,8 @@
 param(
   [string]$Out       = 'C:\work\advciv_port',
   [string]$Prefix    = 'C:\work\toolchain',
-  [string]$Toolchain = 'C:\work\toolchain\llvm-mingw-20261104-ucrt-aarch64\bin'
+  [string]$Toolchain = 'C:\work\toolchain\llvm-mingw-20261104-ucrt-aarch64\bin',
+  [string]$Soundfont = 'C:\work\toolchain\soundfont\GeneralUser-GS.sf2'   # copied next to advciv.exe (snd_ail.c's lookup)
 )
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
@@ -52,12 +53,15 @@ foreach ($arch in 'aarch64', 'x86_64') {
   & $cc @warn "-I$nuked" (Join-Path $test 'dro_play.c') (Join-Path $src 'dro.c') (Join-Path $src 'opl.c') `
         (Join-Path $o 'opl3.o') -o (Join-Path $o 'dro_play.exe')
   if ($LASTEXITCODE) { throw "dro_play ${arch}: build failed" }
-  # the port itself (so far: start-up and the title menu)
+  # the port itself, with its sound (snd.c / snd_ail.c on Mistral's ail.c, mixer, sequencer and GM synth)
   $game = @('main.c', 'fg.c', 'ui_text.c', 'ui_dialog.c', 'ui_screen.c', 'title.c', 'state.c', 'le_image.c', 'fgfont.c',
-            'gif.c', 'catalog.c', 'palette.c', 'png_write.c', 'plat_sdl3.c', 'ui_widgets.c', 'setup.c', 'variants.c', 'load.c', 'gfxload.c', 'newgame.c', 'choose.c', 'ui_kit2.c', 'ast.c', 'ui_kit3.c', 'dispatch.c', 'nations.c', 'save.c', 'saveload.c', 'map.c', 'mapdata.c', 'panel.c', 'shippanel.c', 'start.c', 'aistart.c', 'info.c', 'menu1.c', 'menu2.c', 'move.c', 'stack.c', 'savewrite.c', 'rules.c', 'kit.c', 'wqsort.c', 'mstack.c', 'route.c', 'junk.c', 'loop.c', 'tax.c', 'pop.c', 'census.c', 'ship.c', 'movephase.c', 'conflict.c', 'city.c', 'formulas.c', 'cards.c', 'cal1.c', 'mono.c', 'adv.c', 'helpers2.c', 'trade.c', 'cal2.c', 'cal3.c', 'cal4.c', 'cal5.c', 'end.c', 'anim.c', 'aiq.c', 'aicity.c', 'aisea.c', 'aimove.c', 'aiplan.c', 'aiship.c', 'aitrade.c', 'aiadv.c', 'aicards.c', 'aical1.c', 'aical2.c') | ForEach-Object { Join-Path $src $_ }
-  & $cc @warn "-I$sdl\include" @game "$sdl\lib\libSDL3.dll.a" @gui -o (Join-Path $o 'advciv.exe')
+            'gif.c', 'catalog.c', 'palette.c', 'png_write.c', 'plat_sdl3.c', 'ui_widgets.c', 'setup.c', 'variants.c', 'load.c', 'gfxload.c', 'newgame.c', 'choose.c', 'ui_kit2.c', 'ast.c', 'ui_kit3.c', 'dispatch.c', 'nations.c', 'save.c', 'saveload.c', 'map.c', 'mapdata.c', 'panel.c', 'shippanel.c', 'start.c', 'aistart.c', 'info.c', 'menu1.c', 'menu2.c', 'move.c', 'stack.c', 'savewrite.c', 'rules.c', 'kit.c', 'wqsort.c', 'mstack.c', 'route.c', 'junk.c', 'loop.c', 'tax.c', 'pop.c', 'census.c', 'ship.c', 'movephase.c', 'conflict.c', 'city.c', 'formulas.c', 'cards.c', 'cal1.c', 'mono.c', 'adv.c', 'helpers2.c', 'trade.c', 'cal2.c', 'cal3.c', 'cal4.c', 'cal5.c', 'end.c', 'anim.c', 'aiq.c', 'aicity.c', 'aisea.c', 'aimove.c', 'aiplan.c', 'aiship.c', 'aitrade.c', 'aiadv.c', 'aicards.c', 'aical1.c', 'aical2.c',
+            'snd.c', 'snd_ail.c', 'ail.c', 'musplay.c', 'mixer.c', 'wav.c', 'gm_synth.c', 'xmi.c', 'xmiseq.c') | ForEach-Object { Join-Path $src $_ }
+  & $cc @warn "-I$sdl\include" "-I$fs\include" @game "$sdl\lib\libSDL3.dll.a" "$fs\lib\libfluidsynth-3.dll.a" @gui `
+        -o (Join-Path $o 'advciv.exe')
   if ($LASTEXITCODE) { throw "advciv ${arch}: build failed" }
   $rt = Join-Path (Split-Path $Toolchain) "$arch-w64-mingw32\bin"
   Copy-Item "$sdl\bin\SDL3.dll", "$fs\bin\libfluidsynth-3.dll", "$rt\libc++.dll", "$rt\libunwind.dll" $o -Force
+  if (Test-Path $Soundfont) { Copy-Item $Soundfont $o -Force } else { Write-Host "no SoundFont at ${Soundfont}: the music is silent" }
   Write-Host "built $o"
 }

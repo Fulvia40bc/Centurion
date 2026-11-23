@@ -131,6 +131,7 @@
 #include "menu2.h"
 #include "move.h"
 #include "panel.h"
+#include "snd.h"
 #include "state.h"
 #include "ui.h"
 
@@ -169,12 +170,12 @@
 #define MSG_H        0xBB400u
 #define BARB         11
 
-/* ---- Miles AIL (port no-ops, see the file comment) --------------------------------------------------------------- */
+/* ---- Miles AIL (snd.c since 22 Nov; without a backend the old no-ops) -------------------------------------------- */
 
-static void ail_set_sample_volume(uint32_t s, int v) { (void)s; (void)v; }
-static void ail_start_sample(uint32_t s) { (void)s; }
-static void ail_set_sample_loop_count(uint32_t s, int n) { (void)s; (void)n; }
-static void ail_end_sample(uint32_t s) { (void)s; }
+static void ail_set_sample_volume(uint32_t s, int v) { snd_set_sample_volume(s, v); }
+static void ail_start_sample(uint32_t s) { snd_start_sample(s); }
+static void ail_set_sample_loop_count(uint32_t s, int n) { snd_set_sample_loop_count(s, n); }
+static void ail_end_sample(uint32_t s) { snd_end_sample(s); }
 
 /* ---- small shared pieces ------------------------------------------------------------------------------------------ */
 

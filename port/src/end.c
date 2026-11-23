@@ -18,7 +18,7 @@
              no-op: fg.c has no release, and the port's fonts stay defined for the life of the process (fgfont.c keeps
              pointers into the catalog data). G: main's only call is after the game loop, which never returns
              (loop.h), so nothing draws text after a release in either program.
-     0x85BBF AIL_set_sequence_loop_count -> port no-op, its argument [0xF6284] read (menu2.c's convention).
+     0x85BBF AIL_set_sequence_loop_count -> snd.c (the port's sound), its argument [0xF6284] read.
      0x7D8C8 fopen / 0x878D6 fprintf / 0x7D95E fclose -> stdio, "ctest.txt" relative to the working directory as in the
              original. The FILE * the original keeps in [0xF52D8] stays in the port (a host pointer does not fit the
              32-bit field; title.c does the same for aciv.cfg): [0xF52D8] is not written (by design). Port guard: a
@@ -84,6 +84,7 @@
 #include "fg.h"
 #include "formulas.h"
 #include "game.h"
+#include "snd.h"
 #include "state.h"
 #include "ui.h"
 
@@ -116,9 +117,9 @@ static void fgf_release_8E0F8(int font)        /* 0x8E0F8 Fastgraph/Fonts releas
     (void)font;
 }
 
-static void AIL_set_sequence_loop_count(int32_t seq, int count)   /* 0x85BBF AIL (port no-op) */
+static void AIL_set_sequence_loop_count(int32_t seq, int count)   /* 0x85BBF AIL (snd.c since 22 Nov) */
 {
-    (void)seq; (void)count;
+    snd_set_sequence_loop_count((uint32_t)seq, count);
 }
 #endif
 

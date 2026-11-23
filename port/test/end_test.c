@@ -30,7 +30,7 @@
    Prints each failure, the counts per part, and exits 0 when all pass.
 
    Build: clang -std=c11 -DEND_TEST port/test/end_test.c port/src/end.c port/src/formulas.c port/src/saveload.c
-          port/src/state.c port/src/le_image.c -Iport/src -o end_test.exe */
+          port/src/state.c port/src/le_image.c port/src/snd.c -Iport/src -o end_test.exe */
 
 #include <setjmp.h>
 #include <stdarg.h>
@@ -159,6 +159,7 @@ int f78AE4(void)
 }
 void f76F70(int n, uint8_t *cards) { (void)n; (void)cards; }
 int f78D08(int t, int n) { (void)t; (void)n; return 0; }   /* formulas.c's f46A4C / f46B34 only (not reached here) */
+void port_checkpoint(uint32_t addr) { (void)addr; }   /* main.c's comparison point (fe16d67): nothing to compare here */
 
 /* ---- stubs (both sides) --------------------------------------------------------------------------------------- */
 

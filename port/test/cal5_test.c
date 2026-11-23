@@ -40,7 +40,7 @@
    Build (from the repo root):
      clang -std=c11 -Wall -Wextra -Iport/src port/test/cal5_test.c port/src/cal5.c port/src/conflict.c
        port/src/move.c port/src/rules.c port/src/mapdata.c port/src/load.c port/src/saveload.c port/src/state.c
-       port/src/le_image.c -o cal5_test.exe */
+       port/src/le_image.c port/src/snd.c -o cal5_test.exe */
 
 #include <setjmp.h>
 #include <stdarg.h>
@@ -227,6 +227,8 @@ void f426D0(int i) { (void)i; tr("UNEXPECTED 426D0"); }
 void f572CC(int t) { (void)t; tr("UNEXPECTED 572CC"); }
 void f3A780(const char *msg) { tr("UNEXPECTED 3A780[%s]", msg); }
 _Noreturn void f44CAC(void) { printf("FAIL quit: %s\n", str(0xF5500u)); exit(2); }
+/* aiship.c's f5BF30 (conflict.c's plunder by a computer, M7): not reached by these cases */
+void f5BF30(int n, int amount, int show) { printf("FAIL f5BF30(%d, %d, %d)\n", n, amount, show); exit(2); }
 void f76F70(int n, uint8_t *cards) { (void)n; (void)cards; }
 
 /* ---- the land / coast lists ------------------------------------------------------------------------------------- */

@@ -309,6 +309,28 @@ int plat_chdir(const char *dir)
 #endif
 }
 
+const char *plat_exe_dir(void)
+{
+    const char *p = SDL_GetBasePath();
+    return p != NULL ? p : "";
+}
+
+int plat_first_match(const char *dir, const char *pattern, char *out, int size)
+{
+    int count = 0, i, best = -1;
+    char **names = SDL_GlobDirectory(dir, pattern, SDL_GLOB_CASEINSENSITIVE, &count);
+
+    if (names == NULL)
+        return -1;
+    for (i = 0; i < count; i++)
+        if (best < 0 || strcmp(names[i], names[best]) < 0)
+            best = i;
+    if (best >= 0)
+        snprintf(out, (size_t)size, "%s/%s", dir, names[best]);
+    SDL_free(names);
+    return best >= 0 ? 0 : -1;
+}
+
 uint64_t plat_ticks_ms(void) { return SDL_GetTicks(); }
 void plat_sleep_ms(uint32_t ms) { SDL_Delay(ms); }
 

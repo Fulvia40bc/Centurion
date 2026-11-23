@@ -34,10 +34,10 @@
    fg_makegif(x, x + w - 1, y, y + h - 1, "junk2") (0x8CE50, not in fg.c) and put back with fg_move(x, y),
    fg_showgif("junk2", 3): junk.c's shared slot "junk2" (no file left in the game folder).
 
-   Miles AIL calls (port no-ops, as menu2.c, marked "AIL (port no-op)"): the data reads of their arguments stay
-   ([0xF6278], sample slot 0); none writes the data object. AIL_sample_status (0x843E0) returns 2 (SMP_DONE), so the
-   busy wait of 0x7A43D ends at its first test; AIL_start_sample (0x84054) and AIL_end_sample (0x8419B) return nothing
-   anyone reads. WAVs are loaded into sample slot 0 through menu2.c's f7B504 (which returns at once without digital
+   Miles AIL calls go to snd.c (the port's sound since 22 Nov; without a backend, as in the unit tests, they are the
+   old no-ops): the data reads of their arguments stay ([0xF6278], sample slot 0); none writes the data object. The
+   busy wait of 0x7A43D ends when sample slot 0 is done (at once headless: ail.c's not-live rule for a play-once
+   sample; without a backend AIL_sample_status returns 2). WAVs are loaded into sample slot 0 through menu2.c's f7B504 (which returns at once without digital
    sound).
 
    Data (D, read in the code at the addresses given):
@@ -91,6 +91,7 @@
 #include "game.h"
 #include "junk.h"
 #include "menu2.h"
+#include "snd.h"
 #include "state.h"
 #include "ui.h"
 
@@ -113,23 +114,11 @@ extern uint8_t *ui_heap_F522C;
 #define SAMPLE0    0xF6278u  /* int32 sample slot 0's AIL handle */
 #define BACKBUF    0xF52C8u  /* int32 the back buffer's virtual-buffer handle */
 
-/* ---- Miles AIL 3.03: port no-ops (file comment) ----------------------------------------------------------------- */
+/* ---- Miles AIL 3.03 (snd.c; file comment) ----------------------------------------------------------------------- */
 
-static int32_t ail_sample_status(uint32_t sample)          /* AIL (port no-op) 0x843E0 */
-{
-    (void)sample;
-    return 2;                                         /* SMP_DONE: nothing plays */
-}
-
-static void ail_start_sample(uint32_t sample)               /* AIL (port no-op) 0x84054 */
-{
-    (void)sample;
-}
-
-static void ail_end_sample(uint32_t sample)                 /* AIL (port no-op) 0x8419B */
-{
-    (void)sample;
-}
+static int32_t ail_sample_status(uint32_t sample) { return snd_sample_status(sample); }   /* 0x843E0 */
+static void ail_start_sample(uint32_t sample) { snd_start_sample(sample); }                 /* 0x84054 */
+static void ail_end_sample(uint32_t sample) { snd_end_sample(sample); }                     /* 0x8419B */
 
 /* ---- port helper ------------------------------------------------------------------------------------------------- */
 

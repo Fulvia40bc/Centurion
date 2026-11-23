@@ -15,6 +15,7 @@
 #include "fg.h"
 #include "palette.h"
 #include "platform.h"
+#include "snd_ail.h"
 #include "png_write.h"
 #include "state.h"
 #include "ui.h"
@@ -369,6 +370,9 @@ int main(int argc, char **argv)
         fg_set_headless(1);
     g_not_ported_hook = dump_at_not_ported;
     g_dump_every_hook = dump_every;
+    /* the port's sound (snd.c on ail.c): attached before the boot, whose AIL_startup starts it; headless runs open no
+       device and load no SoundFont */
+    snd_ail_attach(s_frame_path != NULL || s_dump_path != NULL || s_dump_every != NULL);
     rc = title_boot(gamedir);
     if (rc != 0) {
         fprintf(stderr, "advciv: start-up failed (%d)\n", rc);

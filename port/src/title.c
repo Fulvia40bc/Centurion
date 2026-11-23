@@ -10,6 +10,7 @@
 #include <string.h>
 #include "ui.h"
 #include "fg.h"
+#include "snd.h"
 
 /* Defined in ui_screen.c, not yet in ui.h: the port's home of the heap pointer [0xF522C] (fg_imagebuf's buffer) and
    0x78508 (empty the keyboard buffer). */
@@ -228,11 +229,12 @@ static void boot_vbuffer(uint8_t **heap, uint32_t size, int w, int h, uint32_t h
    File names: the original opens everything relative to its working directory; title_boot puts gamedir in front of the
    catalogs and pal.pal. The menu's savgame%x.dat and the quit's aciv.cfg stay relative, as in the original (G: the port
    runs in the game folder). The caller has opened the platform layer (platform.h) before. */
-/* 0x10BEE..0x10E7F, the data side of the sound start-up (the port plays music itself, gm_synth.c): MDI.INI's DRIVER
-   picks the music set (OVERVIEW §2), whose four file names go to 0xCAB1C/0xCAB2C/0xCAB3C/0xCAB4C; when the driver
-   installs, [0xF625D] = 1 (music on) and [0xF6284] = a sequence handle. G: the port treats a readable MDI.INI with a
-   DRIVER line as "installed" (AIL_install_MDI_INI 0x8547D succeeded in DOSBox-X with SBPRO2.MDI). [0xF6270] and
-   [0xF6284] are AIL handles and differ from a DOSBox-X dump by design (the port stores 1). */
+/* 0x10BEE..0x10E7F, the data side of the sound start-up (the sound itself: snd.c / snd_ail.c, started by
+   snd_startup at AIL_startup's place): MDI.INI's DRIVER picks the music set (OVERVIEW §2), whose four file names go
+   to 0xCAB1C/0xCAB2C/0xCAB3C/0xCAB4C; when the driver installs, [0xF625D] = 1 (music on) and [0xF6284] = a sequence
+   handle. G: the port treats a readable MDI.INI with a DRIVER line as "installed" (AIL_install_MDI_INI 0x8547D
+   succeeded in DOSBox-X with SBPRO2.MDI). The AIL handles [0xF6270..0xF6284] differ from a DOSBox-X dump by design:
+   the drivers 1, the samples 1, 2, 3 and the sequence 1 (ail.c's numbering; 1 each with no backend). */
 /* stricmp 0x877AD: ASCII case folding of A..Z only */
 static int ui_stricmp(const char *a, const char *b)
 {
@@ -251,6 +253,7 @@ static void boot_sound(void)
 {
     if (D8(0xBC880u) == 0)                            /* 0x10B4D sound wanted (1 in the shipped data; /NS clears it) */
         return;                                       /* -> 0x10E7F */
+    snd_startup();                                    /* 0x10B60 AIL_startup (snd.c: the port's sound, 22 Nov) */
     setD8(0xF625Bu, 1);                               /* 0x10B65 after AIL_startup: the sound system is up */
     {   /* 0x10B7F AIL_install_DIG_INI(&[0xF6274]): G, the port treats a readable DIG.INI with a DRIVER line as installed */
         char line[256], key[32], val[128];
@@ -265,9 +268,9 @@ static void boot_sound(void)
         if (ok) {
             setD32(0xF6274u, 1);                      /* the driver handle (an AIL pointer: differs by design) */
             setD8(0xF625Cu, 1);                       /* 0x10B99 digital sound on */
-            setD32(0xF6278u, 1);                      /* 0x10BA8, 0x10BC5, 0x10BE1: three sample handles */
-            setD32(0xF627Cu, 1);
-            setD32(0xF6280u, 1);
+            setD32(0xF6278u, (uint32_t)snd_allocate_sample());   /* 0x10BA8, 0x10BC5, 0x10BE1: three sample handles, */
+            setD32(0xF627Cu, (uint32_t)snd_allocate_sample());   /* each AIL_init_sample'd (snd_ail.c): 1, 2, 3 */
+            setD32(0xF6280u, (uint32_t)snd_allocate_sample());   /* (1, 1, 1 with no backend: the unit tests) */
         }
     }
     boot_music_set();                                 /* 0x10BEE..0x10E7F */
@@ -307,7 +310,7 @@ static void boot_music_set(void)
     if (driver[0] != 0) {                             /* 0x10E57 AIL_install_MDI_INI(&[0xF6270]) */
         setD32(0xF6270u, 1);
         setD8(0xF625Du, 1);                           /* 0x10E6C music on */
-        setD32(0xF6284u, 1);                          /* 0x10E7A AIL_allocate_sequence_handle */
+        setD32(0xF6284u, (uint32_t)snd_allocate_sequence());   /* 0x10E7A AIL_allocate_sequence_handle */
     }
 }
 

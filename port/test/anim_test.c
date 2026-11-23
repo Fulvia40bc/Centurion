@@ -36,7 +36,7 @@
    Build (from a scratch folder; R = the repo's port folder):
      clang -std=c11 -Wall -Wextra -Werror -pedantic -IR/src R/test/anim_test.c R/src/anim.c R/src/fg.c R/src/gif.c
        R/src/catalog.c R/src/fgfont.c R/src/palette.c R/src/png_write.c R/src/flc.c R/src/junk.c R/src/load.c
-       R/src/state.c R/src/le_image.c -o anim_test.exe */
+       R/src/state.c R/src/le_image.c R/src/snd.c -o anim_test.exe */
 
 #include <stdint.h>
 #include <stdio.h>

@@ -87,8 +87,8 @@
      0x877AD stricmp -> a local case-insensitive compare (only == 0 is tested)
      0x7D5D0 memset, rep movsd / movsb -> memset / memcpy inside g_ds (the ranges do not overlap)
      0x87879 longjmp(0xF58D4, 1) -> port_longjmp(0xF58D4) (stack.h; main.c's setjmp)
-     0x7D4AC (__CHK) dropped. The Miles AIL calls are port no-ops (static stubs below, as menu2.c's file comment
-     describes them: AIL_active_sample_count -> 0); their arguments are still read from the data object.
+     0x7D4AC (__CHK) dropped. The Miles AIL calls go to snd.c (the port's sound since 22 Nov; without a backend they
+     are the old no-ops: AIL_active_sample_count -> 0); their arguments are still read from the data object.
    game_rand f78AE4: the loop draws none of its own; f7BCD4 draws 300 in phase 0, before 0x66050 (D).
 
    Data (D, read in the code at the addresses given; G for meanings not stated by the code):
@@ -147,6 +147,7 @@
 #include "info.h"
 #include "kit.h"
 #include "loop.h"
+#include "snd.h"
 #include "tax.h"
 #include "pop.h"
 #include "census.h"
@@ -190,40 +191,14 @@ void loop_test_unported(uint32_t addr);
 #define NATION(n) (0xF14CCu + 199u * (uint32_t)(n))
 #define NAME(n)   DSTR(D32(0xC768Cu + 4u * (uint32_t)(n)))
 
-/* ---- Miles AIL (port no-ops, see the file comment) --------------------------------------------------------------- */
+/* ---- Miles AIL (snd.c; see the file comment) --------------------------------------------------------------------- */
 
-static int ail_active_sample_count(uint32_t dig)
-{
-    (void)dig;
-    return 0;
-}
-
-static void ail_end_sample(uint32_t s)
-{
-    (void)s;
-}
-
-static void ail_set_sample_loop_count(uint32_t s, int n)
-{
-    (void)s;
-    (void)n;
-}
-
-static void ail_set_sample_volume(uint32_t s, int v)
-{
-    (void)s;
-    (void)v;
-}
-
-static void ail_start_sample(uint32_t s)
-{
-    (void)s;
-}
-
-static void ail_end_sequence(uint32_t seq)
-{
-    (void)seq;
-}
+static int ail_active_sample_count(uint32_t dig) { return snd_active_sample_count(dig); }
+static void ail_end_sample(uint32_t s) { snd_end_sample(s); }
+static void ail_set_sample_loop_count(uint32_t s, int n) { snd_set_sample_loop_count(s, n); }
+static void ail_set_sample_volume(uint32_t s, int v) { snd_set_sample_volume(s, v); }
+static void ail_start_sample(uint32_t s) { snd_start_sample(s); }
+static void ail_end_sequence(uint32_t seq) { snd_end_sequence(seq); }
 
 /* ---- Runtime stand-ins ----------------------------------------------------------------------------------------- */
 

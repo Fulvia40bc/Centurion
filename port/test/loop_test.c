@@ -29,7 +29,8 @@
    Prints each failure, the counts per part, and exits 0 when all pass.
 
    Build: clang -std=c11 -DLOOP_TEST port/test/loop_test.c port/src/loop.c port/src/saveload.c port/src/state.c
-          port/src/le_image.c -Iport/src -o loop_test.exe   (every other routine loop.c calls is a stub below) */
+          port/src/le_image.c port/src/snd.c -Iport/src -o loop_test.exe   (every other routine loop.c calls is a stub
+          below; snd.c without a backend gives the old no-op AIL results) */
 
 #include <setjmp.h>
 #include <stdarg.h>
@@ -254,6 +255,8 @@ _Noreturn void port_longjmp(uint32_t jmpbuf)
     g_jrc = 4;
     longjmp(g_jb, 1);
 }
+
+void port_checkpoint(uint32_t addr) { (void)addr; }   /* main.c's comparison point (fe16d67): nothing to compare here */
 
 _Noreturn void f44CAC(void)
 {

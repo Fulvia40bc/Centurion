@@ -15,12 +15,14 @@
 #include <time.h>
 #include "game.h"
 #include "fg.h"
+#include "snd.h"
 
 /* ---- Heap blocks of this file (port) ---------------------------------------------------------------------------
    [0xF626C] holds the loaded XMI file's heap block in the original (0x7B932, 0x7B954). A 64-bit pointer does not fit
    there, so the port keeps the block here and stores a handle in the field: 0 = none, 1 = s_heap_F626C (the only
    block this field ever holds at a time: the old one is freed before a new one is stored, 0x7B8FE). */
 static uint8_t *s_heap_F626C;
+static size_t s_heap_F626C_len;                       /* its length, for the port's sound (snd_init_sequence) */
 
 static uint32_t heap_F626C_put(uint8_t *block)
 {
@@ -314,9 +316,10 @@ static void f7CCFD(uint32_t handle, long size)
 }
 
 /* 0x7B854: play music: the XMI file name (a data string) and the sequence number in it. Arguments: eax name, edx seq.
-   The port plays its own sound (OVERVIEW §3, §7.2): the AIL calls are left out (each named where it was) and only
-   what the original writes to its data is translated: the name 0xF61D8, the sequence 0xF6258, the block [0xF626C]
-   and AIL's file error [0xCAC68]. */
+   The AIL calls go to snd.c (the port's sound, 22 Nov); what the original writes to its data is translated as before:
+   the name 0xF61D8, the sequence 0xF6258, the block [0xF626C] and AIL's file error [0xCAC68]. The image given to
+   AIL_init_sequence is the game's block, unless the sound engine plays a set of its own (snd_music_image: the GM
+   engine plays the g file of the same song, read by snd_ail.c apart from the data object). */
 void f7B854(const char *name, int seq)
 {
     long size;                                        /* [ebp-0x14] */
@@ -325,11 +328,11 @@ void f7B854(const char *name, int seq)
     if (D8(0xF625Du) == 0)                            /* 0x7B86E: music off */
         return;
     if (strcmp(name, DSTR(0xF61D8u)) == 0 && S8(0xF6258u) == seq) {   /* 0x7B883; 0x7B88C dword [0xF6255] sar 24 */
-        /* 0x7B899..0x7B8C0: AIL_sequence_status([0xF6284]) != 4 -> AIL_start_sequence([0xF6284]): the same song
-           again, restarted unless it is playing. Port: its own sound (no data written here). */
+        if (snd_sequence_status(D32(0xF6284u)) != 4)  /* 0x7B899..0x7B8B1: the same song again */
+            snd_start_sequence(D32(0xF6284u));        /* 0x7B8C0: restarted unless it is playing */
         return;
     }
-    /* 0x7B8CC: AIL_end_sequence([0xF6284]): left out (port sound) */
+    snd_end_sequence(D32(0xF6284u));                  /* 0x7B8CC */
     if (strcmp(name, DSTR(0xF61D8u)) != 0) {          /* 0x7B8DC; 0x7B8E3 je 0x7B9B6 */
         size = f7D2E8(DSTR(0xF61D8u));                /* 0x7B8EE: the old name's file size (AIL's helper opens a
                                                          file of that name; it is in the catalog, so -1, G) */
@@ -338,6 +341,7 @@ void f7B854(const char *name, int seq)
         if (size != -2) {                             /* 0x7B91E: in the catalog */
             block = wc_malloc(size);                  /* 0x7B926 (size 0 or -1, a DOS error, makes the malloc fail) */
             setD32(0xF626Cu, heap_F626C_put(block));  /* 0x7B932 */
+            s_heap_F626C_len = size > 0 ? (size_t)size : 0;
             if (block != NULL)   /* port guard: the original would hand cat_load a null buffer here */
                 cat_load(name, block, S32(0xF40E4u)); /* 0x7B93C; the result is not checked */
         } else {                                      /* 0x7B946: not in the catalog: a file of that name */
@@ -351,15 +355,29 @@ void f7B854(const char *name, int seq)
         }
         strcpy((char *)DP(0xF61D8u), name);           /* 0x7B978..0x7B997 inline copy */
         size = f7D2E8(name);                          /* 0x7B99E */
+        if (size > 0)                                 /* a loose file (in the catalog this is -1) */
+            s_heap_F626C_len = (size_t)size;
         f7CCFD(D32(0xF626Cu), size);                  /* 0x7B9AE: lock the block */
     }
-    /* 0x7B9B6..0x7B9EE: AIL_init_sequence([0xF6284], [0xF626C], seq); on a result <= 0 the original writes
-       sprintf(0xF5500, "%s-%s\n" (0xB9745), AIL's error text 0x11AF7C, name) and quits (f44CAC). Port: its own
-       sound has no such step, so it always goes on (G). */
+    {   /* 0x7B9B6..0x7B9EE: AIL_init_sequence([0xF6284], [0xF626C], seq); on a result <= 0, AIL's error text (its
+           buffer 0x11AF7C) and the name go to 0xF5500 ("%s-%s\n", 0xB9745) and the game quits (f44CAC) */
+        size_t len = 0;
+        const uint8_t *img = snd_music_image(name, &len);
+        if (img == NULL) {
+            img = heap_F626C_get(D32(0xF626Cu));
+            len = img != NULL ? s_heap_F626C_len : 0;
+        }
+        if (snd_init_sequence(D32(0xF6284u), img, len, seq) <= 0) {
+            snprintf((char *)DP(0x11AF7Cu), 0x100, "%s", snd_last_error());   /* G: AIL's error buffer, 256 bytes */
+            snprintf((char *)DP(0xF5500u), 0x1F4, DSTR(0xB9745u), DSTR(0x11AF7Cu), name);
+            f44CAC();
+        }
+    }
     setD8(0xF6258u, (uint8_t)seq);                    /* 0x7B9F6 */
-    /* 0x7B9FB..0x7BA47: AIL_set_sequence_volume([0xF6284], (word [0xF097E] & 0x7F) * 127 / 9, 0),
-       AIL_start_sequence, AIL_set_sequence_loop_count(.., 0) (forever): port sound (not wired here yet, G).
-       0x7BA54: the debug log "Music File Loaded" (0x78B0C, a no-op). */
+    snd_set_sequence_volume(D32(0xF6284u), (int)(D16(0xF097Eu) & 0x7F) * 127 / 9, 0);   /* 0x7B9FB..0x7BA27 */
+    snd_start_sequence(D32(0xF6284u));                /* 0x7BA36 */
+    snd_set_sequence_loop_count(D32(0xF6284u), 0);    /* 0x7BA47: forever */
+    /* 0x7BA54: the debug log "Music File Loaded" (0x78B0C, a no-op) */
 }
 
 /* ---- main's helpers on the way into the game ------------------------------------------------------------------ */
