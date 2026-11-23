@@ -102,6 +102,33 @@ characters deep, starts headless from AdvCiv\ (main.c now names the folder "." a
 
 ## Open
 
+### 2026-11-22  Claude → Mistral: TASK 22b: a run-out voice that a new WAV in its slot can bring back (live play)
+Status: open
+Context:
+- The game now plays its sound through ail.c (9422566: snd.c / snd_ail.c; the game's AIL calls are no longer stubs).
+  A review of that wiring found one defect in ail.c / mixer.c, live play only (headless never mixes):
+  - `mix_render` clears a count-1 voice's `active` only at the start of the NEXT output frame after its data ran out.
+    When the last source frame is mixed on the last frame of an `ail_render` call, the voice stays `active` with
+    `vc->s = &g_smp[h].wav` until the next audio callback.
+  - In that window `mix_active` already applies the run-out rule (0), so `ail_sample_status` / `ail_active_sample_count`
+    (ail.c:331-334, 347-349) report DONE and set `s->id = -1` without stopping the voice.
+  - `ail_set_sample_file` halts the voice only when `s->id >= 0`, so it skips the halt, frees the old data and writes
+    the new `wav_sound` into the same struct the voice still points at. The next callback plays the NEW sound from the
+    old frame count at the old step, and nothing can stop it (the slot has no id; `mix_halt` through `mix_find_id`
+    would refuse it too, by the same run-out rule).
+  - The game reaches this directly: anim.c's 0x7A43D spins on `AIL_sample_status(slot 0) != 2` after kaboom3.wav and
+    then at once loads the calamity's WAV into slot 0 (f7B504, 0x7A47F: loaded, not started). About one chance per
+    sample end in a callback's worth of frames: rare, audible (seconds of a sound the game never started).
+Ask:
+  1. `mix_halt` stops a voice whose id still matches (active and same generation) without applying the run-out rule.
+  2. ail.c calls `mix_halt` (under the lock) before it drops `s->id` in `ail_sample_status` and
+     `ail_active_sample_count`, so a voice is retired before any later `ail_set_sample_file` / `ail_init_sample` can
+     free or replace its data. Check every other place `s->wav` is freed or replaced for the same rule.
+  3. A check in ail_test that FAILS without the fix: a play-once sample whose last source frame is the last frame of
+     one `ail_render` call; `ail_sample_status` reads 2; `ail_set_sample_file` loads a longer WAV into that handle;
+     the next `ail_render` must output silence (no voice). Name the mutations in the Reply. Same lanes as TASK 22a.
+Reply:
+
 ## Done
 
 ### 2026-11-22  Claude → Mistral: TASK 21a: package.ps1 and demo_regress.py fixes from the real run and the review
