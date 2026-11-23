@@ -6,8 +6,8 @@ original read memory it never wrote (which cannot be reproduced) or could crash 
 the same sane thing either way. Spelling and wording slips in the messages are fixed the same way, per Erik's ruling of
 19 November (`docs/TEXT_SWEEP.md`); `--original` keeps the original text.
 
-The table has 112 rows: **85** fixes active by default (`--original` brings the original behaviour back),
-**16** fixed in both modes, and **11** text fixes. They come from the notes in the port's source
+The table has 113 rows: **85** fixes active by default (`--original` brings the original behaviour back),
+**16** fixed in both modes, and **12** text fixes. They come from the notes in the port's source
 (`tools/verify/fixes.py list`).
 
 "(probably)" in a row means the effect on the game is inferred rather than seen in the code; the reading of the
@@ -145,6 +145,7 @@ also by inference.
 | When a computer with fewer than 4 ships decided which ships to keep, it read leftover memory for the ships it did not have (probably). | Treats the missing ships as 0 (both modes: the leftover values cannot be reproduced). | Same as default. | `aiship.c 1 0x61859` |
 | Two loops in a computer's choice of ships to build could run forever (never happens). | The loop stops (both modes; no change in play). | Same as default. | `aiship.c 2 0x63e33` |
 | When a computer short of stock placed its new tokens, a sharing-out loop could run forever with nothing left to share (never happens). | A pass that shares out nothing stops (both modes; no change in play). | Same as default. | `aiship.c 3 0x68637` |
+| Two messages about computers: "%s removes a city in %s" (missing period, a tax revolt's cities) and "%s, choosing number units to transfer from stock to treasury." (missing word, after plunder). | "...in %s." as its twin "annexes a city in %s." has; "choosing number of units". | Keeps the original text. | `aiship.c @b8a1c 0xb8a1c` |
 | When a computer answered trade offers and the list held more than 55 entries, its bookkeeping overwrote its own list of offer pairs, and above 90 it could crash the game (probably). | Uses a list big enough for every entry. | Repeats the overwriting up to 90 entries; above 90 (a crash in 1995) it uses the big list too. | `aitrade.c 4 0x6a537` |
 | When a computer chose which card to name in a trade offer and had tried none, it could use a card number from leftover memory (probably never happens). | Uses 0 (both modes: the leftover value cannot be reproduced). | Same as default. | `aitrade.c 1 0x697ea` |
 | The computer's trade tables could read rows that were never filled in (nations not in play, or a card number above 18), i.e. leftover memory (probably never happens by default). | Those rows read 0 (both modes). | Same as default. | `aitrade.c 3 0x6ad70` |

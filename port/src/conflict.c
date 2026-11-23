@@ -71,8 +71,8 @@
        the groups takes one token from every member that still has one (D).
    Text (Erik's ruling of 19 Nov, obvious errors only; fixed unless g_original):
      - "%s,you have no stock to pillage with." (0xB5CDE) -> "%s, you have no stock to pillage with." (missing space).
-   Noted (not changed): "%s, choosing number units to transfer from stock to treasury." (0xB5D16, printed by
-     aiship.c's f5BF30, M7) lacks "of"; a missing word is not on the ruling's list: for Erik.
+   Noted: "%s, choosing number units to transfer from stock to treasury." (0xB5D16) lacks "of"; it is printed by
+     aiship.c's f5BF30 (M7), which fixes it (Erik, 22 Nov).
    Easter eggs / oddities: the empty "no conflicts" message 0xB5C52 (a 100 ms home view of the first player, M6_PLAN
    egg 15); the plunder can take a calamity card (it moves with the owner as its giver, f75D84); the losses box has two
    hidden exits -0x50 / -0x51 that only the Civil War's faction buttons use (0x2D3E0's dialog 0xC0214). */

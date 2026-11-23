@@ -130,10 +130,11 @@
        n - 1 (G: record n meant); for n = 1 that is record 0's byte 0xF1528, read through the data object. The
        transfer is then the whole amount (value >= 2) or the ship count clamped to 0..amount.
      - f66B54 does not check f20C70's result: 0 would give t = -1 (G: unreachable, the victim has at least take cities).
-   Texts (Erik's ruling of 19 Nov: obvious errors only; none changed here): "%s removes a city in %s" (0xB8A1C) has no
-   final period while its twin "%s annexes a city in %s." has one, and "%s, choosing number units to transfer from
-   stock to treasury." (0xB5D16) lacks "of" (TEXT_SWEEP.md); a missing period / word is not on the ruling's list
-   (as cal2.c and conflict.c decided): for Erik.
+   Text (Erik's ruling of 22 Nov: fix both; fixed unless g_original):
+     - "%s removes a city in %s" (0xB8A1C) -> "%s removes a city in %s." (missing period: its twin "%s annexes a city in
+       %s." has one).
+     - "%s, choosing number units to transfer from stock to treasury." (0xB5D16) -> "choosing number of units"
+       (missing word; TEXT_SWEEP.md).
    Easter eggs / developer leftovers (M6_PLAN egg 12, OVERVIEW §6; none new): the counters shown to the player, "%s
    considers building ships. (%d,?,?)" (two copies of the string, 0xB6358 / 0xB637E) counting the sites down, then
    "(0,%d,%d)" with the pair and triple estimates (for 19+ sites the pair count is a string pointer, about 746,548,
@@ -1001,7 +1002,10 @@ void f66C2C(int n, int k)
             f78A20(500);                                                /* 0x66D00 */
             f78F04(t1 - 1, n);                                          /* 0x66D0C */
             k--;                                                        /* 0x66D14 */
-            snprintf(buf, sizeof buf, DSTR(0xB8A1Cu), NAME(n), TNAME4(t1));   /* 0x66D39 "%s removes a city in %s" */
+            if (g_original)   /* BUG(1995) (text): the missing period (0xB8A1C) */
+                snprintf(buf, sizeof buf, DSTR(0xB8A1Cu), NAME(n), TNAME4(t1));   /* 0x66D39 "%s removes a city in %s" */
+            else
+                snprintf(buf, sizeof buf, "%s removes a city in %s.", NAME(n), TNAME4(t1));
             f79270(2500, n, t1 - 1, buf, 0);                            /* 0x66D55 */
         }
     }
@@ -1216,8 +1220,11 @@ void f5BF30(int n, int amount, int show)
     snprintf(buf, sizeof buf, "%d", (int)x);                            /* 0x5C094 itoa(x, buf, 10) */
     f3A0B0(0x136, 0x185, 0x13, buf);                                    /* 0x5C0A8 */
     fg_vbclose();                                                       /* 0x5C0AD */
-    snprintf(buf, sizeof buf, DSTR(0xB5D16u), NAME(nb));                /* 0x5C0C7 "%s, choosing number units to
+    if (g_original)   /* BUG(1995) (text): the missing "of" (0xB5D16) */
+        snprintf(buf, sizeof buf, DSTR(0xB5D16u), NAME(nb));            /* 0x5C0C7 "%s, choosing number units to
                                                                            transfer from stock to treasury." */
+    else
+        snprintf(buf, sizeof buf, "%s, choosing number of units to transfer from stock to treasury.", NAME(nb));
     f3A9F4(buf);                                                        /* 0x5C0D2 */
     f459E4(nb);                                                         /* 0x5C0DB */
     f3B05C(0xF596Cu);                                                   /* 0x5C0E5 */

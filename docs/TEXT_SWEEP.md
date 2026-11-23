@@ -23,6 +23,7 @@ One line per slip: address — the text — proposed fix — why.
 - 0x000B5AE4 — "ship maint./const.for the other players are not shown" — "maint./const. for" — missing space after the period
 - 0x000B5CDE — "%s,you have no stock to pillage with." — "%s, you ..." — missing space after the comma (the only game string with this defect)
 - 0x000B5D16 — "%s, choosing number units to transfer from stock to treasury." — "choosing number of units" — missing word
+- 0x000B8A1C — "%s removes a city in %s" — "%s removes a city in %s." — missing period; its twin "%s annexes a city in %s." has one (found in M7, aiship.c; fixed 22 Nov with 0x000B5D16 on Erik's word)
 - 0x000B76DB — "20 point Science credit" — "Sciences credit" — contradicts the category "Sciences." at 0x000B76BA and the same line at 0x000B77BA / 0x000B78B6 / 0x000B7996
 - 0x000B81C9 — "reduces the effects of Iconoclasm and Heresey." — "Heresy" — spelling; contradicts "Iconoclasm & Heresy" at 0x000B65AD / 0x000B437F / 0x000B992A
 - 0x000B854B — "provided the viction does not hold Monotheism or Theology." — "victim" — spelling
