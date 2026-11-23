@@ -434,7 +434,7 @@ static void test_xmiseq(void)
     check(xmi_parse(xmi, xl, &song) == 0, "parse the CC7 song");
     memset(&r, 0, sizeof r);
     s = xmi_seq_new(&song, rec_midi, NULL, &r);
-    xmi_seq_advance(s, 0);
+    xmi_seq_advance(s, 1);                            /* the delta-0 event is at tick 1 (a 0 delta costs one interval) */
     check(rec_find_at(&r, 0, 0xB0, 7, 100), "CC7 100 goes out raw at the default volume");
     xmi_seq_set_volume(s, 64);
     check(rec_find_at(&r, r.n - 1, 0xB0, 7, (100 * 64) / 127), "volume change resends the scaled CC7 (shadow raw)");
@@ -459,7 +459,7 @@ static void test_xmiseq(void)
         xmi_seq_set_volume(s, 64);
         check(r.n == n_before, "rewind clears the shadows: no CC7 resend");
         xmi_seq_resume(s);                            /* rewind leaves the sequence paused */
-        xmi_seq_advance(s, 0);
+        xmi_seq_advance(s, 1);
         check(rec_find_at(&r, r.n - 1, 0xB0, 7, (100 * 64) / 127), "after rewind the song's CC7 100 replays, scaled by the volume");
     }
     xmi_seq_free(s);
@@ -477,7 +477,7 @@ static void test_xmiseq(void)
     check(xmi_parse(xmi, xl, &song) == 0, "parse the pause song");
     memset(&r, 0, sizeof r);
     s = xmi_seq_new(&song, rec_midi, NULL, &r);
-    xmi_seq_advance(s, 1);
+    xmi_seq_advance(s, 3);                            /* the three delta-0 events are at ticks 1, 2, 3 */
     check(rec_count(&r, 0x91, 64) == 1, "the note is on");
     xmi_seq_pause(s);
     check(rec_count3(&r, 0x81, 64, 0) == 1, "pause sends note-off for the sounding note");
@@ -487,7 +487,7 @@ static void test_xmiseq(void)
     {
         int n_at_pause = r.n;
 
-        xmi_seq_advance(s, 10);                     /* past the EOT at tick 10: still nothing while paused */
+        xmi_seq_advance(s, 10);                     /* past the EOT at tick 13: still nothing while paused */
         check(r.n == n_at_pause, "advance emits nothing while paused");
         check(xmi_seq_done(s) == 0, "no event is processed while paused (the EOT is not reached)");
         xmi_seq_resume(s);
@@ -542,7 +542,7 @@ static void test_xmiseq(void)
     check(xmi_parse(xmi, xl, &song) == 0, "parse the stop song");
     memset(&r, 0, sizeof r);
     s = xmi_seq_new(&song, rec_midi, NULL, &r);
-    xmi_seq_advance(s, 1);
+    xmi_seq_advance(s, 2);                            /* CC64 at tick 1, the note at tick 2 */
     check(rec_count(&r, 0x90, 60) == 1, "the note sounds");
     xmi_seq_stop(s);
     check(rec_count3(&r, 0x80, 60, 0) == 1, "stop sends note-off for the sounding note");
@@ -551,7 +551,7 @@ static void test_xmiseq(void)
     /* ending at the EOT (count 1) stops the notes and releases the pedal too */
     memset(&r, 0, sizeof r);
     s = xmi_seq_new(&song, rec_midi, NULL, &r);
-    xmi_seq_advance(s, 10);
+    xmi_seq_advance(s, 12);                           /* the EOT is at tick 12 */
     check(xmi_seq_done(s) == 1, "EOT with count 1: done");
     check(rec_count3(&r, 0x80, 60, 0) == 1, "ending at the EOT stops the sounding note");
     check(rec_count3(&r, 0xB0, 64, 0) == 1, "ending at the EOT sends CC64 0 where sustain was down");
@@ -559,7 +559,7 @@ static void test_xmiseq(void)
     xmi_free(&song);
     free(xmi);
 
-    /* the FF 2F rewind counts the lead-in delay again (shift = t, not t - ev[0].tick) */
+    /* the FF 2F rewind restarts at the NEXT interval: shift = t + 1, the lead-in delay counts again */
     memset(&e, 0, sizeof e);
     ev_cc(&e, 3, 0, 7, 100);                       /* first event at tick 3 */
     ev_eot(&e, 10);                                /* EOT at tick 13 */
@@ -571,8 +571,10 @@ static void test_xmiseq(void)
     xmi_seq_set_loops(s, 0);
     xmi_seq_advance(s, 14);
     check(xmi_seq_loops(s) == 1, "the EOT rewound once");
-    check(rec_count3(&r, 0xB0, 7, 100) == 1, "shift = t: the lead-in event replays at 13+3=16, not yet at 14");
-    xmi_seq_advance(s, 3);
+    check(rec_count3(&r, 0xB0, 7, 100) == 1, "shift = t+1: the lead-in event replays at 14+3=17, not yet at 14");
+    xmi_seq_advance(s, 2);                        /* now 16 */
+    check(rec_count3(&r, 0xB0, 7, 100) == 1, "still not at 16 (the host restarts at the next interval)");
+    xmi_seq_advance(s, 1);                        /* now 17 */
     check(rec_count3(&r, 0xB0, 7, 100) == 2, "the lead-in delay counts again after the rewind");
     xmi_seq_free(s);
     xmi_free(&song);
@@ -589,12 +591,12 @@ static void test_xmiseq(void)
     check(xmi_parse(xmi, xl, &song) == 0, "parse the rewind song");
     memset(&r, 0, sizeof r);
     s = xmi_seq_new(&song, rec_midi, NULL, &r);
-    xmi_seq_advance(s, 2);
+    xmi_seq_advance(s, 3);                            /* FOR at 1, CC7 at 2, the note at 3 */
     check(rec_count(&r, 0x90, 60) == 1, "the note sounds inside the FOR loop");
     xmi_seq_rewind(s);
     check(rec_count3(&r, 0x80, 60, 0) == 1, "rewind sends note-off for the sounding note");
     xmi_seq_resume(s);
-    xmi_seq_advance(s, 0);
+    xmi_seq_advance(s, 3);
     check(rec_count(&r, 0x90, 60) == 2, "after rewind the FOR and the note replay");
     check(rec_count3(&r, 0xB0, 7, 90) == 2, "after rewind the song resends its CC7 (shadows were cleared)");
     xmi_seq_free(s);
@@ -611,8 +613,10 @@ static void test_xmiseq(void)
     memset(&r, 0, sizeof r);
     s = xmi_seq_new(&song, rec_midi, NULL, &r);
     xmi_seq_set_loops(s, 0);
-    xmi_seq_advance(s, 10);
+    xmi_seq_advance(s, 11);                           /* CC7 at 1, the EOT at 11 */
     check(xmi_seq_loops(s) == 1, "count 0 rewound at the EOT");
+    check(rec_count3(&r, 0xB0, 7, 100) == 1, "the rewind is shift t+1: the CC7 replays at 13, not yet at 11");
+    xmi_seq_advance(s, 2);                            /* now 13 */
     check(rec_count3(&r, 0xB0, 7, 100) == 2, "the CC7 replayed at the rewind");
     xmi_seq_set_volume(s, 64);
     check(rec_find_at(&r, r.n - 1, 0xB0, 7, (100 * 64) / 127), "the count-0 rewind kept the shadow: volume change resends");
@@ -638,12 +642,12 @@ static void test_xmiseq(void)
 
         xmi_seq_advance(s, 5);                       /* paused: nothing, time does not advance */
         check(r.n == n_at_pause, "nothing is emitted while paused");
-        check(rec_count3(&r, 0xB0, 11, 42) == 0, "the tick-8 event has not fired while paused");
+        check(rec_count3(&r, 0xB0, 11, 42) == 0, "the tick-9 event has not fired while paused");
         xmi_seq_resume(s);
         xmi_seq_advance(s, 2);                       /* now 7 */
-        check(rec_count3(&r, 0xB0, 11, 42) == 0, "the remaining delay is kept (now 7 of 8)");
-        xmi_seq_advance(s, 1);                       /* now 8 */
-        check(rec_count3(&r, 0xB0, 11, 42) == 1, "the event fires at tick 8, after the resume");
+        check(rec_count3(&r, 0xB0, 11, 42) == 0, "the remaining delay is kept (now 7 of 9)");
+        xmi_seq_advance(s, 2);                       /* now 9 */
+        check(rec_count3(&r, 0xB0, 11, 42) == 1, "the event fires at tick 9, after the resume");
     }
     xmi_seq_free(s);
     xmi_free(&song);
@@ -795,15 +799,15 @@ static void test_musplay(void)
 
         mus_start(p);
         check(mus_status(p) == MUS_PLAYING, "start: playing");
-        check(r.n == n0 + 16 * 15 + 1, "start resends the set-up, then the song's tick-0 note-on");
+        check(r.n == n0 + 16 * 15, "start resends the set-up (the delta-0 events fire at the first 1/120 s, as the host's countdown does)");
         mus_render(p, out, 919);                      /* two full ticks (367+368) + a 184-frame piece of tick 2 */
         check(r.renders == 3 && r.render_frames == 919, "mus_render renders per 1/120 s interval");
-        check(rec_count(&r, 0x90, 60) == 1, "the note-on reached the backend");
+        check(rec_count(&r, 0x90, 60) == 1, "the note-on (tick 1) reached the backend");
         check(rec_count3(&r, 0xB0, 11, 42) == 0, "a partial 1/120 s piece does not advance the sequencer");
-        check(mus_status(p) == MUS_PLAYING, "still playing before the EOT at tick 5");
-        mus_render(p, out, 184);                      /* tick 2 complete: three full ticks now */
-        check(rec_count3(&r, 0xB0, 11, 42) == 1, "the tick-3 event goes out when its 1/120 s passed");
-        mus_render(p, out, 4410);                     /* past the EOT at tick 5 */
+        check(mus_status(p) == MUS_PLAYING, "still playing before the EOT at tick 6");
+        mus_render(p, out, 735);                      /* tick 2 and tick 3 complete: four full ticks now */
+        check(rec_count3(&r, 0xB0, 11, 42) == 1, "the tick-4 event goes out when its 1/120 s passed");
+        mus_render(p, out, 4410);                     /* past the EOT at tick 6 */
         check(mus_status(p) == MUS_DONE, "the song ended through its loop count: status done");
         mus_pause(p);
         check(mus_status(p) == MUS_DONE, "pause after done does nothing");

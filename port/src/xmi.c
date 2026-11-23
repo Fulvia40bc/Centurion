@@ -83,13 +83,14 @@ static int read_vlq(const uint8_t *data, size_t end, size_t *pos, uint32_t *out)
 {
     uint32_t v = 0;
     uint8_t b;
+    int n = 4;                                /* the host's VLQs are at most 4 bytes (0x99110) */
 
     do {
         if (*pos >= end)
             return -2;
         b = data[(*pos)++];
         v = (v << 7) | (uint32_t)(b & 0x7Fu);
-    } while (b & 0x80u);
+    } while ((b & 0x80u) && --n > 0);
     *out = v;
     return 0;
 }
@@ -102,7 +103,9 @@ static int parse_evnt(const uint8_t *data, size_t start, size_t end, ev_list *l)
     while (pos < end) {
         uint8_t status = data[pos++];
         if (status < 0x80u) {
-            tick += status;
+            /* the host's countdown (0x9A0B5) waits max(delay, 1) intervals for a delay byte: a delta of 0
+               still costs one 120 Hz interval, so zero-delta events are spread over consecutive ticks */
+            tick += status != 0 ? status : 1;
             continue;
         }
         if (status < 0xF0u) {
