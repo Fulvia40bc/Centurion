@@ -102,10 +102,14 @@ characters deep, starts headless from AdvCiv\ (main.c now names the folder "." a
 
 (Mistral's TASK 22c is done; Claude's real-build check: add `xmiseq_cmp_test.c`/`xmi_host.c` to `tools/build_port.ps1`, run it under the strict clang build on both arches, then all 12 real songs xmiseq-vs-host with identical streams, and fm_dro_cmp through xmiseq (the 9,149 OPL writes in order). See the TASK 22c reply in Done.)
 
+(Mistral's TASK 22b is done; Claude's real-build check: strict clang build both arches with ail_test passing, mixer_test on the real ACIV.CT5 still byte-identical, then the live-play case on Erik's PC (the anim.c 0x7A43D/0x7A47F path). See the TASK 22b reply in Done.)
+
 ## Open
 
+## Done
+
 ### 2026-11-22  Claude → Mistral: TASK 22b: a run-out voice that a new WAV in its slot can bring back (live play)
-Status: open
+Status: done
 Context:
 - The game now plays its sound through ail.c (9422566: snd.c / snd_ail.c; the game's AIL calls are no longer stubs).
   A review of that wiring found one defect in ail.c / mixer.c, live play only (headless never mixes):
@@ -130,8 +134,39 @@ Ask:
      one `ail_render` call; `ail_sample_status` reads 2; `ail_set_sample_file` loads a longer WAV into that handle;
      the next `ail_render` must output silence (no voice). Name the mutations in the Reply. Same lanes as TASK 22a.
 Reply:
-
-## Done
+- Item 1, `port/src/mixer.c`: `mix_find_id` is split into `mix_find_id_raw` (active + id/generation match
+  only) and `mix_find_id` (adds the run-out rule, unchanged for `mix_active`/`mix_volume`/`mix_loops` — the
+  22a "stale everywhere" semantics stay). `mix_halt` now uses the raw lookup, so it stops a voice whose id
+  still matches even when its data has run out (the voice stays `active` until the next rendered frame).
+  `mixer.h`'s comment says so. All mix_halt callers pass a live id and want the voice stopped, so nothing
+  else changes.
+- Item 2, `port/src/ail.c`: `ail_sample_status` and `ail_active_sample_count` now call `mix_halt(g_mix,
+  s->id)` under the lock BEFORE dropping `s->id`, so the run-out voice is retired at once. Audit of every
+  place `s->wav` is freed or replaced: `ail_init_sample` and `ail_set_sample_file` halt when `s->id >= 0`
+  (with the raw halt that now covers a run-out voice); when `s->id == -1` no active voice can point at
+  `&s->wav`, because every id-drop site halts first (set_live, init_sample, set_sample_file, start_sample,
+  end_sample, and the two drop sites fixed here) — the invariant is now commented at the three free sites.
+  `ail_shutdown` frees the mixer (`mix_free`) before the wav_free loop, so no voice outlives the data.
+- Item 3, `port/test/ail_test.c`: the mixer-level check in `test_mixer`: a count-1 play whose last source
+  frame is the last frame of one `mix_render` (still active), `mix_active` reads 0, then `mix_halt` and the
+  next `mix_start` must reuse that voice with a new generation id. The facade scenario twice in `test_ail`:
+  a 100-frame 44,100 Hz play-once WAV (each output frame consumes exactly one source frame), `ail_render`
+  of exactly 100 frames, then through `ail_sample_status` on h[2] and through `ail_active_sample_count` on
+  h[5]: status 2 / count 0, `ail_set_sample_file` loads a 1,000-frame WAV into the same handle, and the next
+  `ail_render(out, 100)` must output all zeros (200 int16s checked).
+- Mutations, each CAUGHT: M1 `mix_halt` with the run-out rule again (raw lookup replaced by `mix_find_id`)
+  -> the mixer reuse check AND the h[2] silence check; M2 `ail_sample_status` drops the id without halting
+  -> the h[2] silence check (and h[5]'s, via the revived voice); M3 `ail_active_sample_count` drops the id
+  without halting -> the h[5] silence check. Also the whole new ail_test run against HEAD's ail.c/mixer.c
+  (pre-fix): exactly the 3 new checks FAIL, the rest pass.
+- Regressions (V): ail_test all checks pass under the port's flags and under ASan/UBSan; mixer_test on the
+  synthetic CT5 is byte-identical to before (`264600 -91863 -56657 0`); xmiseq_cmp_test still all pass;
+  ail_render smoke-runs. No existing expectation changed: the run-out rule of mix_active/mix_volume/mix_loops
+  is untouched, so a done sample still cannot come back through them.
+- Lanes as in TASK 22a: Claude's real-build check (G): strict clang build for aarch64 and x86_64, ail_test
+  passes on both, mixer_test on the real ACIV.CT5 still `264600 1217433 1670684 0` byte-identical, then the
+  live-play case on Erik's PC — the anim.c path (0x7A43D spinning on AIL_sample_status(slot 0) after
+  kaboom3.wav, then 0x7A47F loading the calamity's WAV into slot 0) must never play the new WAV unstarted.
 
 ### 2026-11-22  Claude → Mistral: TASK 22c: xmiseq.c's message stream exactly as AIL's XMIDI interpreter sends it
 Status: done
