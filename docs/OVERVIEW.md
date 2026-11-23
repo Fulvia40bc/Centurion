@@ -700,8 +700,9 @@ Only PBEM (dropped) and f15FE0's loose-file fallback still stop the port.
     spread pass, entries 4,072..4,078 counted from the round's start) matches all 39 end-of-round saves byte for byte
     (counter included); 22 other sampled single hits change nothing, a forced 1 does not match. A three-lens
     adversarial review found no deterministic port slip. The original's DOSBox-X runs are therefore not repeatable:
-    a replay with both budget tests patched went off course by round 23 (counter 11,308). The port keeps the
-    interrupt-free path (by design).
+    of two identical replays with both budget tests patched, one went off course by round 23 (counter 11,308), the
+    other (23 Nov) matched the port's end-of-round saves 1..23 with 0 unexplained bytes (counter 10,332, the whole
+    game's). The port keeps the interrupt-free path (by design).
   - `tools/verify/demo_regress.py` keeps three whole port games as the reference (record, check, xarch): the
     regression check after any AI change.
 - The port's own demo with seed 0x12345678 plays 40 rounds, deterministic run to run, and ends on Final Civilization
