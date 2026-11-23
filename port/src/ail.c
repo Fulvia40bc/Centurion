@@ -98,6 +98,7 @@ void ail_shutdown(void)
     {
         int i;
 
+        /* the mixer is gone already (mix_free above), so no voice can point at the sample data any more */
         for (i = 1; i <= AIL_MAX_SAMPLES; i++)
             if (g_smp[i].has_data)
                 wav_free(&g_smp[i].wav);
@@ -196,9 +197,11 @@ void ail_init_sample(int32_t h)
         return;
     lock_on();
     if (s->id >= 0) {
-        mix_halt(g_mix, s->id);
+        mix_halt(g_mix, s->id);                   /* stops a run-out voice too (mix_halt's raw lookup) */
         s->id = -1;
     }
+    /* invariant: s->id == -1 means no active voice points at &s->wav (every id drop halts first), so the
+       data can be freed here safely */
     if (s->has_data) {                            /* AIL sets start, length and position to 0 */
         wav_free(&s->wav);
         s->has_data = 0;
@@ -223,11 +226,13 @@ int ail_set_sample_file(int32_t h, const uint8_t *img, size_t len)
         wav_sound w;
 
         if (wav_decode(img, len, &w) == 0) {
-            if (s->id >= 0) {                                     /* a playing sound is halted first */
+            if (s->id >= 0) {                                     /* a playing sound is halted first; a
+                                                                     run-out voice too (mix_halt's raw lookup) */
                 mix_halt(g_mix, s->id);
                 s->id = -1;
             }
-            /* the status does not change (AIL only sets the address, ailsem 5) */
+            /* the status does not change (AIL only sets the address, ailsem 5); with id == -1 no voice
+               points at &s->wav any more, so freeing the old data here is safe */
             if (s->has_data)
                 wav_free(&s->wav);
             if (w.samples != NULL && w.frames > 0) {
@@ -329,8 +334,11 @@ int ail_sample_status(int32_t h)
     lock_on();
     st = s->status;
     if (st == AIL_PLAYING && s->id >= 0 && !mix_active(g_mix, s->id)) {
-        s->id = -1;                                           /* the data ran out with count 1: done, and the
-                                                             id is dropped so nothing revives the voice */
+        /* the data ran out with count 1: retire the voice FIRST (mix_halt ignores the run-out rule), then
+           drop the id, so no later set_sample_file/init_sample can free or replace data a voice still
+           points at and bring a new sound back through it */
+        mix_halt(g_mix, s->id);
+        s->id = -1;
         st = s->status = AIL_DONE;
     }
     lock_off();
@@ -345,6 +353,7 @@ int ail_active_sample_count(void)
     for (i = 1; i <= AIL_MAX_SAMPLES; i++) {
         if (g_smp[i].used && g_smp[i].status == AIL_PLAYING) {
             if (g_smp[i].id >= 0 && !mix_active(g_mix, g_smp[i].id)) {
+                mix_halt(g_mix, g_smp[i].id);             /* retire the run-out voice before dropping the id */
                 g_smp[i].id = -1;
                 g_smp[i].status = AIL_DONE;                   /* not-live plays have no voice: they stay 4 */
             } else {

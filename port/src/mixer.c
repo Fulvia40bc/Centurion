@@ -120,7 +120,7 @@ static int mix_id_of(const mix_voice *vc, int vi)
     return id;
 }
 
-static mix_voice *mix_find_id(mixer *m, int id, int *vi_out)
+static mix_voice *mix_find_id_raw(mixer *m, int id, int *vi_out)
 {
     int vi;
     mix_voice *vc;
@@ -133,11 +133,18 @@ static mix_voice *mix_find_id(mixer *m, int id, int *vi_out)
     vc = &m->v[vi];
     if (!vc->active || mix_id_of(vc, vi) != id)
         return NULL;                        /* stale: ended, stopped, or the voice was reused */
-    if (vc->s != NULL && vc->s->samples != NULL &&
-        (uint32_t)(vc->p >> 32) >= vc->s->frames && vc->loops == 1)
-        return NULL;                        /* the run-out rule of mix_active: count 1 ended it */
     if (vi_out != NULL)
         *vi_out = vi;
+    return vc;
+}
+
+static mix_voice *mix_find_id(mixer *m, int id, int *vi_out)
+{
+    mix_voice *vc = mix_find_id_raw(m, id, vi_out);
+
+    if (vc != NULL && vc->s != NULL && vc->s->samples != NULL &&
+        (uint32_t)(vc->p >> 32) >= vc->s->frames && vc->loops == 1)
+        return NULL;                        /* the run-out rule of mix_active: count 1 ended it */
     return vc;
 }
 
@@ -194,7 +201,10 @@ int mix_active(const mixer *m, int id)
 
 void mix_halt(mixer *m, int id)
 {
-    mix_voice *vc = mix_find_id(m, id, NULL);
+    /* the run-out rule is NOT applied here: a count-1 voice whose data ran out stays active until the next
+       rendered frame, and halting it by id must stop it anyway (ail.c retires a run-out voice before it
+       frees or replaces the sample data the voice points at) */
+    mix_voice *vc = mix_find_id_raw(m, id, NULL);
 
     if (vc != NULL)
         vc->active = 0;

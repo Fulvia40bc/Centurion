@@ -336,6 +336,17 @@ static void test_mixer(void)
     check(mix_active(m, id) == 0, "a run-out count-1 play is stale: mix_loops/mix_volume do not revive it");
     mix_halt(m, id);
 
+    /* mix_halt does NOT apply the run-out rule: it stops a voice that ran out at the last frame of a render
+       (the voice is still active until the next frame), so the voice is reused by the next start */
+    id = mix_start(m, &w, 127, 1);
+    mix_render(m, out, 5);                        /* the last source frame is the last frame of the call */
+    check(mix_active(m, id) == 0, "loops 1: ran out at the last frame of the render");
+    mix_halt(m, id);
+    v = mix_start(m, &w, 127, 1);
+    check(v >= 0 && (v & 7) == (id & 7) && v != id,
+          "mix_halt stopped the run-out voice: the voice is reused with a new generation");
+    mix_halt(m, v);
+
     /* mix_play bumps the generation: an old mix_start id on the reused voice goes stale */
     id = mix_start(m, &w, 127, 0);
     mix_halt(m, id);
@@ -853,8 +864,8 @@ static void test_ail(void)
     int32_t sh;
     int i;
     uint8_t *wavbuf, *voc, *junk, *badwav;
-    uint8_t *wb5, *wb11, *wb8, *wb0;
-    size_t wl, vocl, jl, bl, xl, wl5, wl11, wl8, wl0;
+    uint8_t *wb5, *wb11, *wb8, *wb0, *wb100, *wb1000;
+    size_t wl, vocl, jl, bl, xl, wl5, wl11, wl8, wl0, wl100, wl1000;
     uint8_t *xmi2;
     uint8_t *evs[2];
     size_t els[2];
@@ -1049,6 +1060,58 @@ static void test_ail(void)
     ail_set_live(1);
     ail_end_sample(h[1]);
 
+    /* a run-out voice that a new WAV in its slot cannot bring back: the play-once sample's last source frame
+       is the last frame of one ail_render call, so the voice is still active when the status reads 2; the
+       status call must retire the voice before dropping the id, so the next set_sample_file cannot revive it */
+    wb100 = make_wav(44100, 1, 16, 100, 100, &wl100);    /* 100 frames at the output rate */
+    wb1000 = make_wav(44100, 1, 16, 1000, 100, &wl1000); /* a longer WAV for the same slot */
+    ail_set_live(1);
+    check(ail_set_sample_file(h[2], wb100, wl100) == 1, "load the 100-frame WAV");
+    ail_set_sample_loop_count(h[2], 1);
+    ail_set_sample_volume(h[2], 127);
+    ail_start_sample(h[2]);
+    check(ail_sample_status(h[2]) == AIL_PLAYING, "run-out case: playing");
+    memset(out, 0x55, sizeof out);
+    ail_render(out, 100);                            /* 100 output frames = the whole 100-frame sample */
+    check(ail_sample_status(h[2]) == AIL_DONE, "the last frame was the last of the call: status reads 2");
+    check(ail_active_sample_count() == 0, "run-out case: none active");
+    check(ail_set_sample_file(h[2], wb1000, wl1000) == 1, "the longer WAV loads into the slot");
+    memset(out, 0x55, sizeof out);
+    ail_render(out, 100);
+    {
+        int k, silent = 1;
+
+        for (k = 0; k < 200; k++)
+            if (out[k] != 0) {
+                silent = 0;
+                break;
+            }
+        check(silent, "the next render is silent: the run-out voice was retired before its data was replaced");
+    }
+
+    /* the same through ail_active_sample_count, the other place the id is dropped */
+    check(ail_set_sample_file(h[5], wb100, wl100) == 1, "h5: the 100-frame WAV");
+    ail_set_sample_loop_count(h[5], 1);
+    ail_set_sample_volume(h[5], 127);
+    ail_start_sample(h[5]);
+    check(ail_active_sample_count() == 1, "h5: one active");
+    memset(out, 0x55, sizeof out);
+    ail_render(out, 100);
+    check(ail_active_sample_count() == 0, "h5: the run-out voice is not counted");
+    check(ail_set_sample_file(h[5], wb1000, wl1000) == 1, "h5: the longer WAV loads");
+    memset(out, 0x55, sizeof out);
+    ail_render(out, 100);
+    {
+        int k, silent = 1;
+
+        for (k = 0; k < 200; k++)
+            if (out[k] != 0) {
+                silent = 0;
+                break;
+            }
+        check(silent, "h5: the next render is silent too (the count path retires the voice)");
+    }
+
     /* the sequence */
     sh = ail_allocate_sequence();
     check(sh == 1, "sequence handle 1");
@@ -1115,6 +1178,8 @@ static void test_ail(void)
     free(wb11);
     free(wb8);
     free(wb0);
+    free(wb100);
+    free(wb1000);
     free(xmi2);
 }
 
