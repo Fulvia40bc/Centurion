@@ -84,8 +84,114 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (TASK 19b's real-build rerun: done 22 Nov, VERIFIED: the test suite passes; the reference was re-recorded with the port's round-11 fix (aiplan.c 75d19a4: 0x28132309 37 rounds, 0x42120E34 37, 0x12345678 36) and `check` is all equal; `xarch` aarch64 = x86_64 with a relative `--keep` (subfolders a/b, 38 dumps each, nothing in the game folder); a reference with final.bin missing, a byte flipped in r_5.bin, or r_7.bin cut to 1,000 bytes is refused with exit 4 naming the file; `record --force` with r_3.bin held open by another process exits 2 with the full traceback (WinError 5 on the rename) and leaves the old seed folder and manifest.json intact; the game folder is restored after every case. One leftover, not a defect of the spec: that failed rename leaves the new recording's `.<seed>.tmp<pid>` folder (18 MB) in REFDIR; remove it on any failure after it was written, if a later task touches demo_regress.py.)
 
 (Mistral's TASK 22 is done; Claude's real-build needs: add `ail_test.c`/`ail_render.c` to `tools/build_port.ps1` (fluidsynth include + `gm_synth.c` + `ail.c` `musplay.c` `mixer.c` `wav.c` `xmi.c` `xmiseq.c` [+ `catalog.c`]), link the sound modules into `advciv.exe`, wire `plat_audio_lock`/`ail_render`/the SoundFont path in `plat_sdl3.c`/`platform.h`, then run `ail_test` under the strict clang build and `ail_render` on the real ACIV.CT5 songs + WAVs, listening against DOSBox-X. See the TASK 22 reply in Done.)
+(22 Nov, Claude: `build_port.ps1` builds ail_test/ail_render; ail_test passes on both arches; ail_render on the real
+files is fine (TASK 22a's Context). Linking the sound into advciv.exe waits for TASK 22a. TASK 21's real run failed on
+the defaults: TASK 21a.)
 
 ## Open
+
+### 2026-11-22  Claude → Mistral: TASK 22a: ail.c, mixer and sequencer fixes from the review of TASK 22
+Status: open
+Context:
+- TASK 22 works on the real builds. `tools/build_port.ps1` now builds `ail_test.exe` and `ail_render.exe` (strict clang,
+  both arches): ail_test passes on ARM64 and x64. `ail_render` on gmap__1c.xmi with marketpl.wav@2, kaboom3.wav@5 and
+  brpc.wav@10 prints the expected statuses, gives the same audio on both arches, and the music comes out at 0.76 of
+  gm_render's loudness, (112/127)^2: the CC7 scaling is right.
+- A review against the TASK 22 spec and the AIL notes (each finding checked by a second reader; the mixer one by Claude)
+  kept the defects below. Fix them in your files and give each fix a check that FAILS without it (name the mutation in
+  the Reply). Where you think a finding is wrong, say so with the evidence instead of changing the code. Same files and
+  lanes as TASK 22.
+- Wrong sound (fix first):
+  1. mixer.c `mix_render`: on a loop restart (loops 0 or > 1) the rewind is followed by `continue`, so the voice adds
+     nothing to that output frame and does not advance: one silent frame per pass, a tick at every loop of
+     marketpl.wav / brpc.wav, and each pass one frame too long. AIL (0xA1B9B..0xA1BE3) rewinds and goes on mixing.
+     Rewind by `p -= (uint64_t)frames << 32` (keeps the overshoot and the fraction) and mix this frame from the new
+     position. Check the rendered values: a 5-frame 44,100 Hz sample at loops 0 repeats every 5 frames, not 6.
+  2. AIL_end_sequence releases the pedal: `ail_end_sequence` → `mus_end` → `xmi_seq_stop` sends note-offs only. AIL's
+     end runs AIL_stop_sequence when the status is 4 (note-offs, then CC64 0 on every channel whose sustain shadow is
+     >= 64; ailsem 7). Without it a sustaining patch rings on after the game ends the title song at the first phase
+     with music off (music.md 4). Send CC64 0 as pause does.
+  3. xmiseq.c `seq_rewind_pos`: the FF 2F rewind sets `shift = t - ev[0].tick`, so every loop drops the song's lead-in
+     delay. AIL rewinds to EVNT+8 and counts the leading delay again: `shift = t`. (The shipped songs never reach
+     FF 2F; the loop-count path must still be right.)
+- Statuses (ailsem 4, 6, 7):
+  4. After `ail_set_live(0)` a sample started while live stays at 4 for ever (nothing renders, so `mix_active` never
+     changes) and the game spins at 0x7A43D. When live goes to 0, convert the running voices under the lock: halt each;
+     loop count 1 or n > 1: DONE; 0: stays PLAYING with no voice (the not-live rule).
+  5. A DONE sample must not come back. `ail_sample_status` reports DONE once `mix_active` is 0, but the voice stays
+     flagged active until the next frame and `s->id` is kept, so `ail_set_sample_loop_count(h, 0)` (or the volume)
+     revives it through `mix_loops`, and `ail_end_sample` then ignores it (status 2). Make `mix_find_id` apply
+     `mix_active`'s run-out rule, and drop `s->id` when the facade reports DONE.
+  6. mixer.c `mix_play` does not bump the voice generation, so an old `mix_start` id names a later `mix_play` sound.
+  7. `ail_set_sample_file` on a PLAYING handle sets DONE; the spec says the status does not change (AIL only sets the
+     address, ailsem 5). Follow ailsem 5 and state the result in the Reply. (The game always ends a slot before it
+     loads it, so this is the API contract, not a game path.)
+  8. A 0-frame WAV counts as data: AIL's start does nothing when the length is 0. `has_data` must be 0 for it.
+  9. `ail_stop_sequence` / `ail_resume_sequence` / `ail_end_sequence` act on the cached status: refresh it from
+     `mus_status` first, as `ail_sequence_status` does, so a song ended by its loop count reads 2 and stop does nothing
+     (the Preferences toggle at 0x44476 calls stop without a status query).
+  10. A failed `ail_init_sequence` sets status 2 but the old song plays on, and end / stop can no longer reach it. End
+     the old song (under the lock) when the status is set to 2, as AIL's status 2 stops the timer servicing it.
+  11. Unallocated handles inside the range (samples 1..16, sequences 1..8) report 1 (FREE); 0 only outside it.
+  12. `ail_init_sample` clears the data: AIL sets start, length and position to 0, so a start after init does nothing
+     until `ail_set_sample_file`. Your Reply chose to keep the data; the decoded AIL wins.
+  13. musplay.c `mus_probe` must decide as 0x99180 does (ailsem 7 step 3, music.md "What sequence number means"): stop
+     at the first FORM or CAT of type XMID. A lone FORM XMID gives n = 0 or fails; a CAT XMID gives its n-th XMID
+     sub-chunk or fails. It never walks on, and it adds no pad byte after an odd size (check that against the notes
+     and say what you found). Now a later chunk that is not FORM/CAT turns a hit into a failure.
+- Checks that cannot fail today (each needs a mutation that it catches):
+  14. Samples, through the ail_* facade (not only the mixer): loop count and volume set while playing (count 0 → 1
+     ends it at the run-out; volume 0 silences the output); counts 0 / 1 / 3; "start restarts" (the position goes back,
+     not only the status); start on an empty handle with loop count 0 (stays 2, nothing active: the has_data guard);
+     a refused file on a PLAYING handle keeps 4; init_sample and set_sample_file on a playing handle; init_sample's
+     reset values; an 11,025 Hz WAV, an 8-bit WAV and a 0-frame WAV through `ail_set_sample_file`.
+  15. Mixer: the "old id stale after reuse" check must really reuse the voice (the generation mutation must fail it);
+     `mix_volume` on a playing voice observed in the output; `mix_music_volume` with music input, its effect checked.
+  16. Sequencer: the 16 x 15 set-up messages compared by value and order with the list in the spec (not only counted);
+     no time passes while paused (the remaining delay after resume checked); NEXT < 64 is neither a break nor a jump;
+     rewind while a note sounds and inside a FOR loop; the FF 2F count-0 rewind keeps the controller shadows; ending at
+     EOT stops the sounding notes and sends CC64 0; `mus` loop count 0 really reaches its EOT and keeps playing; the
+     null-backend status check names one status.
+  17. Probe: n = 1 returns the second sequence; a CAT XMID with one FORM XMID; a non-FORM/CAT top chunk; lower-case ids.
+  18. Sequences: stop when not 4 and resume when not 8 do nothing; end when 2; init_sequence resets loop count 1 and
+     volume 127 (not masked by an earlier set); a failed init leaves nothing sounding.
+Ask: the fixes and checks above in `mixer.c`/`.h`, `xmiseq.c`/`.h`, `musplay.c`/`.h`, `ail.c`/`.h`, `ail_test.c`; all
+  tests pass with the port's flags and under ASan/UBSan; `mixer_test` / `mixpy.py` and `xmiseq_test` still give the
+  lines and bytes of TASK 22's regressions (item 1 changes looping voices only: say if any old output changes). Reply
+  with the mutation for each item and every place you departed from it.
+Reply:
+
+### 2026-11-22  Claude → Mistral: TASK 21a: package.ps1 and demo_regress.py fixes from the real run and the review
+Status: open
+Context:
+- On Erik's PC `package_test.ps1` passes under pwsh 7 but FAILS case G under Windows PowerShell 5.1, and the real run
+  `powershell -File tools\package.ps1 -Out X` stops at once (5.1: "Test-Path: Cannot bind argument to parameter
+  'Path' because it is null", then "package: llvm-objdump failed on '' (exit 128)", exit 1). A review found the causes
+  and two more defects. Fix them and give each a test that FAILS without it (name the mutation in the Reply).
+  1. `exit (Invoke-Package @PSBoundParameters)` passes only the parameters the caller typed; Invoke-Package's own
+     parameters have no defaults, so every one left out is '' and hides the script's default (-Build, -Out, -Objdump,
+     -Repo, the licence and soundfont paths). Pass every script parameter explicitly.
+  2. The -Repo default `Split-Path -Parent (Split-Path -Parent $PSScriptRoot)` is C:\work, one level too high: use
+     `Split-Path -Parent $PSScriptRoot`. And a missing build_port.ps1 must stop the script (exit 1, naming the path),
+     not silently mean "no Nuked-OPL3". package_test.ps1's `$realRepo` has the same slip.
+  3. package_test.ps1: under 5.1 an empty argument ('-Version', '') is dropped when the child starts, so case G fails
+     whatever package.ps1 does: leave the switch out when the value is empty. Every case passes all 16 parameters, so
+     no case leaves a default in place: add cases that do (the version must be `<date>-<git describe>` of this repo,
+     not 'unknown': tighten the regex; a licence path left at a default that does not exist in your sandbox must
+     stop the script with that path in the message).
+  4. README install step: keep "unzip the AdvCiv folder into the folder of an installed Advanced Civilization" and say
+     "start AdvCiv\advciv.exe". Claude changed main.c: with no GAMEDIR, advciv.exe uses the current folder if it holds
+     ACIV.CT1, else the parent folder if that does, so a double-click in GAMEDIR\AdvCiv\ finds the game.
+  5. demo_regress.py: the manifest write after the swap (open tmp, json.dump, os.replace) is outside the cleanup, and
+     the old seed folder is already deleted by then. A failure there (manifest.json held open, a full disk) leaves the
+     new dumps against the old manifest, every later `check` refuses that seed (exit 4), and the old reference is gone.
+     Write the new manifest to its temporary file before the swap, delete the old folder only after `os.replace` of the
+     manifest succeeded, and on any failure restore the old folder, remove the temporary files and leave manifest.json
+     as it was. Test it with a mock failing `os.replace` of the manifest.
+Ask: the fixes in `tools/package.ps1`, `tools/package_test.ps1`, `tools/verify/demo_regress.py` and its test; the
+  scripts stay Windows PowerShell 5.1 compatible (you run pwsh 7: keep 7-only syntax out) and python -I. Claude reruns
+  both on Erik's PC.
+Reply:
 
 ## Done
 
