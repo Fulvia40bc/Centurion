@@ -668,6 +668,49 @@ static void test_xmiseq(void)
     xmi_seq_free(s);
     xmi_free(&song);
     free(xmi);
+
+    /* the stop's status gate (0x9B632): AIL_stop_sequence acts only while playing (status 4). The pedal
+       shadows are kept (22d), so an ungated stop would send CC64 0 / CC112 0 again on a paused or ended
+       sequence - it must not */
+    memset(&e, 0, sizeof e);
+    ev_cc(&e, 0, 0, 64, 127);
+    ev_cc(&e, 0, 0, 112, 100);
+    ev_note(&e, 0, 0, 60, 90, 100);
+    ev_eot(&e, 10);
+    xmi = make_form_xmid(e.b, e.n, 1, &xl);
+    free(e.b);
+    check(xmi_parse(xmi, xl, &song) == 0, "parse the gate song");
+    memset(&r, 0, sizeof r);
+    s = xmi_seq_new(&song, rec_midi, NULL, &r);
+    xmi_seq_advance(s, 2);                            /* CC64/CC112 at tick 1, the note at tick 2 */
+    xmi_seq_pause(s);
+    check(rec_count3(&r, 0xB0, 64, 0) == 1 && rec_count3(&r, 0xB0, 112, 0) == 1, "pause releases the pedal once");
+    {
+        int n1 = r.n;
+
+        xmi_seq_stop(s);                              /* end on a PAUSED handle: status 8, not 4 */
+        check(r.n == n1, "stop on a paused handle emits nothing (the 0x9B632 gate)");
+        check(rec_count3(&r, 0xB0, 64, 0) == 1, "no second CC64 0");
+    }
+    xmi_seq_free(s);
+    /* play to the natural end (EOT, count 1: the end emission fires there), then rewind: nothing more */
+    memset(&r, 0, sizeof r);
+    s = xmi_seq_new(&song, rec_midi, NULL, &r);
+    xmi_seq_advance(s, 13);                           /* the EOT is at tick 13 (delta-0 events at 1, 2, 3) */
+    check(xmi_seq_done(s) == 1, "the song ended at its EOT");
+    check(rec_count3(&r, 0xB0, 64, 0) == 1 && rec_count3(&r, 0xB0, 112, 0) == 1, "the end released the pedal once");
+    {
+        int n1 = r.n;
+
+        xmi_seq_rewind(s);                            /* after the end: status 2, not 4 */
+        check(r.n == n1, "rewind after the natural end emits nothing (the 0x9B632 gate)");
+        xmi_seq_resume(s);
+        xmi_seq_advance(s, 2);
+        check(rec_count(&r, 0x90, 60) == 1, "after the rewind the song replays");
+    }
+    xmi_seq_free(s);
+    xmi_free(&song);
+    free(xmi);
 }
 
 /* ---------- musplay ---------- */

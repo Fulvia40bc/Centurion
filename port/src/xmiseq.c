@@ -81,6 +81,9 @@ static void seq_pause_notes(xmi_seq *s)
 {
     int i, ch;
 
+    if (s->paused || s->stopped || s->eot)
+        return;                         /* 0x9B632: AIL_stop_sequence acts only while the status is 4
+                                           (playing); once stopped (8) or done (2) nothing more is sent */
     for (i = 0; i < XMI_QUEUE; i++)
         if (s->nq_ch[i] != -1)
             seq_note_off_slot(s, i);
@@ -349,7 +352,8 @@ void xmi_seq_stop(xmi_seq *s)
     if (s == NULL)
         return;
     seq_pause_notes(s);                     /* AIL_end_sequence runs stop_sequence: note-offs, then CC64 0 /
-                                               CC112 0 where the shadow is down (the pedal is released) */
+                                               CC112 0 where the shadow is down (the pedal is released); the
+                                               0x9B632 gate inside sends nothing when not playing */
     s->stopped = 1;
 }
 
@@ -357,8 +361,7 @@ void xmi_seq_pause(xmi_seq *s)
 {
     if (s == NULL)
         return;
-    if (!s->paused && !s->stopped)
-        seq_pause_notes(s);
+    seq_pause_notes(s);                     /* gated on playing inside (0x9B632) */
     s->paused = 1;
 }
 
@@ -399,7 +402,7 @@ static void seq_resume_replay(xmi_seq *s)
 
 void xmi_seq_resume(xmi_seq *s)
 {
-    if (s == NULL || s->stopped || !s->paused)
+    if (s == NULL || s->stopped || s->eot || !s->paused)
         return;                                 /* AIL_resume_sequence: only when the status is 8 */
     seq_resume_replay(s);                       /* the stored state replayed, then status 4 */
     s->paused = 0;                              /* from the same event and the same remaining delay */
@@ -411,8 +414,7 @@ void xmi_seq_rewind(xmi_seq *s)
 
     if (s == NULL)
         return;
-    if (!s->paused && !s->stopped)
-        seq_pause_notes(s);                     /* pause if playing */
+    seq_pause_notes(s);                         /* pause if playing (gated inside, 0x9B632) */
     s->index = 0;
     s->shift = 0;
     s->now = 0;                                 /* back to tick 0 */

@@ -146,7 +146,7 @@ static void xrec_out(void *user, const uint8_t *msg, int len)
 }
 
 /* ---------- one differential case ---------- */
-typedef struct { int stop_at, resume_at, stop2_at, rewind_at; } script;   /* -1 = never */
+typedef struct { int stop_at, resume_at, stop2_at, rewind_at, end_at; } script;   /* -1 = never */
 
 /* compare the emissions of one script action (stop / resume / rewind) between host and xmiseq */
 static void cmp_emissions(const char *what, const xmi_host *h, size_t h1, const xrec *xr, size_t x1)
@@ -258,6 +258,13 @@ static void run_case(const char *name, const uint8_t *evnt, size_t elen, int loo
                 flush = 1;
                 cmp_emissions("rewind", h, h1, &xr, x1);
             }
+            if (step == sc->end_at) {
+                size_t h1 = xmi_host_count(h), x1 = xr.n;
+
+                xmi_host_stop(h);                      /* AIL_end_sequence: the gated stop (0x9B632) */
+                xmi_seq_stop(s);
+                cmp_emissions("end", h, h1, &xr, x1);
+            }
         }
     }
     check(xmi_host_count(h) == xr.n, "total message counts equal");
@@ -351,7 +358,7 @@ int main(void)
        CC64/CC112 shadows still down */
     {
         bb e = { 0, 0, 0 };
-        script sc = { 6, 10, -1, 14 };
+        script sc = { 6, 10, -1, 14, -1 };
 
         ev_cc(&e, 0, 0, 64, 127);          /* sustain down: the stop must send CC64 0 */
         ev_cc(&e, 0, 3, 112, 100);         /* and CC112 0 */
@@ -391,9 +398,55 @@ int main(void)
             0x90, 0x3C, 0x5A, 0x08,             /* note ch0 key 60 vel 90 dur 8 */
             0x20, 0xFF, 0x2F, 0x00              /* EOT at tick 32 */
         };
-        script sc = { 4, 8, 12, -1 };
+        script sc = { 4, 8, 12, -1, -1 };
 
         run_case("S8 resume replay/second stop", s8, sizeof s8, 0, 112, 20, &sc);
+    }
+    /* S9a: the stop's status gate (0x9B632): pause (stop, status 8) then END (AIL_end_sequence) - the end
+       must send nothing (the host's stop acts only while playing), even though the pedal shadows are kept */
+    {
+        static const uint8_t s9a[] = {
+            0xB0, 0x40, 0x7F,                   /* CC64 127 */
+            0xB0, 0x70, 0x64,                   /* CC112 100 */
+            0x90, 0x3C, 0x5A, 0x64,             /* note dur 100 */
+            0x20, 0xFF, 0x2F, 0x00              /* EOT at tick 32 (loops 0: never reached) */
+        };
+        script sc = { 4, -1, -1, -1, 8 };       /* stop at 4, end at 8 */
+
+        run_case("S9a end after pause sends nothing", s9a, sizeof s9a, 0, 127, 12, &sc);
+    }
+    /* S9b: play to the natural end (EOT, loop count 1: the end emission fires once), then rewind - the
+       rewind must send nothing more (the host's stop is gated on status 4; the sequence is done, status 2) */
+    {
+        bb e = { 0, 0, 0 };
+        script sc = { -1, -1, -1, 8, -1 };
+
+        ev_cc(&e, 0, 0, 64, 127);
+        ev_cc(&e, 0, 0, 112, 100);
+        ev_note(&e, 0, 0, 60, 90, 2);
+        ev_eot(&e, 3);
+        run_case("S9b rewind after the natural end", e.b, e.n, 1, 127, 16, &sc);
+        free(e.b);
+    }
+    /* S10: pin the WHOLE 0x99C20 replay set and order: every replayed controller on TWO channels (CC114,
+       CC107 < 64 so nothing is muted, CC111 consumed, CC112, CC1, CC7, CC10, CC11, CC64, CC91, CC93, CC6,
+       program, bend), all in one interval; stop@4, resume@8 replays all of both channels in order;
+       rewind@12 then resume must replay NOTHING (0x99E60's -1 fill cleared the stored state) */
+    {
+        static const uint8_t s10[] = {
+            0xB0, 0x72, 0x05,  0xB0, 0x6B, 0x3C,  0xB0, 0x6F, 0x07,  0xB0, 0x70, 0x64,
+            0xB0, 0x01, 0x08,  0xB0, 0x07, 0x64,  0xB0, 0x0A, 0x40,  0xB0, 0x0B, 0x7F,
+            0xB0, 0x40, 0x7F,  0xB0, 0x5B, 0x28,  0xB0, 0x5D, 0x09,  0xB0, 0x06, 0x05,
+            0xC0, 0x05,  0xE0, 0x00, 0x40,  0x90, 0x3C, 0x5A, 0x08,
+            0xB1, 0x72, 0x06,  0xB1, 0x6B, 0x3C,  0xB1, 0x6F, 0x07,  0xB1, 0x70, 0x64,
+            0xB1, 0x01, 0x08,  0xB1, 0x07, 0x64,  0xB1, 0x0A, 0x40,  0xB1, 0x0B, 0x7F,
+            0xB1, 0x40, 0x7F,  0xB1, 0x5B, 0x28,  0xB1, 0x5D, 0x09,  0xB1, 0x06, 0x05,
+            0xC1, 0x06,  0xE1, 0x10, 0x50,  0x91, 0x3E, 0x5A, 0x08,
+            0x20, 0xFF, 0x2F, 0x00              /* EOT at tick 32 */
+        };
+        script sc = { 4, 8, -1, 12, -1 };
+
+        run_case("S10 whole replay set, two channels", s10, sizeof s10, 0, 112, 20, &sc);
     }
 
     if (fails == 0)

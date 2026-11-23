@@ -13,6 +13,9 @@ typedef struct {
     size_t n, cap;
     uint64_t cur_tick;
     uint32_t ons, offs, trigs;
+    uint32_t xoffs;          /* note-offs with no open note-on: real 0x8n events written in the EVNT stream,
+                                forwarded since 22d (the queue still sends its own off for the same key) */
+    int open[16][128];       /* notes currently sounding per (channel, key) */
 } ctx;
 
 static void out_cb(void *user, const uint8_t *msg, int len)
@@ -32,10 +35,18 @@ static void out_cb(void *user, const uint8_t *msg, int len)
     r->tick = c->cur_tick;
     r->len = (uint8_t)len;
     memcpy(r->msg, msg, (size_t)len);
-    if ((msg[0] & 0xF0u) == 0x90u)
+    if ((msg[0] & 0xF0u) == 0x90u) {
         c->ons++;
-    else if ((msg[0] & 0xF0u) == 0x80u)
+        c->open[msg[0] & 0x0Fu][msg[1]]++;
+    } else if ((msg[0] & 0xF0u) == 0x80u) {
+        int ch = msg[0] & 0x0Fu, key = msg[1];
+
         c->offs++;
+        if (c->open[ch][key] > 0)
+            c->open[ch][key]--;                 /* pairs with a note-on */
+        else
+            c->xoffs++;                         /* a real EVNT 0x8n: no open note-on to pair with */
+    }
 }
 
 static void trig_cb(void *user, int channel, int value)
@@ -225,10 +236,22 @@ int main(int argc, char **argv)
         fprintf(stderr, "%s: cannot write\n", argv[4]);
         rc = 1;
     }
-    printf("%s %u %u %u %u\n", e->name, cx.ons, cx.offs, xmi_seq_loops(seq), cx.trigs);
-    if (cx.ons != cx.offs) {
-        fprintf(stderr, "%s: %u note-ons but %u note-offs\n", e->name, cx.ons, cx.offs);
-        rc = 1;
+    {
+        int ch, key, leftover = 0;
+
+        for (ch = 0; ch < 16; ch++)
+            for (key = 0; key < 128; key++)
+                leftover += cx.open[ch][key];
+        printf("%s %u %u %u %u %u\n", e->name, cx.ons, cx.offs, xmi_seq_loops(seq), cx.trigs, cx.xoffs);
+        if (leftover != 0) {
+            fprintf(stderr, "%s: %d note-ons left sounding (ons %u, offs %u, %u extra EVNT note-offs)\n",
+                    e->name, leftover, cx.ons, cx.offs, cx.xoffs);
+            rc = 1;
+        } else if (cx.xoffs != 0) {
+            /* offs may exceed ons: each real EVNT 0x8n is forwarded AND the queue still sends its own off */
+            printf("%s: %u note-off(s) were real EVNT 0x8n events, not the sequencer's own\n",
+                   e->name, cx.xoffs);
+        }
     }
     xmi_seq_free(seq);
     xmi_free(&song);
