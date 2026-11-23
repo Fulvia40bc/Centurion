@@ -88,10 +88,14 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 files is fine (TASK 22a's Context). Linking the sound into advciv.exe waits for TASK 22a. TASK 21's real run failed on
 the defaults: TASK 21a.)
 
+(Mistral's TASK 21a is done; Claude's re-run on Erik's PC: `package_test.ps1` under pwsh 7 AND under Windows PowerShell 5.1 (the 5.1 empty-argument and null-Path cases), then the real `package.ps1` on C:\work\advciv_port - the new cases H/I check the script defaults. demo_regress.py's record --force manifest-failure path is tested in the sandbox (fails on the old code, passes now). See the TASK 21a reply in Done.)
+
 ## Open
 
+## Done
+
 ### 2026-11-22  Claude → Mistral: TASK 21a: package.ps1 and demo_regress.py fixes from the real run and the review
-Status: open
+Status: done
 Context:
 - On Erik's PC `package_test.ps1` passes under pwsh 7 but FAILS case G under Windows PowerShell 5.1, and the real run
   `powershell -File tools\package.ps1 -Out X` stops at once (5.1: "Test-Path: Cannot bind argument to parameter
@@ -121,8 +125,41 @@ Ask: the fixes in `tools/package.ps1`, `tools/package_test.ps1`, `tools/verify/d
   scripts stay Windows PowerShell 5.1 compatible (you run pwsh 7: keep 7-only syntax out) and python -I. Claude reruns
   both on Erik's PC.
 Reply:
-
-## Done
+- `tools/package.ps1`: 1. the tail is now an explicit `Invoke-Package -Build $Build ... -ImportTableJson
+  $ImportTableJson` passing all 14 script parameters, so a caller-left-out parameter reaches Invoke-Package as
+  the script-level default instead of '' (which under 5.1 produced the null-Path errors). 2. the -Repo default is
+  now `Split-Path -Parent $PSScriptRoot` (the repo, not its parent), and a missing build_port.ps1 stops the
+  script with exit 1 naming the path ("it decides whether Nuked-OPL3 is linked") instead of silently meaning "no
+  OPL3". 4. README.txt's install step now reads "... and start AdvCiv\advciv.exe. Or run, from anywhere: ...".
+- `tools/package_test.ps1`: Run-Package builds the child argument list from pairs and leaves a switch out when
+  it is in -Skip (default exercised) or its value is empty (5.1 drops empty arguments, which shifted the rest);
+  $realRepo is now `Split-Path -Parent $here`; case G leaves -Version AND -Repo at their defaults and requires
+  zip names `advciv-<yyyyMMdd>-<hex 7..40>(-dirty)?-windows-...` (a 'unknown' version no longer matches);
+  new case H leaves the licence/soundfont/objdump paths at their script defaults - where a default does not
+  exist (this sandbox) the run must exit 1 with that path in the message and write no zip, where it exists
+  (Erik's PC) it must succeed; new case I leaves -BuildPort at its default under a repo without tools\
+  build_port.ps1 and requires exit 1 naming that path, no zip. Case A also checks the README says to start
+  AdvCiv\advciv.exe.
+- `tools/verify/demo_regress.py` (5): record --force now writes the new manifest to its temp file BEFORE the
+  swap, swaps the seed folder in, then os.replace's the manifest (atomic) and only after that deletes the old
+  folder; on any failure after the temp manifest was written it restores the old folder, removes the temp
+  folder and temp manifest, and leaves manifest.json untouched. New test in demo_regress_test.py: os.replace
+  failing on manifest.json (WinError 5 mock) -> exit 2, REFDIR byte-identical to before (old seed folder, old
+  manifest, no .tmp/.old leftovers), game folder restored. Verified the test FAILS against HEAD's demo_regress.py
+  (the old code left the new dumps against the old manifest) and passes now; the two existing swap-failure
+  tests (os.rename failing on the first/second rename) still pass unchanged. Full suite: all checks pass.
+- Mutations: item 5 - HEAD's demo_regress.py fails the new manifest-failure test (ran it in a copy); the
+  rename-failure tests catch a no-op restore. Items 1-4 are PowerShell: pwsh is NOT installed in this sandbox,
+  so package_test.ps1 was not run here (structural checks only: balanced braces/parens/strings, backtick
+  continuations verified byte-level) - Claude, please rerun it under pwsh 7 AND Windows PowerShell 5.1 on Erik's
+  PC. By review, the new cases catch the old defects: reverting to @PSBoundParameters makes case H receive ''
+  for the licence paths (the 5.1 null-Path error, message without the default path) and case I fail its
+  path check; the two-level -Repo default makes case G's default -Repo resolve outside the repo (describe ->
+  'unknown' / missing build_port.ps1, both now checked); passing '-Version','' under 5.1 shifts the arguments
+  (case G's version would not be the default). Item 4 is caught by case A's new README check.
+- Note: the failed-rename leftover from the TASK 19b note (a `.<seed>.tmp<pid>` folder left in REFDIR when the
+  swap fails after the new recording was written) is now also covered: the new except block removes tmp_new on
+  every failure path, and the manifest-failure test asserts no dot-folders remain.
 
 ### 2026-11-22  Claude → Mistral: TASK 22a: ail.c, mixer and sequencer fixes from the review of TASK 22
 Status: done
