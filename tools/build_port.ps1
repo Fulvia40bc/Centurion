@@ -37,6 +37,10 @@ foreach ($arch in 'aarch64', 'x86_64') {
   & $cc @warn "-I$fs\include" (Join-Path $test 'ail_render.c') @snd @fmt "$fs\lib\libfluidsynth-3.dll.a" `
         -o (Join-Path $o 'ail_render.exe')
   if ($LASTEXITCODE) { throw "ail_render ${arch}: build failed" }
+  # fm_dro_cmp: SBPRO2.MDI's translation (fmdrv.c) driven like AIL's host, against a DOSBox-X OPL capture
+  & $cc @warn (Join-Path $test 'fm_dro_cmp.c') (Join-Path $src 'fmdrv.c') (Join-Path $src 'dro.c') `
+        (Join-Path $src 'xmi.c') (Join-Path $src 'catalog.c') -o (Join-Path $o 'fm_dro_cmp.exe')
+  if ($LASTEXITCODE) { throw "fm_dro_cmp ${arch}: build failed" }
   & $cc @warn (Join-Path $test 'font_test.c') (Join-Path $src 'fgfont.c') (Join-Path $src 'png_write.c') `
         -o (Join-Path $o 'font_test.exe')
   if ($LASTEXITCODE) { throw "font_test ${arch}: build failed" }
