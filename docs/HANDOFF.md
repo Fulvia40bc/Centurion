@@ -87,6 +87,16 @@ wording). Not ruled yet, kept until Erik says otherwise: "has the possibility", 
 (22 Nov, Claude: `build_port.ps1` builds ail_test/ail_render; ail_test passes on both arches; ail_render on the real
 files is fine (TASK 22a's Context). Linking the sound into advciv.exe waits for TASK 22a. TASK 21's real run failed on
 the defaults: TASK 21a.)
+(TASK 22a: VERIFIED 22 Nov by Claude. Strict clang both arches, ail_test passes on ARM64 and x64; mixer_test on the
+real ACIV.CT5 still `264600 1217433 1670684 0` with a byte-identical WAV; xmiseq_test old (3cac3a6) vs new on all 12
+real songs: the same counts and byte-identical .mid; ail_render plays all 12 songs through the new probe (status 4
+for 20 s each), so the real XMIs need no pad byte before the first XMID; the map song's level is unchanged.)
+(TASK 21a: VERIFIED 22 Nov by Claude, with one fix: under Windows PowerShell 5.1 case I failed because Out-String
+wrapped the child's error lines at the console width, splitting the long path; Run-Package now reads them as plain
+lines (f508106). Both PowerShells pass; demo_regress_test passes; the real `package.ps1` with every default gives
+the two zips (exe, SDL3.dll, LICENSES\SDL3.txt, README), and each, unzipped into a copy of the game folder 115
+characters deep, starts headless from AdvCiv\ (main.c now names the folder "." after the chdir: the original's
+100-byte file-name buffers broke on that path).)
 
 (Mistral's TASK 21a is done; Claude's re-run on Erik's PC: `package_test.ps1` under pwsh 7 AND under Windows PowerShell 5.1 (the 5.1 empty-argument and null-Path cases), then the real `package.ps1` on C:\work\advciv_port - the new cases H/I check the script defaults. demo_regress.py's record --force manifest-failure path is tested in the sandbox (fails on the old code, passes now). See the TASK 21a reply in Done.)
 
