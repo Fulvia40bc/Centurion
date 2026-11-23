@@ -96,6 +96,7 @@ int mix_play(mixer *m, const wav_sound *s, int volume, int pan)
                 gl = pan <= 64 ? 128 : ((127 - pan) * 128) / 63;
                 gr = pan >= 64 ? 128 : (pan * 128) / 64;
             }
+            vc->gen++;                      /* an old mix_start id on this voice goes stale */
             vc->s = s;
             vc->p = 0;
             vc->step = ((uint64_t)s->rate << 32) / MIX_OUT_RATE;
@@ -122,17 +123,22 @@ static int mix_id_of(const mix_voice *vc, int vi)
 static mix_voice *mix_find_id(mixer *m, int id, int *vi_out)
 {
     int vi;
+    mix_voice *vc;
 
     if (m == NULL || id < 0)
         return NULL;
     vi = id & 7;
     if (vi >= MIX_VOICES)
         return NULL;
-    if (!m->v[vi].active || mix_id_of(&m->v[vi], vi) != id)
+    vc = &m->v[vi];
+    if (!vc->active || mix_id_of(vc, vi) != id)
         return NULL;                        /* stale: ended, stopped, or the voice was reused */
+    if (vc->s != NULL && vc->s->samples != NULL &&
+        (uint32_t)(vc->p >> 32) >= vc->s->frames && vc->loops == 1)
+        return NULL;                        /* the run-out rule of mix_active: count 1 ended it */
     if (vi_out != NULL)
         *vi_out = vi;
-    return &m->v[vi];
+    return vc;
 }
 
 int mix_start(mixer *m, const wav_sound *s, int volume, int loops)
@@ -302,17 +308,22 @@ void mix_render(mixer *m, int16_t *out, int frames)
                 pos = vc->p;
                 fi = (uint32_t)(pos >> 32);
                 if (fi >= vc->s->frames) {      /* the data ran out: the loop count is read now */
-                    if (vc->loops == 0) {
-                        vc->p &= 0xFFFFFFFFull; /* again from frame 0, keeping the resampling fraction */
+                    if (vc->loops == 0 || vc->loops > 1) {
+                        if (vc->loops > 1)
+                            vc->loops--;
+                        /* AIL rewinds and goes on mixing: keep the overshoot and the fraction,
+                           so this output frame is rendered from the new position (no silent frame) */
+                        vc->p -= (uint64_t)vc->s->frames << 32;
+                        pos = vc->p;
+                        fi = (uint32_t)(pos >> 32);
+                        if (fi >= vc->s->frames) {  /* degenerate: ended anyway */
+                            vc->active = 0;
+                            continue;
+                        }
+                    } else {
+                        vc->active = 0;         /* loops == 1: the voice ends */
                         continue;
                     }
-                    if (vc->loops > 1) {
-                        vc->loops--;
-                        vc->p &= 0xFFFFFFFFull;
-                        continue;
-                    }
-                    vc->active = 0;             /* loops == 1: the voice ends */
-                    continue;
                 }
                 frac = (uint32_t)((pos >> 16) & 0xFFFFu);
                 if (vc->s->channels == 2) {

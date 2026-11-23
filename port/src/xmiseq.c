@@ -78,11 +78,11 @@ static void seq_pause_notes(xmi_seq *s)
     }
 }
 
-/* back to the first event, keeping the channel shadows (an FF 2F rewind) */
+/* back to the first event, keeping the channel shadows (an FF 2F rewind). AIL rewinds to EVNT+8 and counts
+   the song's lead-in delay again: the shift is t itself, so event i replays at t + ev[i].tick. */
 static void seq_rewind_pos(xmi_seq *s, uint64_t t)
 {
-    if (s->song->count > 0)
-        s->shift = (int64_t)t - (int64_t)s->song->ev[0].tick;
+    s->shift = (int64_t)t;
     s->index = 0;
     s->depth = 0;
     s->eot = 0;
@@ -278,15 +278,10 @@ int xmi_seq_done(const xmi_seq *s)
 
 void xmi_seq_stop(xmi_seq *s)
 {
-    int ch, key;
-
     if (s == NULL)
         return;
-    for (ch = 0; ch < 16; ch++)
-        for (key = 0; key < 128; key++)
-            if (s->pend[ch][key].active)
-                seq_note_off(s, ch, key);
-    s->pending = 0;
+    seq_pause_notes(s);                     /* AIL_end_sequence runs stop_sequence: note-offs, then CC64 0
+                                               where the sustain shadow is down (the pedal is released) */
     s->stopped = 1;
 }
 

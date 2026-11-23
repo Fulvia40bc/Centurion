@@ -115,8 +115,23 @@ void ail_render(int16_t *out, int frames)
 
 void ail_set_live(int on)
 {
+    int i;
+
+    on = on ? 1 : 0;
     lock_on();
-    g_live = on ? 1 : 0;
+    if (g_live && !on) {                          /* live -> not live: convert the running voices now */
+        for (i = 1; i <= AIL_MAX_SAMPLES; i++) {
+            ail_sample *s = &g_smp[i];
+
+            if (s->used && s->status == AIL_PLAYING && s->id >= 0) {
+                mix_halt(g_mix, s->id);
+                s->id = -1;
+                if (s->loops != 0)
+                    s->status = AIL_DONE;         /* count 1 or n > 1: done; count 0 stays playing, no voice */
+            }
+        }
+    }
+    g_live = on;
     lock_off();
 }
 
@@ -184,6 +199,10 @@ void ail_init_sample(int32_t h)
         mix_halt(g_mix, s->id);
         s->id = -1;
     }
+    if (s->has_data) {                            /* AIL sets start, length and position to 0 */
+        wav_free(&s->wav);
+        s->has_data = 0;
+    }
     s->status = AIL_DONE;
     s->loops = 1;
     s->volume = 100;
@@ -208,12 +227,16 @@ int ail_set_sample_file(int32_t h, const uint8_t *img, size_t len)
                 mix_halt(g_mix, s->id);
                 s->id = -1;
             }
-            if (s->status == AIL_PLAYING)
-                s->status = AIL_DONE;
+            /* the status does not change (AIL only sets the address, ailsem 5) */
             if (s->has_data)
                 wav_free(&s->wav);
-            s->wav = w;
-            s->has_data = 1;
+            if (w.samples != NULL && w.frames > 0) {
+                s->wav = w;
+                s->has_data = 1;                                  /* a 0-frame WAV counts as no data */
+            } else {
+                wav_free(&w);
+                s->has_data = 0;
+            }
             rc = 1;
         } else {
             set_err("Unrecognized digital audio file type\n");
@@ -299,12 +322,17 @@ int ail_sample_status(int32_t h)
     ail_sample *s = smp_of(h);
     int st;
 
-    if (s == NULL || !s->used)
-        return 0;
+    if (s == NULL)
+        return 0;                                             /* outside 1..16 */
+    if (!s->used)
+        return AIL_FREE;                                      /* unallocated inside the range: free */
     lock_on();
     st = s->status;
-    if (st == AIL_PLAYING && s->id >= 0 && !mix_active(g_mix, s->id))
-        st = s->status = AIL_DONE;                            /* the data ran out with loop count 1 */
+    if (st == AIL_PLAYING && s->id >= 0 && !mix_active(g_mix, s->id)) {
+        s->id = -1;                                           /* the data ran out with count 1: done, and the
+                                                             id is dropped so nothing revives the voice */
+        st = s->status = AIL_DONE;
+    }
     lock_off();
     return st;
 }
@@ -316,10 +344,12 @@ int ail_active_sample_count(void)
     lock_on();
     for (i = 1; i <= AIL_MAX_SAMPLES; i++) {
         if (g_smp[i].used && g_smp[i].status == AIL_PLAYING) {
-            if (g_smp[i].id >= 0 && !mix_active(g_mix, g_smp[i].id))
+            if (g_smp[i].id >= 0 && !mix_active(g_mix, g_smp[i].id)) {
+                g_smp[i].id = -1;
                 g_smp[i].status = AIL_DONE;                   /* not-live plays have no voice: they stay 4 */
-            else
+            } else {
                 n++;
+            }
         }
     }
     lock_off();
@@ -344,6 +374,13 @@ int32_t ail_allocate_sequence(void)
     return 0;
 }
 
+/* refresh the cached status from the player (a song ended by its loop count reads DONE) */
+static void seq_refresh(ail_seq *q)
+{
+    if (q->status == AIL_PLAYING && mus_status(g_mus) == MUS_DONE)
+        q->status = AIL_DONE;
+}
+
 int ail_init_sequence(int32_t h, const uint8_t *img, size_t len, int n)
 {
     ail_seq *q = seq_of(h);
@@ -352,6 +389,9 @@ int ail_init_sequence(int32_t h, const uint8_t *img, size_t len, int n)
     if (q == NULL || !q->used)
         return 0;
     lock_on();
+    if (q->status == AIL_PLAYING || q->status == AIL_PAUSED)
+        mus_end(g_mus);                                       /* status 2 stops the timer servicing the old
+                                                             song: end it, so stop/end can reach it */
     q->status = AIL_DONE;                                     /* status 2 first */
     lock_off();
     if (mus_probe(img, len, n, &song) != 0) {                 /* the parse is done outside the lock */
@@ -380,11 +420,14 @@ void ail_stop_sequence(int32_t h)
 {
     ail_seq *q = seq_of(h);
 
-    if (q == NULL || !q->used || q->status != AIL_PLAYING)
+    if (q == NULL || !q->used)
         return;
     lock_on();
-    mus_pause(g_mus);
-    q->status = AIL_PAUSED;
+    seq_refresh(q);
+    if (q->status == AIL_PLAYING) {                           /* only when 4 */
+        mus_pause(g_mus);
+        q->status = AIL_PAUSED;
+    }
     lock_off();
 }
 
@@ -392,11 +435,14 @@ void ail_resume_sequence(int32_t h)
 {
     ail_seq *q = seq_of(h);
 
-    if (q == NULL || !q->used || q->status != AIL_PAUSED)
+    if (q == NULL || !q->used)
         return;
     lock_on();
-    mus_resume(g_mus);
-    q->status = AIL_PLAYING;
+    seq_refresh(q);
+    if (q->status == AIL_PAUSED) {                            /* only when 8 */
+        mus_resume(g_mus);
+        q->status = AIL_PLAYING;
+    }
     lock_off();
 }
 
@@ -407,8 +453,9 @@ void ail_end_sequence(int32_t h)
     if (q == NULL || !q->used)
         return;
     lock_on();
+    seq_refresh(q);
     if (q->status == AIL_PLAYING || q->status == AIL_PAUSED) {
-        mus_end(g_mus);
+        mus_end(g_mus);                                       /* stop the notes, CC64 0 where sustain is down */
         q->status = AIL_DONE;
     }
     lock_off();
@@ -419,12 +466,13 @@ int ail_sequence_status(int32_t h)
     ail_seq *q = seq_of(h);
     int st;
 
-    if (q == NULL || !q->used)
-        return 0;
+    if (q == NULL)
+        return 0;                                             /* outside 1..8 */
+    if (!q->used)
+        return AIL_FREE;                                      /* unallocated inside the range: free */
     lock_on();
+    seq_refresh(q);
     st = q->status;
-    if (st == AIL_PLAYING && mus_status(g_mus) == MUS_DONE)
-        st = q->status = AIL_DONE;                            /* the song ended through its loop count */
     lock_off();
     return st;
 }

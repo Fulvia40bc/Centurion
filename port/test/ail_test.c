@@ -251,6 +251,15 @@ static int g_lock_balance = 0;
 
 static void test_lock(int on) { g_lock_balance += on ? 1 : -1; }
 
+static void mus_fill_cb(void *u, int16_t *out, int frames)
+{
+    int i;
+
+    (void)u;
+    for (i = 0; i < frames * 2; i++)
+        out[i] = 1000;
+}
+
 /* ---------- mixer ---------- */
 static void test_mixer(void)
 {
@@ -295,15 +304,65 @@ static void test_mixer(void)
     mix_render(m, out, 5);
     check(mix_active(m, id) == 1, "loops 3: pass 2 done, restarts");
     mix_render(m, out, 5);
-    check(mix_active(m, id) == 1, "loops 3: pass 3 still playing (the run-out is read at the next frame)");
-    mix_render(m, out, 5);
-    check(mix_active(m, id) == 0, "loops 3: the third pass ends it");
+    check(mix_active(m, id) == 0, "loops 3: the third pass ends it (15 frames, no silent frame)");
 
     id = mix_start(m, &w, 127, 0);
     mix_render(m, out, 5);
     mix_loops(m, id, 1);                               /* set while playing: read at the next run-out */
     check(mix_active(m, id) == 0, "loops set to 1 while playing ends at run-out");
     mix_halt(m, id);                                   /* free the voice for the 8-voice test */
+
+    /* a restart rewinds by the length and mixes the run-out frame: the 5-frame sample repeats every 5
+       frames, not every 6 (no silent frame per pass) */
+    id = mix_start(m, &w, 127, 0);
+    {
+        int k, ok = 1;
+
+        for (k = 0; k < 12; k++) {
+            mix_render(m, out, 1);
+            if (out[0] != 100 + (k % 5) || out[1] != out[0])
+                ok = 0;
+        }
+        check(ok, "loops 0: the 5-frame sample repeats every 5 frames (the run-out frame is mixed)");
+    }
+    mix_halt(m, id);
+
+    /* a count-1 play that ran out is stale everywhere: mix_loops/mix_volume cannot revive it */
+    id = mix_start(m, &w, 127, 1);
+    mix_render(m, out, 5);
+    check(mix_active(m, id) == 0, "loops 1: ran out");
+    mix_loops(m, id, 0);
+    mix_volume(m, id, 99);
+    check(mix_active(m, id) == 0, "a run-out count-1 play is stale: mix_loops/mix_volume do not revive it");
+    mix_halt(m, id);
+
+    /* mix_play bumps the generation: an old mix_start id on the reused voice goes stale */
+    id = mix_start(m, &w, 127, 0);
+    mix_halt(m, id);
+    v = mix_play(m, &w, 127, 64);
+    check(v >= 0 && mix_active(m, id) == 0, "mix_play reuses the voice and stales the old mix_start id");
+    mix_stop(m, v);
+
+    /* mix_volume on a playing voice, observed in the output */
+    id = mix_start(m, &w, 127, 0);
+    mix_render(m, out, 1);
+    check(out[0] == 100, "volume 127: the raw sample value goes out");
+    mix_volume(m, id, 0);
+    mix_render(m, out, 1);
+    check(out[0] == 0, "volume 0 silences from the next rendered frame");
+    mix_volume(m, id, 64);
+    mix_render(m, out, 1);
+    check(out[0] == (102 * 64) / 127, "volume 64: scaled from the next rendered frame");
+    mix_halt(m, id);
+
+    /* mix_music_volume with a music input, without re-allocating */
+    mix_set_music(m, mus_fill_cb, NULL, 127);
+    mix_render(m, out, 1);
+    check(out[0] == 1000, "the music input at gain 127");
+    mix_music_volume(m, 64);
+    mix_render(m, out, 1);
+    check(out[0] == (1000 * 64) / 127, "mix_music_volume changes the music gain");
+    mix_set_music(m, NULL, NULL, 0);
 
     for (i = 0; i < 8; i++)
         ids[i] = mix_start(m, &w, 127, 0);
@@ -359,6 +418,7 @@ static void test_xmiseq(void)
     s = xmi_seq_new(&song, rec_midi, NULL, &r);
     xmi_seq_advance(s, 10);
     check(xmi_seq_loops(s) >= 1, "NEXT below 64 is ignored: the FOR 0 still jumps at NEXT 127");
+    check(rec_count(&r, 0x90, 60) == 0, "NEXT below 64 is not a break either: the note behind the jump never sounds");
     xmi_seq_free(s);
     xmi_free(&song);
     free(xmi);
@@ -471,6 +531,123 @@ static void test_xmiseq(void)
     xmi_seq_free(s);
     xmi_free(&song);
     free(xmi);
+
+    /* stop releases the pedal: note-off for the sounding note, CC64 0 where the sustain shadow is down */
+    memset(&e, 0, sizeof e);
+    ev_cc(&e, 0, 0, 64, 127);
+    ev_note(&e, 0, 0, 60, 100, 100);
+    ev_eot(&e, 10);
+    xmi = make_form_xmid(e.b, e.n, 1, &xl);
+    free(e.b);
+    check(xmi_parse(xmi, xl, &song) == 0, "parse the stop song");
+    memset(&r, 0, sizeof r);
+    s = xmi_seq_new(&song, rec_midi, NULL, &r);
+    xmi_seq_advance(s, 1);
+    check(rec_count(&r, 0x90, 60) == 1, "the note sounds");
+    xmi_seq_stop(s);
+    check(rec_count3(&r, 0x80, 60, 0) == 1, "stop sends note-off for the sounding note");
+    check(rec_count3(&r, 0xB0, 64, 0) == 1, "stop sends CC64 0 where sustain was down (the pedal is released)");
+    xmi_seq_free(s);
+    /* ending at the EOT (count 1) stops the notes and releases the pedal too */
+    memset(&r, 0, sizeof r);
+    s = xmi_seq_new(&song, rec_midi, NULL, &r);
+    xmi_seq_advance(s, 10);
+    check(xmi_seq_done(s) == 1, "EOT with count 1: done");
+    check(rec_count3(&r, 0x80, 60, 0) == 1, "ending at the EOT stops the sounding note");
+    check(rec_count3(&r, 0xB0, 64, 0) == 1, "ending at the EOT sends CC64 0 where sustain was down");
+    xmi_seq_free(s);
+    xmi_free(&song);
+    free(xmi);
+
+    /* the FF 2F rewind counts the lead-in delay again (shift = t, not t - ev[0].tick) */
+    memset(&e, 0, sizeof e);
+    ev_cc(&e, 3, 0, 7, 100);                       /* first event at tick 3 */
+    ev_eot(&e, 10);                                /* EOT at tick 13 */
+    xmi = make_form_xmid(e.b, e.n, 1, &xl);
+    free(e.b);
+    check(xmi_parse(xmi, xl, &song) == 0, "parse the lead-in song");
+    memset(&r, 0, sizeof r);
+    s = xmi_seq_new(&song, rec_midi, NULL, &r);
+    xmi_seq_set_loops(s, 0);
+    xmi_seq_advance(s, 14);
+    check(xmi_seq_loops(s) == 1, "the EOT rewound once");
+    check(rec_count3(&r, 0xB0, 7, 100) == 1, "shift = t: the lead-in event replays at 13+3=16, not yet at 14");
+    xmi_seq_advance(s, 3);
+    check(rec_count3(&r, 0xB0, 7, 100) == 2, "the lead-in delay counts again after the rewind");
+    xmi_seq_free(s);
+    xmi_free(&song);
+    free(xmi);
+
+    /* rewind while a note sounds and inside a FOR loop: note-off, FOR slots and shadows cleared */
+    memset(&e, 0, sizeof e);
+    ev_cc(&e, 0, 0, 116, 0);
+    ev_cc(&e, 0, 0, 7, 90);
+    ev_note(&e, 0, 0, 60, 100, 100);
+    ev_eot(&e, 100);
+    xmi = make_form_xmid(e.b, e.n, 1, &xl);
+    free(e.b);
+    check(xmi_parse(xmi, xl, &song) == 0, "parse the rewind song");
+    memset(&r, 0, sizeof r);
+    s = xmi_seq_new(&song, rec_midi, NULL, &r);
+    xmi_seq_advance(s, 2);
+    check(rec_count(&r, 0x90, 60) == 1, "the note sounds inside the FOR loop");
+    xmi_seq_rewind(s);
+    check(rec_count3(&r, 0x80, 60, 0) == 1, "rewind sends note-off for the sounding note");
+    xmi_seq_resume(s);
+    xmi_seq_advance(s, 0);
+    check(rec_count(&r, 0x90, 60) == 2, "after rewind the FOR and the note replay");
+    check(rec_count3(&r, 0xB0, 7, 90) == 2, "after rewind the song resends its CC7 (shadows were cleared)");
+    xmi_seq_free(s);
+    xmi_free(&song);
+    free(xmi);
+
+    /* the FF 2F count-0 rewind keeps the controller shadows */
+    memset(&e, 0, sizeof e);
+    ev_cc(&e, 0, 0, 7, 100);
+    ev_eot(&e, 10);
+    xmi = make_form_xmid(e.b, e.n, 1, &xl);
+    free(e.b);
+    check(xmi_parse(xmi, xl, &song) == 0, "parse the shadow song");
+    memset(&r, 0, sizeof r);
+    s = xmi_seq_new(&song, rec_midi, NULL, &r);
+    xmi_seq_set_loops(s, 0);
+    xmi_seq_advance(s, 10);
+    check(xmi_seq_loops(s) == 1, "count 0 rewound at the EOT");
+    check(rec_count3(&r, 0xB0, 7, 100) == 2, "the CC7 replayed at the rewind");
+    xmi_seq_set_volume(s, 64);
+    check(rec_find_at(&r, r.n - 1, 0xB0, 7, (100 * 64) / 127), "the count-0 rewind kept the shadow: volume change resends");
+    xmi_seq_free(s);
+    xmi_free(&song);
+    free(xmi);
+
+    /* no time passes while paused: the remaining delay is kept for after the resume */
+    memset(&e, 0, sizeof e);
+    ev_note(&e, 0, 0, 60, 90, 100);
+    ev_cc(&e, 8, 0, 11, 42);                         /* marker event at tick 8 */
+    ev_eot(&e, 12);
+    xmi = make_form_xmid(e.b, e.n, 1, &xl);
+    free(e.b);
+    check(xmi_parse(xmi, xl, &song) == 0, "parse the delay song");
+    memset(&r, 0, sizeof r);
+    s = xmi_seq_new(&song, rec_midi, NULL, &r);
+    xmi_seq_advance(s, 5);
+    xmi_seq_pause(s);                                /* sends the note-off, forgets the note */
+    check(rec_count3(&r, 0x80, 60, 0) == 1, "pause sends the note-off");
+    {
+        int n_at_pause = r.n;
+
+        xmi_seq_advance(s, 5);                       /* paused: nothing, time does not advance */
+        check(r.n == n_at_pause, "nothing is emitted while paused");
+        check(rec_count3(&r, 0xB0, 11, 42) == 0, "the tick-8 event has not fired while paused");
+        xmi_seq_resume(s);
+        xmi_seq_advance(s, 2);                       /* now 7 */
+        check(rec_count3(&r, 0xB0, 11, 42) == 0, "the remaining delay is kept (now 7 of 8)");
+        xmi_seq_advance(s, 1);                       /* now 8 */
+        check(rec_count3(&r, 0xB0, 11, 42) == 1, "the event fires at tick 8, after the resume");
+    }
+    xmi_seq_free(s);
+    xmi_free(&song);
+    free(xmi);
 }
 
 /* ---------- musplay ---------- */
@@ -522,6 +699,64 @@ static void test_musplay(void)
     xmi_free(&song);
     check(mus_probe(lone, ll, 1, &song) != 0, "a lone FORM XMID: n=1 fails");
     check(mus_probe(noevnt, ln, 0, &song) != 0, "no EVNT fails");
+    check(mus_probe(xmi2, l2, 1, &song) == 0 && song.ev[0].d1 == 62, "probe n=1 returns the second sequence (key 62)");
+    xmi_free(&song);
+    {
+        bb e1;
+        uint8_t *ev1[1];
+        size_t el1[1], l1;
+        uint8_t *x1;
+
+        memset(&e1, 0, sizeof e1);
+        ev_note(&e1, 0, 0, 60, 90, 5);
+        ev_eot(&e1, 5);
+        ev1[0] = e1.b;
+        el1[0] = e1.n;
+        x1 = make_xmi((const uint8_t *const *)ev1, el1, 1, 1, &l1);   /* CAT XMID with one FORM XMID */
+        check(mus_probe(x1, l1, 0, &song) == 0, "a CAT XMID with one FORM XMID: n=0");
+        xmi_free(&song);
+        check(mus_probe(x1, l1, 1, &song) != 0, "a CAT XMID with one FORM XMID: n=1 fails");
+        {
+            bb top = { 0, 0, 0 };
+
+            bb_plain(&top, "JUNK", (const uint8_t *)"xx", 2);
+            bb_bytes(&top, x1, l1);
+            check(mus_probe(top.b, top.n, 0, &song) != 0, "a non-FORM/CAT top chunk fails");
+            free(top.b);
+        }
+        {
+            bb top = { 0, 0, 0 };
+
+            bb_bytes(&top, x1, l1);
+            bb_plain(&top, "JUNK", (const uint8_t *)"xx", 2);
+            check(mus_probe(top.b, top.n, 0, &song) == 0, "a junk chunk after the hit is never walked: the hit stands");
+            xmi_free(&song);
+            free(top.b);
+        }
+        {
+            bb body = { 0, 0, 0 }, top = { 0, 0, 0 };
+
+            bb_plain(&body, "TIMB", TIMB_BODY, sizeof TIMB_BODY);
+            bb_plain(&body, "EVNT", e1.b, e1.n);
+            bb_chunk(&top, "form", "xmid", body.b, body.n);            /* lower-case ids */
+            check(mus_probe(top.b, top.n, 0, &song) != 0, "lower-case ids do not match (case-sensitive)");
+            free(body.b);
+            free(top.b);
+        }
+        {
+            /* an odd-sized, unpadded FORM XDIR before the CAT: the walk adds no pad byte after an odd size */
+            bb top = { 0, 0, 0 };
+
+            bb_bytes(&top, "FORM", 4); bb_u32be(&top, 13); bb_bytes(&top, "XDIR", 4);
+            bb_bytes(&top, "INFO", 4); bb_u32be(&top, 1); bb_u8(&top, 'x');   /* XDIR body: 13 bytes, odd, no pad */
+            bb_bytes(&top, x1 + 22, l1 - 22);                                 /* x1's CAT XMID chunk (x1: 22-byte XDIR) */
+            check(mus_probe(top.b, top.n, 0, &song) == 0, "no pad byte after an odd size: the CAT is still found");
+            xmi_free(&song);
+            free(top.b);
+        }
+        free(x1);
+        free(e1.b);
+    }
 
     memset(&r, 0, sizeof r);
     b.midi = rec_midi;
@@ -532,6 +767,25 @@ static void test_musplay(void)
     check(mus_status(p) == MUS_FREE, "a new player is free");
     check(r.n == 16 * 15, "the channel set-up goes out once at mus_new (16 ch x 15 messages)");
     check(r.resets == 0, "no reset at mus_new");
+    {
+        static const int ccs[12][2] = {
+            { 112, 0 }, { 1, 0 }, { 7, 127 }, { 10, 64 }, { 11, 127 }, { 64, 0 },
+            { 91, 40 }, { 93, 0 }, { 100, 0 }, { 101, 0 }, { 38, 0 }, { 6, 2 }
+        };
+        int ch, i, ok = 1;
+
+        for (ch = 0; ch < 16 && ok; ch++) {
+            int base = ch * 15;
+
+            if (!rec_find_at(&r, base + 0, 0xB0 | ch, 114, 0)) ok = 0;         /* CC114 0 */
+            if (!rec_find_at(&r, base + 1, 0xC0 | ch, 0, 0)) ok = 0;            /* program 0 */
+            if (!rec_find_at(&r, base + 2, 0xE0 | ch, 0x00, 0x40)) ok = 0;      /* pitch bend 0x2000 */
+            for (i = 0; i < 12 && ok; i++)
+                if (!rec_find_at(&r, base + 3 + i, 0xB0 | ch, ccs[i][0], ccs[i][1]))
+                    ok = 0;
+        }
+        check(ok, "the set-up messages match the spec list in value and order (16 ch x 15)");
+    }
 
     check(mus_load(p, xmi2, l2, 0) == 1, "load sequence 0");
     check(mus_status(p) == MUS_DONE, "loaded: done, at the start");
@@ -566,8 +820,9 @@ static void test_musplay(void)
         check(mus_status(p) == MUS_PLAYING, "resume: playing");
         mus_volume(p, 64);
         mus_loops(p, 0);
-        mus_render(p, out, 441);
-        check(mus_status(p) == MUS_PLAYING, "loop count 0 keeps it playing");
+        mus_render(p, out, 4410);                     /* 12 ticks: past the EOT at tick 5 */
+        check(mus_status(p) == MUS_PLAYING, "loop count 0 really reaches its EOT and keeps playing");
+        check(rec_count(&r, 0x91, 62) >= 2, "the song's note replayed after the EOT rewind");
         mus_end(p);
         mus_free(p);
     }
@@ -579,7 +834,7 @@ static void test_musplay(void)
     memset(out, 0x55, sizeof out);
     mus_render(q, out, 441);
     check(out[0] == 0 && out[441 * 2 - 1] == 0, "null backend renders silence");
-    check(mus_status(q) == MUS_DONE || mus_status(q) == MUS_PLAYING, "status readable");
+    check(mus_status(q) == MUS_PLAYING, "null backend: one named status (playing after one tick)");
     mus_free(q);
 
     free(xmi2);
@@ -594,7 +849,8 @@ static void test_ail(void)
     int32_t sh;
     int i;
     uint8_t *wavbuf, *voc, *junk, *badwav;
-    size_t wl, vocl, jl, bl, xl;
+    uint8_t *wb5, *wb11, *wb8, *wb0;
+    size_t wl, vocl, jl, bl, xl, wl5, wl11, wl8, wl0;
     uint8_t *xmi2;
     uint8_t *evs[2];
     size_t els[2];
@@ -627,6 +883,8 @@ static void test_ail(void)
     bl = 30;                                           /* and cut it short */
 
     ail_init(test_lock, NULL);
+    check(ail_sample_status(3) == AIL_FREE, "an unallocated sample handle inside 1..16 reports free");
+    check(ail_sequence_status(2) == AIL_FREE, "an unallocated sequence handle inside 1..8 reports free");
     check(ail_set_preference(7, 1) == 0, "preference 7 defaults to 0");
     check(ail_set_preference(7, 1) == 1, "preference 7 returns the old value");
     check(ail_set_preference(1, 0) == 1, "preference 1 defaults to 1");
@@ -690,6 +948,103 @@ static void test_ail(void)
     check(ail_sample_status(99) == 0, "an unknown handle has status 0");
     check(ail_sample_status(0) == 0, "handle 0 is none");
 
+    /* WAVs of other shapes through the facade (back to not-live for the headless rules) */
+    ail_set_live(0);
+    wb5 = make_wav(44100, 1, 16, 5, 100, &wl5);        /* samples 100..104 at the output rate */
+    wb11 = make_wav(11025, 1, 16, 110, 7, &wl11);
+    wb8 = make_wav(22050, 1, 8, 100, 3, &wl8);
+    wb0 = make_wav(22050, 1, 16, 0, 0, &wl0);
+    check(ail_set_sample_file(h[1], wb11, wl11) == 1, "an 11,025 Hz WAV is accepted");
+    check(ail_set_sample_file(h[2], wb8, wl8) == 1, "an 8-bit WAV is accepted");
+    check(ail_set_sample_file(h[3], wb0, wl0) == 1, "a 0-frame WAV is accepted");
+    ail_set_sample_loop_count(h[4], 0);
+    ail_start_sample(h[4]);                            /* an allocated handle with no file */
+    check(ail_sample_status(h[4]) == AIL_DONE && ail_active_sample_count() == 0,
+          "start on an empty handle with loop count 0 stays done, nothing active");
+    ail_set_sample_loop_count(h[3], 0);
+    ail_start_sample(h[3]);
+    check(ail_sample_status(h[3]) == AIL_DONE && ail_active_sample_count() == 0,
+          "a 0-frame WAV counts as no data: start does nothing even with loop count 0");
+
+    /* init_sample resets loops/volume and clears the data */
+    ail_set_sample_loop_count(h[1], 0);
+    ail_set_sample_volume(h[1], 55);
+    ail_init_sample(h[1]);
+    check(ail_sample_status(h[1]) == AIL_DONE, "init_sample: done");
+    ail_set_sample_loop_count(h[1], 0);
+    ail_start_sample(h[1]);
+    check(ail_sample_status(h[1]) == AIL_DONE && ail_active_sample_count() == 0,
+          "init_sample cleared the data: start with loop count 0 does nothing");
+    ail_set_sample_loop_count(h[1], 1);
+    ail_start_sample(h[1]);
+    check(ail_sample_status(h[1]) == AIL_DONE, "init_sample cleared the data: start does nothing");
+    check(ail_set_sample_file(h[1], wb5, wl5) == 1, "set_sample_file after init");
+    ail_start_sample(h[1]);                            /* not live; loops reset to 1: done at once */
+    check(ail_sample_status(h[1]) == AIL_DONE, "init_sample reset the loop count to 1 (not-live: done at once)");
+
+    /* live: exact rendered values, restart position, volume, loop counts through the facade */
+    ail_set_live(1);
+    ail_set_sample_loop_count(h[1], 0);
+    ail_set_sample_volume(h[1], 127);
+    ail_start_sample(h[1]);
+    check(ail_sample_status(h[1]) == AIL_PLAYING, "live: playing");
+    ail_render(out, 2);
+    check(out[0] == 100 && out[2] == 101, "the rendered values are the sample's (100, 101)");
+    ail_start_sample(h[1]);                            /* start restarts even while playing */
+    ail_render(out, 3);
+    check(out[0] == 100 && out[2] == 101 && out[4] == 102, "start restarts the position at frame 0");
+    ail_set_sample_volume(h[1], 0);
+    ail_render(out, 1);
+    check(out[0] == 0, "volume 0 silences the playing voice");
+    ail_set_sample_volume(h[1], 127);
+    ail_render(out, 1);
+    check(out[0] == 104, "volume 127 again (frame 4 = 104)");
+    ail_set_sample_loop_count(h[1], 1);                /* set while playing: ends at the run-out */
+    ail_render(out, 2);
+    check(ail_sample_status(h[1]) == AIL_DONE, "loop count set to 1 while playing ends it at the run-out");
+    ail_set_sample_loop_count(h[1], 0);                /* a done sample must not come back */
+    ail_set_sample_volume(h[1], 99);
+    check(ail_sample_status(h[1]) == AIL_DONE, "a done sample does not come back (loop count / volume inert)");
+    ail_end_sample(h[1]);
+    check(ail_sample_status(h[1]) == AIL_DONE, "end on a done handle stays done");
+
+    /* loop count 3 through the facade: 15 frames of the 5-frame sample, then done */
+    ail_set_sample_loop_count(h[1], 3);
+    ail_start_sample(h[1]);
+    ail_render(out, 10);
+    check(ail_sample_status(h[1]) == AIL_PLAYING, "loops 3: playing after 10 frames");
+    ail_render(out, 5);
+    check(ail_sample_status(h[1]) == AIL_DONE, "loops 3: done after 15 frames");
+
+    /* a file on a PLAYING handle keeps status 4 (accepted or refused) */
+    ail_set_sample_loop_count(h[1], 0);
+    ail_start_sample(h[1]);
+    check(ail_sample_status(h[1]) == AIL_PLAYING, "playing again");
+    check(ail_set_sample_file(h[1], wb11, wl11) == 1, "a new file on a playing handle is accepted");
+    check(ail_sample_status(h[1]) == AIL_PLAYING, "a successful set_sample_file keeps status 4");
+    check(ail_set_sample_file(h[1], voc, vocl) == 0, "a refused file on a playing handle");
+    check(ail_sample_status(h[1]) == AIL_PLAYING, "a refused file keeps status 4");
+    ail_end_sample(h[1]);
+    check(ail_sample_status(h[1]) == AIL_DONE, "end after the file swap: done");
+
+    /* live -> not live converts the running voices under the lock */
+    check(ail_set_sample_file(h[1], wb5, wl5) == 1, "load the 5-frame WAV");
+    ail_set_sample_loop_count(h[1], 1);
+    ail_start_sample(h[1]);
+    check(ail_sample_status(h[1]) == AIL_PLAYING, "live: playing");
+    ail_set_live(0);
+    check(ail_sample_status(h[1]) == AIL_DONE && ail_active_sample_count() == 0,
+          "set_live(0) converts a running count-1 voice to done");
+    ail_set_sample_loop_count(h[1], 0);
+    ail_set_live(1);
+    ail_start_sample(h[1]);
+    check(ail_sample_status(h[1]) == AIL_PLAYING, "live again: playing");
+    ail_set_live(0);
+    check(ail_sample_status(h[1]) == AIL_PLAYING && ail_active_sample_count() == 1,
+          "set_live(0) with loop count 0: stays playing (no voice, still counted active)");
+    ail_set_live(1);
+    ail_end_sample(h[1]);
+
     /* the sequence */
     sh = ail_allocate_sequence();
     check(sh == 1, "sequence handle 1");
@@ -715,10 +1070,36 @@ static void test_ail(void)
     ail_render(out, 44100);                            /* 1 s: past the song's EOT at tick 5 */
     check(ail_sequence_status(sh) == AIL_DONE, "the song ended through its loop count: status done");
     check(ail_sequence_status(9) == 0, "an unknown sequence handle: 0");
+    /* stop/resume/end act on the refreshed status: a song ended by its loop count reads 2, and they do nothing */
+    ail_stop_sequence(sh);
+    check(ail_sequence_status(sh) == AIL_DONE, "stop when not 4 does nothing");
+    ail_resume_sequence(sh);
+    check(ail_sequence_status(sh) == AIL_DONE, "resume when not 8 does nothing");
     ail_start_sequence(sh);
     check(ail_sequence_status(sh) == AIL_PLAYING, "playing again");
+    ail_resume_sequence(sh);
+    check(ail_sequence_status(sh) == AIL_PLAYING, "resume while playing does nothing");
+    ail_stop_sequence(sh);
+    check(ail_sequence_status(sh) == AIL_PAUSED, "stop: paused");
+    ail_stop_sequence(sh);
+    check(ail_sequence_status(sh) == AIL_PAUSED, "stop while paused does nothing");
+    ail_resume_sequence(sh);
+    check(ail_sequence_status(sh) == AIL_PLAYING, "resume: playing");
+    /* init_sequence resets loop count 1 and volume 127 (not masked by earlier sets) */
+    ail_set_sequence_loop_count(sh, 0);
+    ail_set_sequence_volume(sh, 64, 0);
+    check(ail_init_sequence(sh, xmi2, xl, 0) == 1, "re-init ok");
+    check(ail_sequence_status(sh) == AIL_DONE, "init: done");
+    ail_start_sequence(sh);
+    ail_render(out, 44100);
+    check(ail_sequence_status(sh) == AIL_DONE, "init reset the loop count to 1 (ended, not looping forever)");
+    /* a failed init on a playing handle: status 2, the old song ended */
+    ail_start_sequence(sh);
+    check(ail_sequence_status(sh) == AIL_PLAYING, "playing before the failed init");
     check(ail_init_sequence(sh, xmi2, xl, 2) == 0, "a failed init_sequence still returns 0");
     check(ail_sequence_status(sh) == AIL_DONE, "init_sequence sets status done first, even when it fails");
+    ail_stop_sequence(sh);
+    check(ail_sequence_status(sh) == AIL_DONE, "stop after a failed init does nothing");
 
     check(g_lock_balance == 0, "every lock(1) has its lock(0)");
     ail_shutdown();
@@ -726,6 +1107,10 @@ static void test_ail(void)
     free(voc);
     free(junk);
     free(badwav);
+    free(wb5);
+    free(wb11);
+    free(wb8);
+    free(wb0);
     free(xmi2);
 }
 

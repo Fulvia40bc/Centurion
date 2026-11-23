@@ -64,11 +64,14 @@ static void mus_send_setup(musplay *p)
     }
 }
 
+/* Decide as 0x99180 does (ailsem 7 step 3): walk the top chunks ("FORM"/"CAT " only, ids case-sensitive,
+   big-endian sizes, else fail); a chunk whose type at +8 is not "XMID" (FORM XDIR) is skipped; the FIRST
+   FORM/CAT of type XMID decides and the walk never goes on: a lone FORM XMID is the one sequence (n must be
+   0), a CAT XMID gives its n-th sub-chunk of type XMID (0-based), else fail. No pad byte is added after an
+   odd size. */
 int mus_probe(const uint8_t *xmi, size_t len, int n, xmi_song *out)
 {
     size_t pos = 0;
-    size_t seq_off = 0, seq_len = 0;
-    int found = 0;
 
     if (out == NULL)
         return -1;
@@ -82,49 +85,40 @@ int mus_probe(const uint8_t *xmi, size_t len, int n, xmi_song *out)
 
         if ((size_t)size > len - body)
             size = (uint32_t)(len - body);
-        if (memcmp(tag, "FORM", 4) == 0 || memcmp(tag, "CAT ", 4) == 0) {
-            if (body + 4 <= len && memcmp(xmi + body, "XMID", 4) == 0) {
-                if (memcmp(tag, "FORM", 4) == 0) {
-                    if (n == 0 && !found) {       /* a lone FORM XMID: the one sequence */
-                        seq_off = pos;
-                        seq_len = 8 + size;
-                        found = 1;
-                    }
-                } else {                          /* CAT XMID: count the sub-chunks of type XMID */
-                    size_t p2 = body + 4;
-                    size_t end2 = body + size;
-                    int idx = 0;
+        if (memcmp(tag, "FORM", 4) != 0 && memcmp(tag, "CAT ", 4) != 0)
+            return -1;                            /* top chunks are FORM/CAT only, else fail */
+        if (body + 4 <= len && memcmp(xmi + body, "XMID", 4) == 0) {
+            if (memcmp(tag, "FORM", 4) == 0) {    /* a lone FORM XMID: the one sequence, n must be 0 */
+                if (n != 0)
+                    return -1;
+                return xmi_parse(xmi + pos, 8 + (size_t)size, out);   /* fails when there is no EVNT */
+            } else {                              /* CAT XMID: the n-th XMID sub-chunk, 0-based */
+                size_t p2 = body + 4;
+                size_t end2 = body + size;
+                int idx = 0;
 
-                    if (end2 > len)
-                        end2 = len;
-                    while (p2 + 8 <= end2) {
-                        const uint8_t *t2 = xmi + p2;
-                        uint32_t s2 = rd_u32be(xmi + p2 + 4);
+                if (end2 > len)
+                    end2 = len;
+                while (p2 + 8 <= end2) {
+                    const uint8_t *t2 = xmi + p2;
+                    uint32_t s2 = rd_u32be(xmi + p2 + 4);
 
-                        if ((size_t)s2 > len - (p2 + 8))
-                            s2 = (uint32_t)(len - (p2 + 8));
-                        if (memcmp(t2, "FORM", 4) == 0 && p2 + 12 <= len &&
-                            memcmp(xmi + p2 + 8, "XMID", 4) == 0) {
-                            if (idx == n && !found) {
-                                seq_off = p2;
-                                seq_len = 8 + s2;
-                                found = 1;
-                            }
-                            idx++;
-                        }
-                        p2 += 8 + s2 + (s2 & 1u);
+                    if ((size_t)s2 > len - (p2 + 8))
+                        s2 = (uint32_t)(len - (p2 + 8));
+                    if (memcmp(t2, "FORM", 4) == 0 && p2 + 12 <= len &&
+                        memcmp(xmi + p2 + 8, "XMID", 4) == 0) {
+                        if (idx == n)
+                            return xmi_parse(xmi + p2, 8 + (size_t)s2, out);
+                        idx++;
                     }
+                    p2 += 8 + s2;                 /* no pad byte after an odd size */
                 }
+                return -1;
             }
-            /* a chunk whose type at +8 is not "XMID" (FORM XDIR) is skipped */
-        } else {
-            return -1;                            /* a top chunk that is not FORM/CAT: fail */
         }
-        pos = body + size + (size & 1u);
+        pos = body + size;                        /* no pad byte after an odd size */
     }
-    if (!found)
-        return -1;
-    return xmi_parse(xmi + seq_off, seq_len, out);   /* fails when the sequence has no EVNT */
+    return -1;
 }
 
 musplay *mus_new(const mus_backend *b, int rate)
