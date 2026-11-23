@@ -66,6 +66,22 @@ if [ -n "$NOBUDGET" ]; then   # the computers' ship search as on an infinitely f
   D dbg "D 0188:2B43E8" > /dev/null
   D dbgscreen | grep -qE '^0188:002B43E8 FF 7F' || { echo "budget not set"; exit 1; }
   echo "budget word 0xBB3E8 = 32767"
+  # That alone is not enough: with 19 or more open sites C reads past the triangular table (aiship.c, case (a)), so a
+  # trial plan that spans one DOS clock tick still cuts the search, which happens under host load (a replay went
+  # off course by round 23 on 22 Nov). Make f6332C's two tests always take the port's branch (its clock stands still,
+  # so avg = elapsed = 0): the jbe 0x636B3 at 0x63404 (pruning the sites) and the jbe 0x63934 at 0x638C3 (moving the
+  # stage-2 start) become jmp; nop. The time words it stores still differ (by_design.txt).
+  patch() {   # patch LINK OLD NEW: check the old bytes, write the new ones, read them back
+    local a; a=$(printf '%X' $(( $1 + 0x202000 )))
+    D dbg "D 0188:$a" > /dev/null
+    D dbgscreen | grep -qE "^0188:00$a $2" || { echo "$(printf '0x%X' $1) is not the expected jbe"; exit 1; }
+    D dbg "SM 0188:$a $3" > /dev/null
+    D dbg "D 0188:$a" > /dev/null
+    D dbgscreen | grep -qE "^0188:00$a $3" || { echo "$(printf '0x%X' $1) not patched"; exit 1; }
+  }
+  patch 0x63404 '0F 86 A9 02 00 00' 'E9 AA 02 00 00 90'
+  patch 0x638C3 '0F 86 6B 00 00 00' 'E9 6C 00 00 00 90'
+  echo "budget tests at 0x63404 and 0x638C3 patched to jmp"
 fi
 bp $ADDR; D dbgkey F5 > /dev/null; sleep 1
 for k in $(seq 1 $count); do

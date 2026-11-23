@@ -342,11 +342,25 @@ int main(int argc, char **argv)
             return 2;
         }
     }
-    if (gamedir == NULL)
+    if (gamedir == NULL) {   /* port: the player's zip puts advciv.exe in GAMEDIR\AdvCiv\ (tools/package.ps1's README), */
+        FILE *probe = fopen("ACIV.CT1", "rb");          /* and a double-click starts it there: then use the parent */
         gamedir = ".";
+        if (probe != NULL)
+            fclose(probe);
+        else if ((probe = fopen("../ACIV.CT1", "rb")) != NULL) {
+            fclose(probe);
+            gamedir = "..";
+        }
+    }
     if (plat_chdir(gamedir) != 0) {   /* the original runs in its folder: saves, aciv.cfg, pal.pal are relative */
         fprintf(stderr, "advciv: cannot change to the game folder %s\n", gamedir);
         return 1;
+    }
+    if (gamedir[0] != '/' && gamedir[0] != '\\' && !(gamedir[0] != '\0' && gamedir[1] == ':')) {
+        /* a relative GAMEDIR ("..", "..\game") is the current folder now: name it absolutely, as an absolute one is */
+        static char cwd[260];
+        if (plat_getcwd(cwd, (int)sizeof cwd) == 0)
+            gamedir = cwd;
     }
     if (s_frame_path != NULL && s_frame_path[0] != '/' && s_frame_path[0] != '\\' && s_frame_path[1] != ':')
         fprintf(stderr, "advciv: note: %s is relative to the game folder now\n", s_frame_path);
