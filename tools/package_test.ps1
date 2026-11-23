@@ -90,7 +90,9 @@ function Run-Package {
     if ([string]::IsNullOrEmpty([string]$p.v)) { continue }
     $argList += @($p.k, [string]$p.v)
   }
-  $outText = (& $pwsh @argList 2>&1) | Out-String
+  # each line as plain text: under 5.1 the child's stderr lines arrive as ErrorRecords, which Out-String would wrap
+  # at the console width (splitting a long path in a message)
+  $outText = ((& $pwsh @argList 2>&1) | ForEach-Object { [string]$_ }) -join "`n"
   return @{ rc = $LASTEXITCODE; out = $outText }
 }
 

@@ -2,3 +2,4 @@
 # game's logic. demo_regress.py's default --mask file (same format as by_design.txt, read as dscompare.py does).
 # ADDR LEN reason: hex link address (the dump's file offset 0 is link 0xB0000), decimal or 0x length, # comments.
 F422C 4 _dos_gettime result (the clock)
+F5758 0x12C file-name prefixes: the game folder's path as the port names it (main.c: "." since 22 Nov), as by_design.txt

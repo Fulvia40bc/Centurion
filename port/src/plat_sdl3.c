@@ -309,15 +309,6 @@ int plat_chdir(const char *dir)
 #endif
 }
 
-int plat_getcwd(char *buf, int size)
-{
-#ifdef _WIN32
-    return _getcwd(buf, size) != NULL ? 0 : -1;
-#else
-    return getcwd(buf, (size_t)size) != NULL ? 0 : -1;
-#endif
-}
-
 uint64_t plat_ticks_ms(void) { return SDL_GetTicks(); }
 void plat_sleep_ms(uint32_t ms) { SDL_Delay(ms); }
 

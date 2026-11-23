@@ -356,12 +356,9 @@ int main(int argc, char **argv)
         fprintf(stderr, "advciv: cannot change to the game folder %s\n", gamedir);
         return 1;
     }
-    if (gamedir[0] != '/' && gamedir[0] != '\\' && !(gamedir[0] != '\0' && gamedir[1] == ':')) {
-        /* a relative GAMEDIR ("..", "..\game") is the current folder now: name it absolutely, as an absolute one is */
-        static char cwd[260];
-        if (plat_getcwd(cwd, (int)sizeof cwd) == 0)
-            gamedir = cwd;
-    }
+    gamedir = ".";   /* port: the game folder is the current one now. The file names are built in the original's
+                        100-byte buffers (0xF5758, three of them), so a long path (or a relative one, prefixed
+                        again) would break them; the bytes are masked in tools/verify (paths, by design) */
     if (s_frame_path != NULL && s_frame_path[0] != '/' && s_frame_path[0] != '\\' && s_frame_path[1] != ':')
         fprintf(stderr, "advciv: note: %s is relative to the game folder now\n", s_frame_path);
     if (plat_init("Advanced Civilization", s_frame_path != NULL || s_dump_path != NULL || s_dump_every != NULL ? PLAT_HEADLESS : 0) != 0)
