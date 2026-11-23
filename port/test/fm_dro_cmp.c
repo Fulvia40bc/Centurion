@@ -315,11 +315,11 @@ static void ail_stop(ail_seq *s)                          /* AIL_stop_sequence 0
         }
     s->note_count = 0;                                    /* 0x99AFE */
     host_flush(s->h);                                     /* 0x99B08..0x99B3E */
-    for (ch = 0; ch < 16; ch++) {                         /* ailsem 7: CC64 0 / CC112 0 where the shadow >= 64 */
-        if (s->shadow[ch][64] >= 64)
-            ail_msg(s, 0xB0 | ch, 64, 0);
-        if (s->shadow[ch][112] >= 64)
-            ail_msg(s, 0xB0 | ch, 112, 0);
+    for (ch = 0; ch < 16; ch++) {                         /* ailsem 7: CC64 0 / CC112 0 where the shadow >= 64, */
+        if (s->shadow[ch][64] >= 64)                      /* queued through 0x98F30 directly (0x9B67B, 0x9B6A7), */
+            host_queue(s->h, 0xB0 | ch, 64, 0);           /* not 0x99610: the shadow keeps its value, so a later */
+        if (s->shadow[ch][112] >= 64)                     /* stop sends them again and AIL_resume_sequence's */
+            host_queue(s->h, 0xB0 | ch, 112, 0);          /* replay (0x99C20) puts the pedal down again */
     }
 }
 

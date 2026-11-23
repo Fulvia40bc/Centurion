@@ -37,6 +37,10 @@ foreach ($arch in 'aarch64', 'x86_64') {
   & $cc @warn "-I$fs\include" (Join-Path $test 'ail_render.c') @snd @fmt "$fs\lib\libfluidsynth-3.dll.a" `
         -o (Join-Path $o 'ail_render.exe')
   if ($LASTEXITCODE) { throw "ail_render ${arch}: build failed" }
+  # xmiseq_cmp_test (HANDOFF Task 22c): xmiseq.c against the host's XMIDI interpreter (xmi_host.c), no files needed
+  & $cc @warn (Join-Path $test 'xmiseq_cmp_test.c') (Join-Path $test 'xmi_host.c') (Join-Path $src 'xmi.c') `
+        (Join-Path $src 'xmiseq.c') -o (Join-Path $o 'xmiseq_cmp_test.exe')
+  if ($LASTEXITCODE) { throw "xmiseq_cmp_test ${arch}: build failed" }
   # fm_dro_cmp: SBPRO2.MDI's translation (fmdrv.c) driven like AIL's host, against a DOSBox-X OPL capture
   & $cc @warn (Join-Path $test 'fm_dro_cmp.c') (Join-Path $src 'fmdrv.c') (Join-Path $src 'dro.c') `
         (Join-Path $src 'xmi.c') (Join-Path $src 'catalog.c') -o (Join-Path $o 'fm_dro_cmp.exe')
