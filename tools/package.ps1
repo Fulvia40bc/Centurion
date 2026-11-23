@@ -11,7 +11,7 @@ param(
   [string]$Out     = 'C:\work\advciv_dist',
   [string]$Version = '',
   [string]$Objdump = 'C:\work\toolchain\llvm-mingw-20261104-ucrt-aarch64\bin\llvm-objdump.exe',
-  [string]$Repo    = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
+  [string]$Repo    = (Split-Path -Parent $PSScriptRoot),   # the repository holding tools\ and port\
   [string]$BuildPort = '',   # default: $Repo\tools\build_port.ps1, read to see whether opl.c is linked into the game
   [string]$Sdl3License       = 'C:\work\toolchain\deps\SDL3-3.4.20\LICENSE.txt',
   [string]$FluidSynthLicense = 'C:\work\toolchain\deps\fluidsynth-2.6.2\LICENSE',
@@ -130,7 +130,7 @@ function New-ReadmeLines {
   $l.Add('INSTALL')
   $l.Add('Unzip the AdvCiv folder into the folder of an installed Advanced')
   $l.Add('Civilization - the one holding AC_MAIN.EXE and ACIV.CT1..ACIV.CT5 -')
-  $l.Add('and start advciv.exe there. Or run, from anywhere:')
+  $l.Add('and start AdvCiv\advciv.exe. Or run, from anywhere:')
   $l.Add('    advciv.exe "C:\path\to\the\game folder"')
   $l.Add('The game reads and writes its files in that folder, exactly as the')
   $l.Add('original does: save games (SAVGAME*.DAT) and the settings file')
@@ -167,6 +167,10 @@ function Invoke-Package {
   }
   if (-not $BuildPort)   { $BuildPort   = Join-Path $Repo 'tools\build_port.ps1' }
   if (-not $NukedLicense) { $NukedLicense = Join-Path $Repo 'port\third_party\nuked-opl3\LICENSE' }
+  if (-not (Test-Path $BuildPort -PathType Leaf)) {
+    [Console]::Error.WriteLine("package: build_port.ps1 not found at '$BuildPort' (pass -Repo or -BuildPort) - it decides whether Nuked-OPL3 is linked")
+    return 1
+  }
   if (-not $Version) {
     $v = ''
     try { $v = (& git -C $Repo describe --always --dirty 2>$null) } catch { $v = '' }
@@ -310,4 +314,10 @@ function Invoke-Package {
   return $rc
 }
 
-exit (Invoke-Package @PSBoundParameters)
+# Pass every script parameter explicitly: @PSBoundParameters would carry only the ones the caller typed,
+# and Invoke-Package's own parameters have no defaults, so a left-out one would arrive as '' and hide the
+# script-level default (TASK 21a).
+exit (Invoke-Package -Build $Build -Out $Out -Version $Version -Objdump $Objdump -Repo $Repo -BuildPort $BuildPort `
+  -Sdl3License $Sdl3License -FluidSynthLicense $FluidSynthLicense -LlvmMingwLicense $LlvmMingwLicense `
+  -Soundfont $Soundfont -SoundfontLicense $SoundfontLicense -NukedLicense $NukedLicense `
+  -ImportTable $ImportTable -ImportTableJson $ImportTableJson)

@@ -298,9 +298,12 @@ def cmd_record(args):
                 if not args.keep:
                     shutil.rmtree(workdir, ignore_errors=True)
                 continue
-            # write the new seed folder under a temporary name, then swap it in: a failure anywhere below
-            # leaves the old reference and the manifest intact
+            # write the new seed folder under a temporary name and the new manifest under a temporary name,
+            # then swap: the folder in, the manifest over it (os.replace is atomic), and only after that the
+            # old folder away. A failure anywhere below restores the old folder, removes the temporary files
+            # and leaves manifest.json as it was, so the old reference stays valid (TASK 21a).
             tmp_new = os.path.join(refdir, f'.{name}.tmp{os.getpid()}')
+            tmp_man = manifest_path + f'.tmp{os.getpid()}'
             shutil.rmtree(tmp_new, ignore_errors=True)
             os.makedirs(tmp_new)
             try:
@@ -315,26 +318,39 @@ def cmd_record(args):
             except BaseException:
                 shutil.rmtree(tmp_new, ignore_errors=True)
                 raise
+            manifest['seeds'][name] = entry
             old = None
+            swapped = False
             try:
+                with open(tmp_man, 'w') as f:            # the new manifest, to its temporary file, BEFORE the swap
+                    json.dump(manifest, f, indent=1, sort_keys=True)
                 if os.path.isdir(sdir):
                     old = os.path.join(refdir, f'.{name}.old{os.getpid()}')
                     os.rename(sdir, old)
                 os.rename(tmp_new, sdir)
+                swapped = True
+                os.replace(tmp_man, manifest_path)         # the manifest swap: atomic, the last step
                 if old is not None:
-                    shutil.rmtree(old, ignore_errors=True)
+                    shutil.rmtree(old, ignore_errors=True)  # the old folder goes only after the manifest is in place
             except BaseException:
-                # a failed swap leaves no leftover (TASK 21): drop the new recording, put the old folder back;
-                # the manifest is not touched (it is written only after the swap), so the reference stays valid
-                shutil.rmtree(tmp_new, ignore_errors=True)
-                if old is not None and os.path.isdir(old) and not os.path.isdir(sdir):
-                    os.rename(old, sdir)
+                # restore: manifest.json was never replaced, so it still lists the old folder; put that
+                # folder back and drop everything new (TASK 21 / 21a)
+                if swapped:
+                    if old is not None and os.path.isdir(old):
+                        os.rename(sdir, tmp_new)           # the new folder aside ...
+                        os.rename(old, sdir)               # ... and the old folder back
+                    else:
+                        shutil.rmtree(sdir, ignore_errors=True)   # no old seed: the new one is not in the manifest
+                elif old is not None and os.path.isdir(old):
+                    os.rename(old, sdir)                   # the tmp_new -> sdir rename failed: old back
+                if os.path.isdir(tmp_new):
+                    shutil.rmtree(tmp_new, ignore_errors=True)
+                if os.path.exists(tmp_man):
+                    try:
+                        os.remove(tmp_man)
+                    except OSError:
+                        pass
                 raise
-            manifest['seeds'][name] = entry
-            tmp_man = manifest_path + f'.tmp{os.getpid()}'
-            with open(tmp_man, 'w') as f:
-                json.dump(manifest, f, indent=1, sort_keys=True)
-            os.replace(tmp_man, manifest_path)
             print(f'seed {name}: {entry["rounds"]} rounds and the end, recorded in {sdir}')
             if not args.keep:
                 shutil.rmtree(workdir, ignore_errors=True)

@@ -304,6 +304,25 @@ def main():
         check(refdir_state() == state_before, 'swap failure, new rename: REFDIR holds exactly the old seed folder (same bytes) and the old manifest')
         check(game_state_ok(g), 'swap failure, new rename: game folder restored')
 
+        # TASK 21a #5: the manifest swap (os.replace of manifest.json) fails after the seed folder was
+        # swapped in: the new manifest was already written to its temp file before the swap, so on failure
+        # the old folder is restored, the temp files are removed and manifest.json is byte-identical
+        real_replace = os.replace
+        manifest_path = os.path.join(ref, 'manifest.json')
+
+        def fail_manifest_replace(src, dst):
+            if dst == manifest_path:
+                raise OSError(5, 'simulated WinError 5: manifest.json is held open by another process')
+            return real_replace(src, dst)
+
+        with mock.patch('os.replace', fail_manifest_replace):
+            rc = run_record_force()
+        check(rc == 2, f'manifest swap failure: rc {rc}')
+        check(refdir_state() == state_before,
+              'manifest swap failure: REFDIR unchanged (old seed folder with the old bytes, manifest.json identical, no .tmp/.old leftovers)')
+        check(game_state_ok(g), 'manifest swap failure: game folder restored')
+        check(not any(f.startswith('.') for f in os.listdir(ref)), 'manifest swap failure: no temp files left in REFDIR')
+
         # 19b #7: on any exception while the port runs (Ctrl+C), the child is killed and waited for
         class FakeP:
             def __init__(self):

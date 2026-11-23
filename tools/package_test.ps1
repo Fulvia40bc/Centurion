@@ -60,21 +60,36 @@ function Get-FakeTable([string]$root, [string[]]$advcivImports) {
 }
 
 function Run-Package {
-  # run package.ps1 as a child process with the fake import table as JSON; returns @{ rc, out }
-  param([string]$root, [string]$out, [string]$version, [hashtable]$table, [string]$repo, [string]$buildPort, [string]$tmp)
+  # run package.ps1 as a child process with the fake import table as JSON; returns @{ rc, out }.
+  # A switch listed in $Skip is left out entirely, so package.ps1's own default is used. An empty value is
+  # left out too: Windows PowerShell 5.1 drops an empty argument when the child process starts, which would
+  # shift every following argument (TASK 21a).
+  param([string]$root, [string]$out, [string]$version, [hashtable]$table, [string]$repo, [string]$buildPort, [string]$tmp,
+        [string[]]$Skip = @())
   $json = Join-Path $tmp 'imports.json'
   $table | ConvertTo-Json -Depth 3 | Set-Content -Path $json -Encoding ASCII
   $lic = Join-Path $root 'licences'
-  $argList = @('-NoProfile', '-File', $pkg,
-    '-Build', (Join-Path $root 'build'), '-Out', $out, '-Version', $version,
-    '-Objdump', 'nonexistent-llvm-objdump.exe', '-Repo', $repo, '-BuildPort', $buildPort,
-    '-Sdl3License', (Join-Path $lic 'SDL3-LICENSE.txt'),
-    '-FluidSynthLicense', (Join-Path $lic 'fluidsynth-LICENSE'),
-    '-LlvmMingwLicense', (Join-Path $lic 'llvm-LICENSE.TXT'),
-    '-Soundfont', (Join-Path $lic 'GeneralUser-GS.sf2'),
-    '-SoundfontLicense', (Join-Path $lic 'sf2-LICENSE.txt'),
-    '-NukedLicense', (Join-Path $repo 'port\third_party\nuked-opl3\LICENSE'),
-    '-ImportTableJson', $json)
+  $pairs = @(
+    @{ k = '-Build'; v = (Join-Path $root 'build') },
+    @{ k = '-Out'; v = $out },
+    @{ k = '-Version'; v = $version },
+    @{ k = '-Objdump'; v = 'nonexistent-llvm-objdump.exe' },
+    @{ k = '-Repo'; v = $repo },
+    @{ k = '-BuildPort'; v = $buildPort },
+    @{ k = '-Sdl3License'; v = (Join-Path $lic 'SDL3-LICENSE.txt') },
+    @{ k = '-FluidSynthLicense'; v = (Join-Path $lic 'fluidsynth-LICENSE') },
+    @{ k = '-LlvmMingwLicense'; v = (Join-Path $lic 'llvm-LICENSE.TXT') },
+    @{ k = '-Soundfont'; v = (Join-Path $lic 'GeneralUser-GS.sf2') },
+    @{ k = '-SoundfontLicense'; v = (Join-Path $lic 'sf2-LICENSE.txt') },
+    @{ k = '-NukedLicense'; v = (Join-Path $repo 'port\third_party\nuked-opl3\LICENSE') },
+    @{ k = '-ImportTableJson'; v = $json }
+  )
+  $argList = @('-NoProfile', '-File', $pkg)
+  foreach ($p in $pairs) {
+    if ($Skip -contains $p.k) { continue }
+    if ([string]::IsNullOrEmpty([string]$p.v)) { continue }
+    $argList += @($p.k, [string]$p.v)
+  }
   $outText = (& $pwsh @argList 2>&1) | Out-String
   return @{ rc = $LASTEXITCODE; out = $outText }
 }
@@ -136,6 +151,7 @@ try {
   foreach ($line in $readme -split "`r`n") { if ($line.Length -gt $maxLen) { $maxLen = $line.Length } }
   Check ($maxLen -le 80) "A: README lines at most 80 columns (max $maxLen)"
   Check ($readme.Contains('Version: TEST1') -and $readme.Contains('--original') -and $readme.Contains('F11') -and $readme.Contains('Alt+Enter')) 'A: README has version, --original, F11/Alt+Enter'
+  Check ($readme.Contains('Unzip the AdvCiv folder') -and $readme.Contains('start AdvCiv\advciv.exe')) 'A: README keeps the unzip instruction and says to start AdvCiv\advciv.exe'
   Check ($readme.Contains('NOT included')) 'A: README says the game files are not included'
   # the printed file list has sizes and SHA-256
   Check (($r.out.Contains('advciv-TEST1-windows-arm64.zip')) -and ($r.out -match '(?m)^\s*AdvCiv/advciv\.exe\s+\d+\s+[0-9a-f]{64}\s*$')) "A: printed list with size and SHA-256: $($r.out.Substring(0, [Math]::Min(200, $r.out.Length)))"
@@ -186,12 +202,40 @@ try {
   $r = Run-Package $root $outA 'TEST1' (Get-FakeTable $root $fullImports) $repo $buildPort $tmp
   Check ($r.rc -eq 0 -and (Test-Path $extra) -and (@(Get-ChildItem $outA -Filter '*.zip').Count -eq 2)) "F: rc=$($r.rc), zips replaced, other files untouched: $((Get-ChildItem $outA -Name) -join ', ')"
 
-  # G. default version: <date>-<git describe --always --dirty> of the repo
-  $realRepo = Split-Path -Parent (Split-Path -Parent $here)
+  # G. default version and default -Repo: <date>-<git describe --always --dirty> of this repo, never
+  # 'unknown'; -Repo left at its script default (Split-Path -Parent $PSScriptRoot = this repo)
+  $realRepo = Split-Path -Parent $here
   $outG = Join-Path $tmp 'outG'; New-Item -ItemType Directory -Force $outG | Out-Null
-  $r = Run-Package $root $outG '' (Get-FakeTable $root $fullImports) $realRepo (Join-Path $realRepo 'tools\build_port.ps1') $tmp
+  $r = Run-Package $root $outG '' (Get-FakeTable $root $fullImports) $realRepo (Join-Path $realRepo 'tools\build_port.ps1') $tmp -Skip @('-Repo')
   $zipsG = @(Get-ChildItem $outG -Filter '*.zip' -Name)
-  Check ($r.rc -eq 0 -and $zipsG.Count -eq 2 -and ($zipsG[0] -match '^advciv-\d{8}-[0-9a-z]+(-dirty)?-windows-(arm64|x64)\.zip$')) "G: default version zip names: $($zipsG -join ', ')"
+  Check ($r.rc -eq 0 -and $zipsG.Count -eq 2 -and
+         ($zipsG[0] -match '^advciv-\d{8}-[0-9a-f]{7,40}(-dirty)?-windows-(arm64|x64)\.zip$') -and
+         ($zipsG[0] -notmatch 'unknown')) "G: default version zip names are <date>-<git describe>, not 'unknown': $($zipsG -join ', ')"
+
+  # H. licence/soundfont/objdump paths left at their script defaults: where a default does not exist (this
+  # sandbox), the run must stop with exit 1 and that path in the message; where the defaults exist (Erik's
+  # PC), the package succeeds
+  $outH = Join-Path $tmp 'outH'; New-Item -ItemType Directory -Force $outH | Out-Null
+  $defaultSdl3 = 'C:\work\toolchain\deps\SDL3-3.4.20\LICENSE.txt'
+  $r = Run-Package $root $outH 'TESTH' (Get-FakeTable $root $fullImports) $repo $buildPort $tmp `
+    -Skip @('-Objdump', '-Sdl3License', '-FluidSynthLicense', '-LlvmMingwLicense', '-Soundfont', '-SoundfontLicense')
+  if (-not (Test-Path $defaultSdl3 -PathType Leaf)) {
+    Check ($r.rc -eq 1 -and $r.out.Contains($defaultSdl3)) "H (defaults missing here): rc=$($r.rc), the message names the missing default licence path: $($r.out.Substring(0, [Math]::Min(250, $r.out.Length)))"
+    Check (@(Get-ChildItem $outH -Filter '*.zip').Count -eq 0) 'H (defaults missing here): no zip written'
+  } else {
+    Check ($r.rc -eq 0 -and @(Get-ChildItem $outH -Filter '*.zip').Count -eq 2) "H (defaults exist here): rc=$($r.rc), both zips written"
+  }
+
+  # I. build_port.ps1 left at its default ($Repo\tools\build_port.ps1) when that file does not exist: the
+  # script must stop with exit 1 naming the path, not silently package without the Nuked-OPL3 check
+  $repoNoBuild = Join-Path $root 'repo_nobuild'
+  New-Item -ItemType Directory -Force (Join-Path $repoNoBuild 'port\third_party\nuked-opl3') | Out-Null
+  [System.IO.File]::WriteAllText((Join-Path $repoNoBuild 'port\third_party\nuked-opl3\LICENSE'), 'Nuked-OPL3 LGPL text')
+  $outI = Join-Path $tmp 'outI'; New-Item -ItemType Directory -Force $outI | Out-Null
+  $r = Run-Package $root $outI 'TESTI' (Get-FakeTable $root $fullImports) $repoNoBuild '' $tmp -Skip @('-BuildPort', '-NukedLicense')
+  $wantBp = Join-Path $repoNoBuild 'tools\build_port.ps1'
+  Check ($r.rc -eq 1 -and $r.out.Contains('build_port.ps1') -and $r.out.Contains($wantBp)) "I: missing default build_port.ps1 stops the script, exit 1, naming '$wantBp': rc=$($r.rc) $($r.out.Substring(0, [Math]::Min(250, $r.out.Length)))"
+  Check (@(Get-ChildItem $outI -Filter '*.zip').Count -eq 0) 'I: no zip written'
 }
 finally {
   Remove-Item -Recurse -Force $tmp -ErrorAction SilentlyContinue
