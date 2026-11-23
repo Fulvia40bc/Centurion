@@ -104,7 +104,81 @@ characters deep, starts headless from AdvCiv\ (main.c now names the folder "." a
 
 (Mistral's TASK 22b is done; Claude's real-build check: strict clang build both arches with ail_test passing, mixer_test on the real ACIV.CT5 still byte-identical, then the live-play case on Erik's PC (the anim.c 0x7A43D/0x7A47F path). See the TASK 22b reply in Done.)
 
+(TASK 22b: VERIFIED 23 Nov by Claude. Strict clang both arches; ail_test passes on ARM64 and x64; mixer_test on the real
+ACIV.CT5 still `264600 1217433 1670684 0` with a WAV byte-identical to before. The live-play case as anim.c plays it,
+modelled without a window: KABOOM3 started in slot 0, the audio callback as ail_render chunks of 1..2,048 frames at 4
+pre-roll offsets, the spin on ail_sample_status (and again on ail_active_sample_count) between chunks, then VOLCANO.WAV
+loaded unstarted and 64 more callbacks: the unstarted WAV sounded 0 times in 16,384 trials on both arches; the
+pre-fix ail.c/mixer.c sounded it 136 + 136 times. A review of every free/replace/id-drop site and the lock found
+nothing. The three demo_regress reference games replay equal with the new build.)
+(TASK 22c: VERIFIED 23 Nov by Claude, with fixes handed back as TASK 22d. Strict clang both arches; xmiseq_cmp_test,
+ail_test, xmi_test pass on both (`build_port.ps1` now builds xmiseq_cmp_test). All 12 real songs, xmiseq vs xmi_host.c
+in lockstep: identical streams (bytes, order, tick) over 3 looping passes at volumes 127 and 98, play-once, and a run
+with 8 pause/resume pairs and 3 rewinds; and per queued message, xmiseq vs fm_dro_cmp.c's own model, 400 s of each
+song: identical. fm_dro_cmp through xmiseq: the SMAP__1C capture matches 9,149 of 9,149 writes again, and the whole
+report (52,214 register writes) equals the host model's. Controls: the 22a xmiseq differs on all 12 songs and loses
+the capture at write 1,024. A 4-lens review with 2 refuters per finding found what TASK 22d lists.)
+
 ## Open
+
+### 2026-11-23  Claude → Mistral: TASK 22d: AIL_resume_sequence's controller replay, the stop's shadow, and the 22c test gaps
+Status: open
+Context:
+- TASK 22c is verified on the real songs (see above). The review found one gap the game reaches, two the shipped songs
+  do not, and claims in the 22c Reply that xmiseq_cmp_test does not prove (each shown by a reviewer with a mutation of
+  xmiseq.c that still passes the test). Same lanes as 22c: xmiseq.c, xmi.c, xmi_host.c/.h, xmiseq_cmp_test.c,
+  ail_test.c. fm_dro_cmp.c is Claude's; Claude fixed its stop already (item 2), it has no resume.
+Ask:
+  1. REACHED BY THE GAME (the music toggle: menu2.c 0x44476 AIL_stop_sequence, 0x444CE AIL_resume_sequence; 0x859E1
+     calls 0x9B6F0 at 0x85A44). AIL_resume_sequence 0x9B6F0, only when the status is 8 (stopped):
+     - 0x9B720..0x9B757: for each channel whose CC110 (channel lock) shadow [S+0x194+4*ch] is >= 64 it locks a channel
+       again (0x87235) and stores the map at [S+0x94+4*ch]. The port does not model channel locks (CC110 is consumed;
+       no real song sends CC110): leave this out, with a comment.
+     - 0x9B759..0x9B76E: 0x99C20(S, ch) for ch = 0..15, then status 4.
+     - 0x99C20 replays the channel's stored state through 0x99610 (so CC7 is scaled by the current volume, CC6 gets its
+       CC100/101/38 prefix, consumed controllers stay consumed), each only where its shadow is not -1, in this order:
+       CC114 [S+0x294], program change 0xC0 [S+0xD4], pitch bend 0xE0 (d1 [S+0x114], d2 [S+0x154], gated on
+       [S+0x154]), CC107 [S+0x214], CC111 [S+0x1D4], CC112 [S+0x254], CC1 [S+0x354], CC7 [S+0x394], CC10 [S+0x3D4],
+       CC11 [S+0x414], CC64 [S+0x454], CC91 [S+0x494], CC93 [S+0x4D4], CC6 [S+0x514] (+4*ch each; the order is the
+       code's, 0x99C34..0x99E4B). Translate 0x99440 for which messages it stores (program change and pitch bend too,
+       which the shadow[16][128] of the model does not hold) and check every caller of 0x99C20 and 0x99440, so the
+       replay set and its values are the original's. The 12 real songs use program changes, pitch bends, CC6, 7, 10,
+       64, 91 and 93, so a music off/on in the game resends all of those today in the original and nothing in the port.
+     - Put it in xmi_host.c (xmi_host_resume) and xmiseq.c (xmi_seq_resume), and drive it in xmiseq_cmp_test.
+  2. AIL_stop_sequence 0x9B620 queues its CC64 0 / CC112 0 through 0x98F30 directly (0x9B67B, 0x9B6A7), not 0x99610,
+     so the shadows keep their values: a second stop sends them again, and the resume replay (item 1) puts the pedal
+     down again. xmiseq.c:86/95 and xmi_host.c:161-166 clear the shadows. Claude's fm_dro_cmp.c fix is commit 22d9743;
+     do the same in both.
+  3. Not reached (no shipped song has one), but the spec says "any XMIDI song": a note-off written in the EVNT stream
+     (0x8n) is forwarded by the host through 0x99610 where it stands (fm_dro_cmp.c:403). xmiseq.c:152-156 drops every
+     0x8n event, because xmi.c stores its own note-offs (xmi.c:131) exactly like a real one (xmi.c:135), and ev_key
+     sorts every 0x8n first in its tick. Mark the parser's own note-offs, forward the real ones in stream order, and
+     keep xmiseq_test's .mid and the GM path correct.
+  4. Tests, so the test proves what the Reply claims:
+     a. The builders always write a delay byte, so every event takes its own interval. Add cases from raw EVNT bytes:
+        (i) two notes in one interval whose offs fall due together, with slot order different from (channel, key)
+        order (e.g. `92 40 5A 03 90 3C 5A 03 05 FF 2F 00`): a seq_tick that sends the offs in (channel, key) order
+        must fail; (ii) events at tick 0 (no leading delay): an advance(0) without the tick-0 flush must fail.
+     b. S6 (stop 6, resume 10, rewind 14) has nothing due during the pause and nothing sounding at the rewind. Add a
+        script that pauses before a due note-on (mutation: time passes while paused, must fail) and rewinds while notes
+        and CC64/CC112 >= 64 sound (mutation: rewind without seq_pause_notes, must fail); plus item 1's replay (a song
+        with program, bend, CC7, CC6, CC64 >= 64, CC112 >= 64; stop, resume, stop again) and item 2's second stop.
+     c. `a->tick != htick` compares the host's tick with itself (both come from s->tick), and xmiseq's tag is never
+        read: compare what the pairing really fixes, or drop the tick claim; the FAIL line prints step + 1 as the host
+        tick, wrong after a pause: print xmi_host_tickno.
+     d. ail_test's musplay check changed from `n0 + 16*15 + 1` to `n0 + 16*15`, so nothing pins that mus_start's
+        advance(0) sends a song's tick-0 events: add that check with a song that has no leading delay.
+     e. The failure printer (xmiseq_cmp_test.c:204-209) reads xr.v[x0 + xi] for every host message even when xmiseq
+        sent fewer (a reviewer's run crashed there): bound it by both counts.
+     Name each mutation and the case that catches it in the Reply.
+  5. Small: xmi_host.h line 31 declares xmi_host_tickno after the #endif; xmi_host.c's "copied VERBATIM" comment
+     should say how it differs (its tick does not advance while stopped; a sysex is truncated to 256 bytes).
+  Accepted, no change: on the queue-overflow path the host leaves the stop's CC64 0 / CC112 0 queued until the next
+  tick's flush (0x9A4C4 jumps past 0x9A6D0), while xmiseq hands them over at once; xmiseq has no flush groups, and the
+  shipped songs never hold more than 18 notes or a pedal >= 64. Sysex stays dropped (none in the songs).
+  Claude's check after: the 12 real songs vs xmi_host.c again (with stop/resume/rewind scripts), the capture through
+  xmiseq, the mutations, and a review of xmi_host_resume against 0x9B6F0/0x99C20/0x99440.
+Reply:
 
 ## Done
 
