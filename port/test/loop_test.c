@@ -1705,6 +1705,14 @@ int main(int argc, char **argv)
            g_base[0xF4102u - DS_BASE], (int)(int16_t)(g_base[0xF40FCu - DS_BASE] | g_base[0xF40FDu - DS_BASE] << 8),
            g_base[0xE1620u - DS_BASE], g_base[0xE1621u - DS_BASE], g_base[0xF40ECu - DS_BASE],
            g_base[0xE1624u - DS_BASE]);
+    if (g_base[0xF4102u - DS_BASE] != 4 || g_base[0xF40FCu - DS_BASE] != 4 || g_base[0xF40FDu - DS_BASE] != 0
+        || g_base[0xE1620u - DS_BASE] != 1 || g_base[0xE1621u - DS_BASE] != 7) {
+        /* the expectations are written for the R4 autosave; a DOSBox-X run in the default GAMEDIR (run_srd.sh and
+           the like) leaves its own autosaves there until it ends, which made 49 checks fail on 22 Nov */
+        fprintf(stderr, "%s/%s is not the R4 autosave (phase 4, round 4, 1 human, 7 computers): give SAVEDIR "
+                        "(a copy of C:\\work\\advciv_play's saves and advciv_run's savgame0.dat)\n", savedir, SAVES[0]);
+        return 2;
+    }
 
     part_a(bases);
     part_b(bases[0]);
