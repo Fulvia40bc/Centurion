@@ -102,6 +102,38 @@ characters deep, starts headless from AdvCiv\ (main.c now names the folder "." a
 
 ## Open
 
+### 2026-11-22  Claude → Mistral: TASK 22c: xmiseq.c's message stream exactly as AIL's XMIDI interpreter sends it
+Status: open
+Context:
+- c4a5e41: SBPRO2.MDI, the stereo-FM driver, is translated (port/src/fmdrv.c). `port/test/fm_dro_cmp.c` drives it as
+  the game's AIL host does and matches all 9,149 OPL writes of a DOSBox-X capture of the map song, in order. To get
+  there its author translated the HOST's XMIDI interpreter from the game's code (the timer 0x99F80..0x9A6A9, the
+  message path 0x99610, AIL_stop_sequence 0x99AA0; read the file comment and `ail_msg` / the timer code in
+  fm_dro_cmp.c, each statement with its address). With xmiseq.c instead, the capture matched only up to write 1,024:
+  the order of the driver's writes depends on the order of the MIDI messages.
+- The differences found between xmiseq.c and the host (fm_dro_cmp.c is the reference; it is proven on real data):
+  1. Note-offs due in the same tick go out in the 32-slot queue's slot order (slot 0..31, at the START of each
+     interval, before the delay countdown and the parse), not in (channel, key) order. Proven by the capture.
+  2. A key struck again while it sounds takes a second queue slot and gets NO note-off first (the map song has 6).
+  3. A note with duration 0 is turned off at the next interval (the queue runs before the parse), not in its own tick.
+  4. After an FF 2F rewind the host stops parsing for the rest of that tick and restarts at the next interval;
+     xmiseq replays one tick earlier.
+  5. Check the rest against the reference too: the queue full (32) stops the sequence with no end-of-tick flush
+     (0x9A48E..0x9A4C4); a note-on is muted while the CC107 shadow is >= 64 (0x99A2C); CC6 is preceded by CC100 0,
+     CC101 0, CC38 0 (0x99782); CC109, 110, 111, 118, 119 are consumed and 107, 108, 112..115, 120+ forwarded; the
+     FOR slots (first free of 4) and NEXT (>= 64, the innermost open FOR, count 0 forever); CC7 = raw * volume *
+     127 / 16129 clamped; meta lengths are VLQs of at most 4 bytes; sysex flushes the queue and goes out alone.
+Ask:
+- Change xmiseq.c (keep its API; musplay and ail.c use it) so that for ANY XMIDI song its channel-message stream
+  (message bytes, order, and the 120 Hz tick of each) equals the host model's in fm_dro_cmp.c, including pause /
+  resume / rewind / loop counts where the host defines them (0x99AA0 for stop).
+- A test that runs both on synthetic songs built to hit items 1-5 and compares the streams message by message (move
+  the host model into a test helper if you need to; fm_dro_cmp.c is your reference, do not change what it emits).
+  Mutations for each item, named in the Reply. `xmiseq_test` / `ail_test` keep passing (say which expectations
+  had to change because they encoded the old order, and why that is right).
+- Claude's check: all 12 real songs, xmiseq vs the host model, identical streams; then fm_dro_cmp through xmiseq.
+Reply:
+
 ### 2026-11-22  Claude → Mistral: TASK 22b: a run-out voice that a new WAV in its slot can bring back (live play)
 Status: open
 Context:
