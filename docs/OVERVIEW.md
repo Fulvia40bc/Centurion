@@ -692,8 +692,16 @@ Only PBEM (dropped) and f15FE0's loose-file fallback still stop the port.
     ADDR=0x55258 (`tools/dosbox/run_srd.sh`) against the port's `--dump-every 0x55258`. All 39 end-of-round saves
     and the Final Civilization Standings screen (Egypt 3,879 down to Babylon 3,072; the port's `--snap-after`) match
     byte for byte except one word: from round 24 the port's roll counter [0x108198] is 20 higher (2,525 rolls in
-    round 24 against 2,505). The counter picks a table row by `ctr % 10`, so a gap of 20 changes no roll; its cause
-    is being traced (every roll of round 24 logged in both).
+    round 24 against 2,505). The counter picks a table row by `ctr % 10`, so a gap of 20 changes no roll. Cause
+    (23 Nov): a hardware interrupt in the original. f46CBC reads its avail [ebp-0x38] stale on an empty target list
+    (aiplan.c items 1./2.), and between sibling frames that word lies below ESP on the game stack, where DOS/4GW
+    (CPL0) takes interrupts; AIL's timer ISR lands the interrupted ESI on it at 0x46CCD or 0x471C3, and ESI is 0
+    there. The port with avail forced to 0 at any one of Assyria's target-less calls of round 24 (Assyria's first
+    spread pass, entries 4,072..4,078 counted from the round's start) matches all 39 end-of-round saves byte for byte
+    (counter included); 22 other sampled single hits change nothing, a forced 1 does not match. A three-lens
+    adversarial review found no deterministic port slip. The original's DOSBox-X runs are therefore not repeatable:
+    a replay with both budget tests patched went off course by round 23 (counter 11,308). The port keeps the
+    interrupt-free path (by design).
   - `tools/verify/demo_regress.py` keeps three whole port games as the reference (record, check, xarch): the
     regression check after any AI change.
 - The port's own demo with seed 0x12345678 plays 40 rounds, deterministic run to run, and ends on Final Civilization

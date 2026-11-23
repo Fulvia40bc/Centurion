@@ -72,6 +72,17 @@
           from the previous one's avail. Those trials are undone, but their 0x474A0 rolls advance [0x108198] (Claude,
           22 Nov: the DOSBox-X compare of round 11 of /SRD8 seed 0x5917060E, 110 more rolls in the original).
         Both are the original's behaviour in both modes (no g_original split): they only steer the computers' choices.
+        Interrupts (Claude, 23 Nov): the word lies below ESP between the sibling frames, and under DOS/4GW the game runs
+        at CPL0, so a hardware interrupt pushes its frame onto the game stack. AIL's timer ISR (0x95F6E: pushad, push
+        ds/es/fs/gs, then its own stack) puts the interrupted ESI exactly on 0x46CBC's [ebp-0x38] when it lands at
+        0x46CCD (ESP = ebp-0x10 after __CHK's ret 4) or at 0x471C3 in a previous target-less sibling's epilogue; ESI
+        is 0 all through 0x46BB8 (0x46C2B) and on 0x46CBC's empty-list path, so avail becomes 0. Other boundaries
+        write EDI or selectors, and DOS/4GW's chained INT 8 handler pushes on the same stack. The original's runs are
+        therefore not repeatable: in the DOSBox-X whole game of seed 0x5917060E the original made 20 fewer rolls in
+        round 24 (12,837 against 12,857), and the port with avail forced to 0 at any one of Assyria's target-less calls
+        in that pass (round-24 entries 4,072..4,078; avail 2 is f471CC's n - 1) matches all 39 end-of-round saves byte
+        for byte. The port models the interrupt-free path (deterministic, by design); f471CC's spare above and the
+        other stale words of the AI files are exposed the same way.
      Kept as the original (AI choices, deterministic):
      - 0x46BB8 clears 4 bytes of the int32[160] mark array 0x107EE4 (memset(*(int **)0xC2860, 0, 4): entry 0 only), so
        0x471CC reorders by marks left from earlier calls and from the ship routines (G: sizeof-pointer slip).
