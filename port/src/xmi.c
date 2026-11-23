@@ -22,7 +22,8 @@ typedef struct {
     uint32_t cap;
 } ev_list;
 
-static int ev_push(ev_list *l, uint32_t tick, uint8_t status, uint8_t d1, uint8_t d2, uint8_t len, uint32_t dur)
+static int ev_push(ev_list *l, uint32_t tick, uint8_t status, uint8_t d1, uint8_t d2, uint8_t len, uint32_t dur,
+                   uint8_t own)
 {
     if (l->count == l->cap) {
         uint32_t ncap = l->cap == 0 ? 256 : l->cap * 2;
@@ -38,13 +39,16 @@ static int ev_push(ev_list *l, uint32_t tick, uint8_t status, uint8_t d1, uint8_
     l->ev[l->count].d2 = d2;
     l->ev[l->count].len = len;
     l->ev[l->count].dur = dur;
+    l->ev[l->count].own = own;
     l->count++;
     return 0;
 }
 
 static int ev_key(const xmi_event *e)
 {
-    return ((e->status & 0xF0u) == 0x80u) ? 0 : 1;
+    /* only the parser's own note-offs (own = 1) sort first in their tick: the host sends the note queue's offs
+       at the START of the interval, before the parse; a real 0x8n written in the stream keeps its stream order */
+    return ((e->status & 0xF0u) == 0x80u && e->own) ? 0 : 1;
 }
 
 static int ev_less(const xmi_event *a, const xmi_event *b)
@@ -125,14 +129,16 @@ static int parse_evnt(const uint8_t *data, size_t start, size_t end, ev_list *l)
                 rc = read_vlq(data, end, &pos, &dur);
                 if (rc != 0)
                     return rc;
-                rc = ev_push(l, tick, status, d1, d2, 3, dur);
+                rc = ev_push(l, tick, status, d1, d2, 3, dur, 0);
                 if (rc != 0)
                     return rc;
-                rc = ev_push(l, tick + dur, (uint8_t)(0x80u | (status & 0x0Fu)), d1, 0, 3, 0);
+                /* the parser's own note-off, marked own = 1: the sequencer's queue sends the real note-offs,
+                   a real 0x8n written in the stream is forwarded where it stands (own = 0) */
+                rc = ev_push(l, tick + dur, (uint8_t)(0x80u | (status & 0x0Fu)), d1, 0, 3, 0, 1);
                 if (rc != 0)
                     return rc;
             } else {
-                rc = ev_push(l, tick, status, d1, d2, (uint8_t)(ndata + 1), 0);
+                rc = ev_push(l, tick, status, d1, d2, (uint8_t)(ndata + 1), 0, 0);
                 if (rc != 0)
                     return rc;
             }
@@ -155,7 +161,7 @@ static int parse_evnt(const uint8_t *data, size_t start, size_t end, ev_list *l)
             if (rc != 0)
                 return rc;
             if (mtype == 0x2Fu) {
-                rc = ev_push(l, tick, 0xFF, 0x2F, 0x00, 3, 0);
+                rc = ev_push(l, tick, 0xFF, 0x2F, 0x00, 3, 0, 0);
                 if (rc != 0)
                     return rc;
                 return 0;

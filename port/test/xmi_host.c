@@ -1,5 +1,11 @@
 /* The host XMIDI interpreter, copied from port/test/fm_dro_cmp.c (which is proven against a DOSBox-X capture)
-   with host_queue/host_flush replaced by a recorder. Do not "fix" anything here: it is the reference. */
+   with host_queue/host_flush replaced by a recorder. Do not "fix" anything here: it is the reference.
+   How this copy differs from fm_dro_cmp.c's host: (1) its tick does not advance while the sequence is not
+   playing (fm_dro_cmp's tick is the driver's global one); (2) a sysex is recorded truncated to 256 bytes;
+   (3) the stop's CC64 0 / CC112 0 go to the queue directly, not through ail_msg, so the shadow keeps its value
+   (the same fix as fm_dro_cmp.c's commit 22d9743); (4) program change and pitch bend are stored per channel
+   (0x99440) and xmi_host_resume replays the stored state (0x9B6F0 / 0x99C20), which fm_dro_cmp.c does not model
+   (it has no resume; the replay order and storage slots are from the task's address listing). */
 
 #include "xmi_host.h"
 
@@ -20,6 +26,8 @@ struct xmi_host {
     int32_t for_ptr[4];
     int32_t for_count[4];      /* -1 = free */
     int32_t shadow[16][128];
+    int32_t prog[16];          /* 0x99440: [S+0xD4+4*ch], -1 = never sent */
+    int32_t bend[16][2];       /* 0x99440: d1 [S+0x114+4*ch], d2 [S+0x154+4*ch], -1 = never sent */
     int32_t note_count;
     int32_t nq_ch[32];
     int32_t nq_key[32];
@@ -79,6 +87,12 @@ static void ail_msg(xmi_host *s, int st, int d1, int d2)   /* 0x99610 */
 {
     int ch = st & 0x0F, kind = st & 0xF0;
 
+    if (kind == 0xC0)                                 /* 0x99440 stores the program change */
+        s->prog[ch] = d1;
+    else if (kind == 0xE0) {                          /* ... and the pitch bend (both data bytes) */
+        s->bend[ch][0] = d1;
+        s->bend[ch][1] = d2;
+    }
     if (kind == 0xB0) {
         s->shadow[ch][d1 & 0x7F] = d2;
         switch (d1) {
@@ -158,11 +172,11 @@ static void ail_stop(xmi_host *s)                          /* AIL_stop_sequence 
             s->nq_ch[i] = -1;
         }
     s->note_count = 0;
-    for (ch = 0; ch < 16; ch++) {
-        if (s->shadow[ch][64] >= 64)
-            ail_msg(s, 0xB0 | ch, 64, 0);
-        if (s->shadow[ch][112] >= 64)
-            ail_msg(s, 0xB0 | ch, 112, 0);
+    for (ch = 0; ch < 16; ch++) {                     /* ailsem 7: CC64 0 / CC112 0 where the shadow >= 64, */
+        if (s->shadow[ch][64] >= 64)                  /* queued through 0x98F30 directly (0x9B67B, 0x9B6A7), */
+            host_queue(s, 0xB0 | ch, 64, 0);          /* not 0x99610: the shadow keeps its value, so a later */
+        if (s->shadow[ch][112] >= 64)                 /* stop sends them again and the resume replay (0x99C20) */
+            host_queue(s, 0xB0 | ch, 112, 0);         /* puts the pedal down again */
     }
 }
 
@@ -312,10 +326,15 @@ void xmi_host_free(xmi_host *s)
 
 void xmi_host_reset(xmi_host *s)                           /* 0x99E60 */
 {
-    int i;
+    int i, ch;
 
     s->ptr = 0;
     memset(s->shadow, 0xFF, sizeof s->shadow);
+    for (ch = 0; ch < 16; ch++) {
+        s->prog[ch] = -1;
+        s->bend[ch][0] = -1;
+        s->bend[ch][1] = -1;
+    }
     for (i = 0; i < 4; i++)
         s->for_count[i] = -1;
     for (i = 0; i < 32; i++)
@@ -327,8 +346,38 @@ void xmi_host_reset(xmi_host *s)                           /* 0x99E60 */
 
 void xmi_host_start(xmi_host *s) { s->status = 4; }
 void xmi_host_stop(xmi_host *s) { ail_stop(s); }
+
+/* AIL_resume_sequence 0x9B6F0, only when the status is 8: the channel locks (0x9B720..0x9B757, CC110 shadow
+   >= 64 re-locks a channel via 0x87235) are NOT modelled (CC110 is consumed; no shipped song sends it);
+   0x9B759..0x9B76E: 0x99C20(S, ch) for ch = 0..15, then status 4. 0x99C20 replays the channel's stored state
+   through 0x99610 in the code's order (0x99C34..0x99E4B), each only where it was sent (-1 = never): CC114
+   [S+0x294], program change [S+0xD4], pitch bend (d1 [S+0x114], d2 [S+0x154], gated on the stored d2),
+   CC107 [S+0x214], CC111 [S+0x1D4], CC112 [S+0x254], CC1 [S+0x354], CC7 [S+0x394], CC10 [S+0x3D4],
+   CC11 [S+0x414], CC64 [S+0x454], CC91 [S+0x494], CC93 [S+0x4D4], CC6 [S+0x514] (+4*ch each). */
+void xmi_host_resume(xmi_host *s)
+{
+    static const int ccs[] = { 107, 111, 112, 1, 7, 10, 11, 64, 91, 93, 6 };
+    int ch, i;
+
+    if (s->status != 8)
+        return;
+    for (ch = 0; ch < 16; ch++) {
+        if (s->shadow[ch][114] >= 0)
+            ail_msg(s, 0xB0 | ch, 114, s->shadow[ch][114]);
+        if (s->prog[ch] >= 0)
+            ail_msg(s, 0xC0 | ch, s->prog[ch], 0);
+        if (s->bend[ch][1] >= 0)
+            ail_msg(s, 0xE0 | ch, s->bend[ch][0], s->bend[ch][1]);
+        for (i = 0; i < (int)(sizeof ccs / sizeof ccs[0]); i++)
+            if (s->shadow[ch][ccs[i]] >= 0)
+                ail_msg(s, 0xB0 | ch, ccs[i], s->shadow[ch][ccs[i]]);
+    }
+    s->status = 4;
+}
+
 void xmi_host_set_loops(xmi_host *s, int n) { s->loop_count = n; }
 void xmi_host_set_volume(xmi_host *s, int v) { s->volume = v; }
+int32_t xmi_host_status(const xmi_host *s) { return s->status; }
 
 size_t xmi_host_count(const xmi_host *s) { return s->nrec; }
 const xmi_host_rec *xmi_host_recs(const xmi_host *s) { return s->rec; }

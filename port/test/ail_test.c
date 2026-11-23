@@ -504,6 +504,11 @@ static void test_xmiseq(void)
         xmi_seq_resume(s);
         xmi_seq_advance(s, 5);
         check(rec_count(&r, 0x91, 64) == 1, "resume does not re-sound the note");
+        /* the resume replay (0x99C20): every stored controller goes out again, in channel order; the stop's
+           CC64 0 kept the shadow, so the pedal is put down again */
+        check(rec_count3(&r, 0xB0, 64, 10) == 2, "the resume replays every stored controller (CC64 10 on ch0 too)");
+        check(rec_count3(&r, 0xB1, 64, 127) == 2, "the resume replay resends the stored CC64 127 (pedal down again)");
+        check(rec_count3(&r, 0xB1, 64, 0) == 1, "the stop's CC64 0 went out once (the shadow kept its value)");
     }
     /* FF 2F with the default loop count 1: pause the notes and done */
     xmi_seq_advance(s, 10);
@@ -824,6 +829,23 @@ static void test_musplay(void)
         check(mus_status(p) == MUS_DONE, "pause after done does nothing");
         mus_end(p);
         check(mus_status(p) == MUS_DONE, "end: done");
+    }
+    {
+        /* a song whose first event has NO delay byte (tick 0, raw EVNT): mus_start's advance(0) must send it
+           at once, right after the 16*15 set-up, before any render */
+        static const uint8_t raw[] = { 0x90, 0x3C, 0x5A, 0x05, 0x03, 0xFF, 0x2F, 0x00 };
+        uint8_t *xraw;
+        size_t xrl;
+        int n0;
+
+        xraw = make_form_xmid(raw, sizeof raw, 1, &xrl);
+        check(mus_load(p, xraw, xrl, 0) == 1, "load the raw tick-0 song");
+        n0 = r.n;
+        mus_start(p);
+        check(r.n == n0 + 16 * 15 + 1, "start sends the set-up AND the tick-0 note-on (the advance(0) flush)");
+        check(rec_find_at(&r, n0 + 16 * 15, 0x90, 0x3C, 0x5A), "the tick-0 note-on is the first song message");
+        mus_end(p);
+        free(xraw);
     }
     {
         mus_load(p, xmi2, l2, 1);

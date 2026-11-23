@@ -146,7 +146,24 @@ static void xrec_out(void *user, const uint8_t *msg, int len)
 }
 
 /* ---------- one differential case ---------- */
-typedef struct { int stop_at, resume_at, rewind_at; } script;
+typedef struct { int stop_at, resume_at, stop2_at, rewind_at; } script;   /* -1 = never */
+
+/* compare the emissions of one script action (stop / resume / rewind) between host and xmiseq */
+static void cmp_emissions(const char *what, const xmi_host *h, size_t h1, const xrec *xr, size_t x1)
+{
+    size_t xi, hn = xmi_host_count(h) - h1, xn = xr->n - x1;
+    char msg[128];
+
+    snprintf(msg, sizeof msg, "%s emission counts equal (%zu vs %zu)", what, hn, xn);
+    check(hn == xn, msg);
+    for (xi = 0; xi < hn && xi < xn; xi++) {
+        const xmi_host_rec *a = &xmi_host_recs(h)[h1 + xi];
+        const xmi_host_rec *b = &xr->v[x1 + xi];
+
+        snprintf(msg, sizeof msg, "%s emission %zu bytes equal", what, xi);
+        check(a->len == b->len && memcmp(a->msg, b->msg, (size_t)a->len) == 0, msg);
+    }
+}
 
 static void run_case(const char *name, const uint8_t *evnt, size_t elen, int loops, int volume, int steps,
                      const script *sc)
@@ -158,6 +175,7 @@ static void run_case(const char *name, const uint8_t *evnt, size_t elen, int loo
     xmi_seq *s;
     xrec xr;
     int flush = 1;
+    int32_t playing = 0;                   /* host calls made while playing: the host ticks once per such call */
     int step;
 
     memset(&xr, 0, sizeof xr);
@@ -175,56 +193,59 @@ static void run_case(const char *name, const uint8_t *evnt, size_t elen, int loo
 
     for (step = 0; step < steps; step++) {
         size_t h0 = xmi_host_count(h), x0 = xr.n;
-        size_t hi, xi, n;
+        size_t hi, xi, n, xn;
         int ok = 1;
 
+        if (xmi_host_status(h) == 4)
+            playing++;
         xr.group = step;                               /* tag this batch's emissions */
-        xmi_host_tick(h);                              /* host call #step+1 (its recs carry tick step+1) */
+        xmi_host_tick(h);                              /* host call #step+1 */
         xmi_seq_advance(s, flush ? 0u : 1u);           /* xmi batch #step (advance(0) first: the tick-0 flush) */
         flush = 0;
         hi = xmi_host_count(h);
         n = hi - h0;
-        if (n != xr.n - x0)
+        xn = xr.n - x0;
+        /* the tick claim: the batch pairing itself (step k <-> host call k+1) is what the per-batch count and
+           byte compare below proves; the host recs' own tick tags come from the same host counter, so they
+           are not compared against xmiseq here */
+        if (n != xn)
             ok = 0;
-        else {
-            int32_t htick = xmi_host_tickno(h);      /* every rec of this group carries this tick */
-
+        else
             for (xi = 0; xi < n; xi++) {
                 const xmi_host_rec *a = &xmi_host_recs(h)[h0 + xi];
                 const xmi_host_rec *b = &xr.v[x0 + xi];
 
-                if (a->len != b->len || memcmp(a->msg, b->msg, (size_t)a->len) != 0 || a->tick != htick)
+                if (a->len != b->len || memcmp(a->msg, b->msg, (size_t)a->len) != 0)
                     ok = 0;
             }
-        }
+        check(xmi_host_tickno(h) == playing, "the host ticks once per playing call (tick pairing)");
         if (!ok) {
             fails++;
-            printf("FAIL %s step %d (host tick %d): %zu host msgs vs %zu xmi msgs\n", name, step, step + 1,
-                   n, xr.n - x0);
-            for (xi = 0; xi < n && xi < 8; xi++)
+            printf("FAIL %s step %d (host tick %d): %zu host msgs vs %zu xmi msgs\n", name, step,
+                   xmi_host_tickno(h), n, xn);
+            for (xi = 0; xi < n && xi < xn && xi < 8; xi++)   /* bound by BOTH counts */
                 printf("    host[%zu] tick %d len %d %02X %02X %02X | xmi %02X %02X %02X\n", xi,
                        xmi_host_recs(h)[h0 + xi].tick, xmi_host_recs(h)[h0 + xi].len,
                        xmi_host_recs(h)[h0 + xi].msg[0], xmi_host_recs(h)[h0 + xi].msg[1],
                        xmi_host_recs(h)[h0 + xi].msg[2],
                        xr.v[x0 + xi].msg[0], xr.v[x0 + xi].msg[1], xr.v[x0 + xi].msg[2]);
+            if (n > xn)
+                printf("    ... %zu more host msgs than xmi sent\n", n - xn);
         }
         if (sc != NULL) {
-            if (step == sc->stop_at) {
+            if (step == sc->stop_at || step == sc->stop2_at) {
                 size_t h1 = xmi_host_count(h), x1 = xr.n;
 
                 xmi_host_stop(h);
                 xmi_seq_pause(s);
-                for (xi = x1; xi < xr.n; xi++)
-                    xr.v[xi].tick = step;
-                check(xmi_host_count(h) - h1 == xr.n - x1, "stop emission counts equal");
-                for (xi = 0; xi < xr.n - x1 && xi < xmi_host_count(h) - h1; xi++)
-                    check(xmi_host_recs(h)[h1 + xi].len == xr.v[x1 + xi].len &&
-                          memcmp(xmi_host_recs(h)[h1 + xi].msg, xr.v[x1 + xi].msg,
-                                 (size_t)xr.v[x1 + xi].len) == 0, "stop emission bytes equal");
+                cmp_emissions(step == sc->stop2_at ? "second stop" : "stop", h, h1, &xr, x1);
             }
             if (step == sc->resume_at) {
-                xmi_host_start(h);                     /* AIL_resume_sequence: status 8 -> 4 */
+                size_t h1 = xmi_host_count(h), x1 = xr.n;
+
+                xmi_host_resume(h);                    /* AIL_resume_sequence: the 0x99C20 replay, 8 -> 4 */
                 xmi_seq_resume(s);
+                cmp_emissions("resume replay", h, h1, &xr, x1);
             }
             if (step == sc->rewind_at) {
                 size_t h1 = xmi_host_count(h), x1 = xr.n;
@@ -235,13 +256,7 @@ static void run_case(const char *name, const uint8_t *evnt, size_t elen, int loo
                 xmi_seq_rewind(s);
                 xmi_seq_resume(s);
                 flush = 1;
-                for (xi = x1; xi < xr.n; xi++)
-                    xr.v[xi].tick = step;
-                check(xmi_host_count(h) - h1 == xr.n - x1, "rewind emission counts equal");
-                for (xi = 0; xi < xr.n - x1 && xi < xmi_host_count(h) - h1; xi++)
-                    check(xmi_host_recs(h)[h1 + xi].len == xr.v[x1 + xi].len &&
-                          memcmp(xmi_host_recs(h)[h1 + xi].msg, xr.v[x1 + xi].msg,
-                                 (size_t)xr.v[x1 + xi].len) == 0, "rewind emission bytes equal");
+                cmp_emissions("rewind", h, h1, &xr, x1);
             }
         }
     }
@@ -331,18 +346,54 @@ int main(void)
         run_case("S5 queue overflow", e.b, e.n, 1, 127, 45, NULL);
         free(e.b);
     }
-    /* S6: stop (pause), resume, rewind mid-song on the S1 shape */
+    /* S6: stop (pause), resume, rewind mid-song on the S1 shape; a note-on is due at tick 9, while paused
+       (steps 7..9): time must not pass while paused, and the rewind at 14 happens with a note and the
+       CC64/CC112 shadows still down */
     {
         bb e = { 0, 0, 0 };
-        script sc = { 6, 10, 14 };
+        script sc = { 6, 10, -1, 14 };
 
         ev_cc(&e, 0, 0, 64, 127);          /* sustain down: the stop must send CC64 0 */
         ev_cc(&e, 0, 3, 112, 100);         /* and CC112 0 */
         ev_note(&e, 0, 0, 60, 90, 8);
         ev_note(&e, 2, 1, 62, 90, 20);
-        ev_eot(&e, 30);
+        ev_note(&e, 6, 2, 65, 90, 3);      /* due at tick 9: after the pause, before the resume */
+        ev_eot(&e, 24);
         run_case("S6 stop/resume/rewind", e.b, e.n, 0, 100, 30, &sc);
         free(e.b);
+    }
+    /* S7: raw EVNT bytes (the builders always write a delay byte; these do not). S7a: two notes in ONE
+       interval whose offs fall due together, with slot order (ch2,key 0x40) != (channel,key) order (ch0,0x3C):
+       92 40 5A 03 90 3C 5A 03 05 FF 2F 00. S7b: an event at tick 0 with no leading delay: the advance(0)
+       tick-0 flush must send it in batch 0. S7c: a real 0x8n note-off in the stream, forwarded where it stands:
+       90 3C 5A 05 80 3C 00 03 FF 2F 00 */
+    {
+        static const uint8_t s7a[] = { 0x92, 0x40, 0x5A, 0x03, 0x90, 0x3C, 0x5A, 0x03, 0x05, 0xFF, 0x2F, 0x00 };
+        static const uint8_t s7b[] = { 0x90, 0x3C, 0x5A, 0x05, 0xFF, 0x2F, 0x00 };
+        static const uint8_t s7c[] = { 0x90, 0x3C, 0x5A, 0x05, 0x80, 0x3C, 0x00, 0x03, 0xFF, 0x2F, 0x00 };
+
+        run_case("S7a raw slot order", s7a, sizeof s7a, 1, 127, 12, NULL);
+        run_case("S7b raw tick-0 flush", s7b, sizeof s7b, 1, 127, 10, NULL);
+        run_case("S7c raw note-off forwarded", s7c, sizeof s7c, 1, 127, 10, NULL);
+    }
+    /* S8: the resume replay (item 1) and the second stop (item 2). Raw EVNT, every event in ONE interval
+       (no delay bytes), so the stop at step 4 catches all shadows set: program change 5, pitch bend, CC7,
+       CC6, CC64 >= 64, CC112 >= 64, a note; stop, resume, stop again (the shadows kept their values, so the
+       second stop sends CC64 0 / CC112 0 again) */
+    {
+        static const uint8_t s8[] = {
+            0xC0, 0x05,                         /* program change 5 on ch0 */
+            0xE0, 0x00, 0x40,                   /* pitch bend */
+            0xB0, 0x07, 0x64,                   /* CC7 100 (scaled by the volume 112) */
+            0xB0, 0x06, 0x05,                   /* CC6 5 (with its CC100/101/38 prefix) */
+            0xB0, 0x40, 0x7F,                   /* CC64 127: sustain down */
+            0xB0, 0x70, 0x64,                   /* CC112 100 */
+            0x90, 0x3C, 0x5A, 0x08,             /* note ch0 key 60 vel 90 dur 8 */
+            0x20, 0xFF, 0x2F, 0x00              /* EOT at tick 32 */
+        };
+        script sc = { 4, 8, 12, -1 };
+
+        run_case("S8 resume replay/second stop", s8, sizeof s8, 0, 112, 20, &sc);
     }
 
     if (fails == 0)

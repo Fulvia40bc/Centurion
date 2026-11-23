@@ -14,7 +14,13 @@
    >= 64 (it still takes a queue slot). FOR takes the first free of 4 slots; NEXT with a value < 64 is ignored, else
    jumps the innermost open FOR (count 0 = forever). FF 2F: the loop count decides; a rewind restarts at the NEXT
    interval (shift = t + 1) and keeps the FOR slots; ending stops the notes and releases the pedal (CC64 0 and
-   CC112 0 where the shadow is >= 64). pause/stop are that same emission. */
+   CC112 0 where the shadow is >= 64, queued directly so the shadow KEEPS its value: a second stop sends them
+   again and the resume replay puts the pedal down again). A note-off written in the EVNT stream (0x8n, own = 0)
+   is forwarded where it stands; the parser's own note-offs (own = 1) are dropped, the queue sends those.
+   pause/stop are that same emission. resume (only when paused) replays each channel's stored state through the
+   message path (AIL_resume_sequence 0x9B6F0 -> 0x99C20): CC114, program change, pitch bend, then CC107, CC111,
+   CC112, CC1, CC7, CC10, CC11, CC64, CC91, CC93, CC6, each only where it was sent (shadow != -1); channel locks
+   (CC110) are not modelled. */
 
 #define XMI_FOR_SLOTS 4u
 #define XMI_QUEUE     32
@@ -39,6 +45,8 @@ struct xmi_seq {
     int seq_loops;         /* what happens at FF 2F (xmi_seq_set_loops, default 1) */
     int vol_scale;         /* xmi_seq_set_volume, 0..127, default 127; CC7 out as raw * vol_scale / 127 */
     int8_t shadow[16][128]; /* the last raw value of every controller sent, -1 = never sent */
+    int prog[16];          /* the stored program change per channel, -1 = never sent (0x99440: [S+0xD4+4*ch]) */
+    int bend[16][2];       /* the stored pitch bend (d1, d2) per channel, -1 = never sent ([S+0x114]/[S+0x154]) */
     uint32_t loops_done;
 };
 
@@ -65,8 +73,10 @@ static void seq_note_off_slot(xmi_seq *s, int i)
     s->note_count--;
 }
 
-/* the stop/pause emission (AIL_stop_sequence 0x99AA0): note-off for every queued note in slot order, forget
-   them, then CC64 0 and CC112 0 on each channel whose shadow is down */
+/* the stop/pause emission (AIL_stop_sequence 0x99AA0 / 0x9B620): note-off for every queued note in slot
+   order, forget them, then CC64 0 and CC112 0 on each channel whose shadow is down. The pedal releases are
+   queued DIRECTLY (0x9B67B, 0x9B6A7), not through 0x99610, so the shadows KEEP their values: a second stop
+   sends them again, and the resume replay (0x99C20) puts the pedal down again */
 static void seq_pause_notes(xmi_seq *s)
 {
     int i, ch;
@@ -82,8 +92,7 @@ static void seq_pause_notes(xmi_seq *s)
             msg[0] = (uint8_t)(0xB0u | (unsigned)ch);
             msg[1] = 64;
             msg[2] = 0;
-            seq_emit(s, msg, 3);
-            s->shadow[ch][64] = 0;
+            seq_emit(s, msg, 3);                    /* no shadow update: the shadow keeps its value */
         }
         if (s->shadow[ch][112] >= 64) {
             uint8_t msg[3];
@@ -91,8 +100,7 @@ static void seq_pause_notes(xmi_seq *s)
             msg[0] = (uint8_t)(0xB0u | (unsigned)ch);
             msg[1] = 112;
             msg[2] = 0;
-            seq_emit(s, msg, 3);
-            s->shadow[ch][112] = 0;
+            seq_emit(s, msg, 3);                    /* no shadow update either */
         }
     }
 }
@@ -149,8 +157,17 @@ static void seq_event(xmi_seq *s, uint64_t t)
         }
         return;
     }
-    if ((st & 0xF0u) == 0x80u) {    /* note-off events in the list are the parser's own (xmi.c adds them at
-                                       tick + dur); the queue sends the real note-offs */
+    if ((st & 0xF0u) == 0x80u) {    /* a note-off written in the EVNT stream is forwarded through 0x99610 where
+                                       it stands (fm_dro_cmp.c:403); the parser's own offs (own = 1, added by
+                                       xmi.c at tick + dur) are dropped: the queue sends those */
+        if (!e->own) {
+            uint8_t msg[3];
+
+            msg[0] = st;
+            msg[1] = e->d1;
+            msg[2] = e->d2;
+            seq_emit(s, msg, e->len);
+        }
         s->index++;
         return;
     }
@@ -223,9 +240,17 @@ static void seq_event(xmi_seq *s, uint64_t t)
         s->index++;
         return;
     }
-    {                                           /* other channel messages: as-is */
+    {                                           /* other channel messages: as-is; 0x99440 stores the program
+                                                   change and the pitch bend for the resume replay */
         uint8_t msg[3];
+        int ch = st & 0x0F;
 
+        if ((st & 0xF0u) == 0xC0u)
+            s->prog[ch] = e->d1;
+        else if ((st & 0xF0u) == 0xE0u) {
+            s->bend[ch][0] = e->d1;
+            s->bend[ch][1] = e->d2;
+        }
         msg[0] = st;
         msg[1] = e->d1;
         msg[2] = e->d2;
@@ -270,12 +295,17 @@ xmi_seq *xmi_seq_new(const xmi_song *song, xmi_out_fn out, xmi_trigger_fn trig, 
     s->vol_scale = 127;
     memset(s->shadow, 0xFF, sizeof s->shadow);   /* -1 = never sent */
     {
-        int i;
+        int i, ch;
 
         for (i = 0; i < (int)XMI_FOR_SLOTS; i++)
             s->for_count[i] = -1;
         for (i = 0; i < (int)XMI_QUEUE; i++)
             s->nq_ch[i] = -1;
+        for (ch = 0; ch < 16; ch++) {
+            s->prog[ch] = -1;
+            s->bend[ch][0] = -1;
+            s->bend[ch][1] = -1;
+        }
     }
     return s;
 }
@@ -332,10 +362,46 @@ void xmi_seq_pause(xmi_seq *s)
     s->paused = 1;
 }
 
+/* AIL_resume_sequence (0x9B6F0, only when the status is 8): 0x99C20 replays each channel's stored state through
+   0x99610, in the code's order (0x99C34..0x99E4B), each only where it was sent: CC114, program change, pitch
+   bend (gated on its stored d2), then CC107, CC111, CC112, CC1, CC7, CC10, CC11, CC64, CC91, CC93, CC6. CC7 is
+   scaled by the current volume, CC6 gets its CC100/101/38 prefix, consumed controllers stay consumed. The
+   channel locks (0x9B720..0x9B757, CC110 shadow >= 64 re-locks a channel) are NOT modelled: CC110 is consumed
+   and no shipped song sends it. */
+static void seq_resume_replay(xmi_seq *s)
+{
+    static const uint8_t ccs[] = { 107, 111, 112, 1, 7, 10, 11, 64, 91, 93, 6 };
+    int ch, i;
+
+    for (ch = 0; ch < 16; ch++) {
+        if (s->shadow[ch][114] >= 0)
+            seq_cc_out(s, ch, 114, s->shadow[ch][114]);
+        if (s->prog[ch] >= 0) {
+            uint8_t msg[2];
+
+            msg[0] = (uint8_t)(0xC0u | (unsigned)ch);
+            msg[1] = (uint8_t)s->prog[ch];
+            seq_emit(s, msg, 2);
+        }
+        if (s->bend[ch][1] >= 0) {
+            uint8_t msg[3];
+
+            msg[0] = (uint8_t)(0xE0u | (unsigned)ch);
+            msg[1] = (uint8_t)s->bend[ch][0];
+            msg[2] = (uint8_t)s->bend[ch][1];
+            seq_emit(s, msg, 3);
+        }
+        for (i = 0; i < (int)(sizeof ccs / sizeof ccs[0]); i++)
+            if (s->shadow[ch][ccs[i]] >= 0)
+                seq_cc_out(s, ch, ccs[i], s->shadow[ch][ccs[i]]);
+    }
+}
+
 void xmi_seq_resume(xmi_seq *s)
 {
-    if (s == NULL)
-        return;
+    if (s == NULL || s->stopped || !s->paused)
+        return;                                 /* AIL_resume_sequence: only when the status is 8 */
+    seq_resume_replay(s);                       /* the stored state replayed, then status 4 */
     s->paused = 0;                              /* from the same event and the same remaining delay */
 }
 
@@ -359,6 +425,15 @@ void xmi_seq_rewind(xmi_seq *s)
         s->nq_ch[i] = -1;
     s->note_count = 0;
     memset(s->shadow, 0xFF, sizeof s->shadow);  /* shadows cleared to -1; loop count and volume are kept */
+    {                                           /* the stored program/bend cleared too (0x99E60) */
+        int ch;
+
+        for (ch = 0; ch < 16; ch++) {
+            s->prog[ch] = -1;
+            s->bend[ch][0] = -1;
+            s->bend[ch][1] = -1;
+        }
+    }
 }
 
 void xmi_seq_set_loops(xmi_seq *s, int n)

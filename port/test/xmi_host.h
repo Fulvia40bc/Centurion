@@ -18,14 +18,16 @@ void      xmi_host_free(xmi_host *h);
 
 void      xmi_host_reset(xmi_host *h);          /* AIL_init_sequence / AIL_start_sequence's reset (0x99E60) */
 void      xmi_host_start(xmi_host *h);          /* status 4 (playing) */
-void      xmi_host_stop(xmi_host *h);           /* AIL_stop_sequence (0x99AA0): only when playing */
+void      xmi_host_stop(xmi_host *h);           /* AIL_stop_sequence (0x9B620/0x99AA0): only when playing */
+void      xmi_host_resume(xmi_host *h);         /* AIL_resume_sequence (0x9B6F0): the 0x99C20 replay, only when 8 */
 void      xmi_host_set_loops(xmi_host *h, int n);
 void      xmi_host_set_volume(xmi_host *h, int v);
 int       xmi_host_tick(xmi_host *h);           /* one 120 Hz interval; 0 = note queue overflow (no flush) */
+int32_t   xmi_host_status(const xmi_host *h);   /* 2 done, 4 playing, 8 stopped */
+int32_t   xmi_host_tickno(const xmi_host *h);   /* the current 120 Hz tick (increments only while playing) */
 
 size_t              xmi_host_count(const xmi_host *h);
 const xmi_host_rec *xmi_host_recs(const xmi_host *h);
 void                xmi_host_clear_recs(xmi_host *h);   /* drop the recording, keep playing */
 
 #endif
-int32_t xmi_host_tickno(const xmi_host *h);   /* the current 120 Hz tick (increments only while playing) */
