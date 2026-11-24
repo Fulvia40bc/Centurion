@@ -151,6 +151,14 @@ bytes together. The demo_regress reference games replay equal on the rebuilt por
 - `mus_install` frees the song on every failure, also with a NULL player.
 - Every program that links ail.c also needs fm_synth.c, fmdrv.c and opl3.o (build_port.ps1 builds opl3.o first).
 - New test: `port/test/fm_game_cmp.c`.)
+(Later that night, Claude: all three music sets and the Preferences music line (OVERVIEW §5, M8). More for Mistral's
+modules:
+- fmdrv.c has an ADLIB.MDI mode;
+- musplay.c has `mus_start_paused` (rewound and paused, nothing sent);
+- ail.c has `ail_music_fm` / `ail_music_gm` (the engine replaced, samples kept, playing sequences done) and
+  `ail_start_sequence_paused`;
+- `snd_ops` has three more fields at its end (`music_choice`, `music_switch`, `start_sequence_paused`);
+- platform.h has `plat_fopen` (a UTF-8 path).)
 
 ## Open
 
