@@ -159,6 +159,9 @@ modules:
   `ail_start_sequence_paused`;
 - `snd_ops` has three more fields at its end (`music_choice`, `music_switch`, `start_sequence_paused`);
 - platform.h has `plat_fopen` (a UTF-8 path).)
+(2026-11-24, Claude: a run that opens a window now plays the game without `--play` (Erik's first live run stopped at
+main 0x11854). Test runs are unchanged: with `--headless-frame`, `--dump-ds`, `--dump-every`, `--through-start` or
+`--dump-early` the port still stops at the compare points unless `--play` is given. bc0e03b.)
 
 ## Open
 
