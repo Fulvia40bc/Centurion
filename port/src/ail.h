@@ -12,6 +12,10 @@ enum { AIL_MAX_SAMPLES = 16, AIL_MAX_SEQUENCES = 8 };
 enum { AIL_FREE = 1, AIL_DONE = 2, AIL_PLAYING = 4, AIL_PAUSED = 8 };
 
 void     ail_init(void (*lock)(int on), const char *sf2_path);   /* lock = plat_audio_lock; tests pass NULL */
+/* the same with the stereo-FM music (fm_synth.h: SBPRO2.MDI and EHGM2FM2.OPL images) in place of GM; 0 (nothing
+   initialised) when the driver is not the shipped one or the bank is malformed: the caller then runs ail_init */
+int      ail_init_fm(void (*lock)(int on), const uint8_t *mdi, size_t mdi_len, const uint8_t *gtl, size_t gtl_len,
+                     int swap);
 void     ail_shutdown(void);                                     /* the caller stopped the audio first */
 void     ail_render(int16_t *out, int frames);                    /* what the platform's audio fill calls */
 void     ail_set_live(int on);                                   /* 1 while a running device calls ail_render */

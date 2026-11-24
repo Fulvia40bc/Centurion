@@ -709,6 +709,55 @@ Only PBEM (dropped) and f15FE0's loose-file fallback still stop the port.
 - The port's own demo with seed 0x12345678 plays 40 rounds, deterministic run to run, and ends on Final Civilization
   Standings (Assyria 3,762) at EXIT, where the original waits too (f14294's f78BA4, D 0x14630).
 
+**M8, the stereo-FM music in the game (2026-11-23 night).** The default music set (§7.2) now plays as the original
+did on Erik's setup: the `s*` songs through the game's own SBPRO2.MDI (translated in `fmdrv.c`, c4a5e41) on a Nuked
+OPL3.
+- **The path:** `snd_ail.c` picks the engine (`--music fm|gm`, default fm; General MIDI when SBPRO2.MDI or
+  EHGM2FM2.OPL is missing or not the shipped file) → `ail_init_fm` → `musplay.c` → `xmiseq.c` (the host's exact
+  message stream, TASK 22c-22e) → `fm_synth.c` → `fmdrv.c` → Nuked.
+  - Like the original's AIL, the FM driver gets the channel set-up once, at its install, and keeps its state between
+    songs. Each new song installs its TIMB timbres (0x503) at AIL_init_sequence. A missing timbre fails with the
+    original's text, "Driver could not install timbre bank %u, patch %u".
+  - The chip runs at 49,716 Hz. Every write after the install goes through Nuked's write buffer, as in DOSBox-X
+    (`OPL3_WriteRegBuffered`: writes at least 2 chip samples apart, so a key-off right before a key-on still
+    retriggers the note). The output is resampled to 44,100 Hz by linear interpolation in integer maths, so ARM64
+    and x64 give the same samples.
+- **Level and DC** (C:\work\advciv_cmp\sound\fm\level.md, a research workflow and a critic): DOSBox-X scales its OPL
+  channel by 1.5 (adlib.cpp `SetScale(1.5f)`). The digital channel stays at 1.0, and neither SB16.DIG nor SBPRO2.MDI
+  changes the SB16 mixer, so the port multiplies Nuked's output by 3/2. DOSBox-X's "dc bias correction" (about 1 s)
+  removes Nuked's +110 offset; the port uses a 1 s one-pole high-pass on the music.
+- **Stereo:** RULED 23 Nov (Erik): the sides as heard in DOSBox-X. SBPRO2 puts MIDI-left on the OPL3's second
+  output, which plays on the right. `--fm-swap` mirrors them.
+- **Check (V):**
+  - `port/test/fm_game_cmp.c` plays the four `s*` songs in turn through ail.c's facade: 41-95 s each, a music-off
+    with a second stop and a resume in each, the quit, at music volumes 9 and 7. It compares every OPL register
+    write with the original host's model (`xmi_host.c` driving its own fmdrv; that model matches the DOSBox-X
+    capture of SMAP__1C write for write). Result: all ~61,500 writes per volume equal, in the same 120 Hz tick, on
+    ARM64 and x64. Three deliberate breakages: the set-up resent at each start and the timbres left out are
+    caught; not playing a song's first tick at once changes no write (that tick only sets controllers).
+  - Audio, the map song against DOSBox-X's own Nuked recording, aligned (the recording starts 4.4 s into the song):
+    - level 0.988 L, 0.998 R of DOSBox-X's;
+    - DC 4 against DOSBox-X's 6;
+    - 50 ms loudness envelopes correlate 0.94 L, 0.95 R (crossed sides 0.88);
+    - per-frame spectra correlate at a median of 0.88.
+    That is as close as the earlier `dro_play` render of the capture itself. The rest is DOSBox-X's sub-millisecond
+    write timing against the port's 120 Hz tick.
+  - The three demo_regress games replay equal; headless runs load no synth.
+  - A three-lens review (correctness, fidelity to the AIL host, build and package), each finding with two
+    refuters, left five, all fixed:
+    - running out of memory no longer turns into a made-up timbre error that quits the game; the music goes
+      silent, as with GM;
+    - a malformed EHGM2FM2.OPL (an index entry or timbre outside the file, a timbre size other than 14 or 25)
+      falls back to GM instead of hanging the driver's eviction loop under the audio lock;
+    - the 0x503 error text sign-extends the bank as the host does (0x9B597..0x9B5B2);
+    - fm_game_cmp fails on a tick difference;
+    - the player's README names `--music` and `--fm-swap`, and the package script still ships Nuked's licence
+      (it looked for `opl.c` only).
+- **Not the same as Erik's ear:** `tools/dosbox/advciv.conf` sets no `oplemu`, so DOSBox-X played the music on its
+  default DBOPL core, not Nuked. The 1.5 is the same for both. The port keeps Nuked, the more exact emulator
+  (Task 11).
+- Left in §7.2's ruling: the `f*` set (ADLIB.MDI, mono OPL2) and the Preferences line with its settings file.
+
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
 
@@ -821,7 +870,10 @@ Centurion `docs/HANDOFF.md` protocol, with a `docs/HANDOFF.md` here).
 2. **Music**: RULED 2026-11-18. All three sets, chosen in the port by a setting (the original chose by sound
    driver, see §2).
    - Choices: FM (`f*`, OPL2), stereo FM (`s*`, OPL3 as SB Pro 2), General MIDI (`g*`, Windows' built-in synth).
-   - Default: stereo FM, the set Erik's setup played.
+   - Default: stereo FM, the set Erik's setup played. In the game since 23 Nov (§5, M8).
+   - RULED 2026-11-23: stereo FM keeps the sides as heard in DOSBox-X (SBPRO2 sends MIDI-left to the OPL3's second
+     output, played on the right; OPL3.MDI and the GM set have them the other way), with a switch to mirror them
+     (`--fm-swap`).
    - The choice is saved in the port's own settings file, not in `aciv.cfg`, so `aciv.cfg` stays as the original
      writes it.
    - The setting appears as one extra line next to Music on the game's own Preferences screen (Erik's "little

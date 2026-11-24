@@ -33,14 +33,16 @@ function New-FakeTree([string]$root) {
   [System.IO.File]::WriteAllText((Join-Path $lic 'llvm-LICENSE.TXT'), 'Apache-2.0 LLVM text')
   [System.IO.File]::WriteAllText((Join-Path $lic 'sf2-LICENSE.txt'), 'GeneralUser GS licence')
   [System.IO.File]::WriteAllBytes((Join-Path $lic 'GeneralUser-GS.sf2'), [System.Text.Encoding]::ASCII.GetBytes('FAKE-soundfont'))
-  # fake repos: build_port.ps1 without and with opl.c in the game's file list; the vendored Nuked-OPL3 licence
-  foreach ($r in @('repo_noopl', 'repo_opl')) {
+  # fake repos: build_port.ps1 without and with opl.c (or fm_synth.c, which links the Nuked core through opl3.o) in
+  # the game's file list; the vendored Nuked-OPL3 licence
+  foreach ($r in @('repo_noopl', 'repo_opl', 'repo_fm')) {
     $rp = Join-Path $root $r
     New-Item -ItemType Directory -Force (Join-Path $rp 'tools') | Out-Null
     New-Item -ItemType Directory -Force (Join-Path $rp 'port\third_party\nuked-opl3') | Out-Null
     [System.IO.File]::WriteAllText((Join-Path $rp 'port\third_party\nuked-opl3\LICENSE'), 'Nuked-OPL3 LGPL text')
     $game = "'main.c', 'fg.c'"
     if ($r -eq 'repo_opl') { $game = "'main.c', 'opl.c', 'fg.c'" }
+    if ($r -eq 'repo_fm') { $game = "'main.c', 'fm_synth.c', 'fmdrv.c'" }
     [System.IO.File]::WriteAllText((Join-Path $rp 'tools\build_port.ps1'), "`$game = @($game)`n& `$cc `@game -o advciv.exe`n")
   }
 }
@@ -155,6 +157,7 @@ try {
   Check ($readme.Contains('Version: TEST1') -and $readme.Contains('--original') -and $readme.Contains('F11') -and $readme.Contains('Alt+Enter')) 'A: README has version, --original, F11/Alt+Enter'
   Check ($readme.Contains('Unzip the AdvCiv folder') -and $readme.Contains('start AdvCiv\advciv.exe')) 'A: README keeps the unzip instruction and says to start AdvCiv\advciv.exe'
   Check ($readme.Contains('NOT included')) 'A: README says the game files are not included'
+  Check ($readme.Contains('--music fm|gm') -and $readme.Contains('--fm-swap') -and $readme.Contains('SBPRO2.MDI')) 'A: README names the music switches and the FM files'
   # the printed file list has sizes and SHA-256
   Check (($r.out.Contains('advciv-TEST1-windows-arm64.zip')) -and ($r.out -match '(?m)^\s*AdvCiv/advciv\.exe\s+\d+\s+[0-9a-f]{64}\s*$')) "A: printed list with size and SHA-256: $($r.out.Substring(0, [Math]::Min(200, $r.out.Length)))"
 
@@ -197,6 +200,13 @@ try {
   Check ($entriesE -contains 'AdvCiv/LICENSES/Nuked-OPL3.txt') "E: Nuked-OPL3.txt ships when opl.c is linked: $($entriesE -join ', ')"
   $readmeE = Get-ZipEntryText $zipE 'AdvCiv/README.txt'
   Check ($readmeE.Contains('Nuked-OPL3') -and $readmeE.Contains('advciv branch')) 'E: README carries the source note for the statically linked part'
+  # E2. fm_synth.c in the game's file list (the stereo-FM music, 23 Nov) links Nuked too -> Nuked-OPL3.txt ships
+  $outE2 = Join-Path $tmp 'outE2'; New-Item -ItemType Directory -Force $outE2 | Out-Null
+  $repoFm = Join-Path $root 'repo_fm'
+  $r = Run-Package $root $outE2 'TEST5' (Get-FakeTable $root $fullImports) $repoFm (Join-Path $repoFm 'tools\build_port.ps1') $tmp
+  Check ($r.rc -eq 0) "E2: rc=$($r.rc)"
+  $entriesE2 = Get-ZipEntries (Join-Path $outE2 'advciv-TEST5-windows-arm64.zip')
+  Check ($entriesE2 -contains 'AdvCiv/LICENSES/Nuked-OPL3.txt') "E2: Nuked-OPL3.txt ships when fm_synth.c is linked: $($entriesE2 -join ', ')"
 
   # F. running again with the same version replaces the zip and touches nothing else in -Out
   $extra = Join-Path $outA 'keepme.txt'

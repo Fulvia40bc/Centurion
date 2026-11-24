@@ -1,7 +1,7 @@
 #ifndef MUSPLAY_H
 #define MUSPLAY_H
 
-/* The port's music player (TASK 22): one XMIDI song at a time through a backend (GM now: gm_synth.c; FM later).
+/* The port's music player (TASK 22): one XMIDI song at a time through a backend (GM: gm_synth.c, FM: fm_synth.c).
    The caller drives time: mus_render() advances the sequencer one interval per 1/120 s of output and renders the
    backend in between. With a NULL backend everything still works, silently. */
 
@@ -14,8 +14,11 @@
 typedef struct {
     void (*midi)(void *u, const uint8_t *msg, int len);     /* one channel message */
     void (*render)(void *u, int16_t *out, int frames);      /* interleaved stereo */
-    void (*reset)(void *u);                                 /* all sound off (between songs) */
+    void (*reset)(void *u);                                 /* all sound off (between songs); NULL: the backend keeps
+                                                               its state and gets the channel set-up only at mus_new */
     void *u;
+    int  (*timbres)(void *u, const uint8_t *timb, size_t len);   /* NULL, or at mus_install: the song's TIMB body
+                                                               (u16 LE count, pairs); 0 fails the install */
 } mus_backend;
 
 typedef struct musplay musplay;
@@ -29,7 +32,8 @@ void     mus_free(musplay *p);
    fail; a chunk whose type at +8 is not "XMID" (FORM XDIR) is skipped; a lone FORM XMID is the one sequence (n = 0);
    in CAT XMID the n-th sub-chunk of type XMID, 0-based). 0 ok, <0 not found / no EVNT / malformed. */
 int      mus_probe(const uint8_t *xmi, size_t len, int n, xmi_song *out);   /* out is filled on success */
-int      mus_install(musplay *p, xmi_song *song);           /* takes ownership of *song; status MUS_DONE */
+int      mus_install(musplay *p, xmi_song *song);           /* takes ownership of *song; status MUS_DONE; 0 = no
+                                                               memory or the backend's timbres failed (no song) */
 int      mus_load(musplay *p, const uint8_t *xmi, size_t len, int n);      /* probe + install; 1 ok, 0 fail */
 
 void     mus_start(musplay *p);      /* channel set-up, rewind, play: status MUS_PLAYING */

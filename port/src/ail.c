@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 
+#include "fm_synth.h"
 #include "gm_synth.h"
 #include "mixer.h"
 #include "musplay.h"
@@ -30,6 +31,7 @@ static void (*g_lock)(int on);
 static mixer *g_mix;
 static musplay *g_mus;
 static gm_synth *g_gm;
+static fm_synth *g_fm;
 static int g_live;
 static ail_sample g_smp[AIL_MAX_SAMPLES + 1];    /* index 1..16 */
 static ail_seq g_seq[AIL_MAX_SEQUENCES + 1];      /* index 1..8 */
@@ -50,7 +52,22 @@ static void gm_midi_cb(void *u, const uint8_t *msg, int len) { gm_synth_midi(u, 
 static void gm_render_cb(void *u, int16_t *out, int frames) { gm_synth_render((gm_synth *)u, out, frames); }
 static void gm_reset_cb(void *u) { gm_synth_reset((gm_synth *)u); }
 
-void ail_init(void (*lock)(int on), const char *sf2_path)
+/* fm_synth as a mus_backend: no reset between songs (the driver keeps its state, as the original's), the timbres
+   installed at each new song */
+static void fm_midi_cb(void *u, const uint8_t *msg, int len) { fm_synth_midi(u, msg, len); }
+static void fm_render_cb(void *u, int16_t *out, int frames) { fm_synth_render((fm_synth *)u, out, frames); }
+static int g_timb_failed;                     /* the last mus_install failed in the driver's 0x503, not for memory */
+
+static int fm_timbres_cb(void *u, const uint8_t *timb, size_t len)
+{
+    int ok = fm_synth_timbres(u, timb, len);
+
+    if (!ok)
+        g_timb_failed = 1;
+    return ok;
+}
+
+static void init_common(void (*lock)(int on))
 {
     memset(g_smp, 0, sizeof g_smp);
     memset(g_seq, 0, sizeof g_seq);
@@ -60,14 +77,21 @@ void ail_init(void (*lock)(int on), const char *sf2_path)
     g_lock = lock;
     g_live = 0;
     g_gm = NULL;
+    g_fm = NULL;
     g_mix = mix_new();
     g_mus = NULL;
+}
+
+void ail_init(void (*lock)(int on), const char *sf2_path)
+{
+    init_common(lock);
     if (g_mix != NULL) {
         if (sf2_path != NULL)
             g_gm = gm_synth_new(sf2_path, AIL_RATE);
         if (g_gm != NULL) {
             mus_backend b;
 
+            memset(&b, 0, sizeof b);
             b.midi = gm_midi_cb;
             b.render = gm_render_cb;
             b.reset = gm_reset_cb;
@@ -81,6 +105,29 @@ void ail_init(void (*lock)(int on), const char *sf2_path)
     }
 }
 
+int ail_init_fm(void (*lock)(int on), const uint8_t *mdi, size_t mdi_len, const uint8_t *gtl, size_t gtl_len,
+                int swap)
+{
+    fm_synth *f = fm_synth_new(mdi, mdi_len, gtl, gtl_len, AIL_RATE, swap);
+    mus_backend b;
+
+    if (f == NULL)
+        return 0;
+    init_common(lock);
+    g_fm = f;
+    if (g_mix == NULL)
+        return 1;                               /* no memory: silent, as ail_init */
+    memset(&b, 0, sizeof b);
+    b.midi = fm_midi_cb;
+    b.render = fm_render_cb;
+    b.timbres = fm_timbres_cb;
+    b.u = g_fm;
+    g_mus = mus_new(&b, AIL_RATE);              /* the channel set-up: AIL's install step 9 */
+    if (g_mus != NULL)
+        mix_set_music(g_mix, mus_render, g_mus, 127);
+    return 1;
+}
+
 void ail_shutdown(void)
 {
     if (g_mus != NULL) {
@@ -90,6 +137,10 @@ void ail_shutdown(void)
     if (g_gm != NULL) {
         gm_synth_free(g_gm);
         g_gm = NULL;
+    }
+    if (g_fm != NULL) {
+        fm_synth_free(g_fm);
+        g_fm = NULL;
     }
     if (g_mix != NULL) {
         mix_free(g_mix);
@@ -408,9 +459,17 @@ int ail_init_sequence(int32_t h, const uint8_t *img, size_t len, int n)
         return 0;
     }
     lock_on();
-    mus_install(g_mus, &song);                                /* the previous song is ended first, under the lock */
+    g_timb_failed = 0;
+    if (!mus_install(g_mus, &song) && g_timb_failed) {        /* the previous song is ended first, under the lock */
+        int bt = fm_synth_failed_timbre(g_fm);                /* 0x503 failed (structure.md 8.3, step 8): */
+
+        lock_off();                                           /* 0x9B597..0x9B5B2: the bank sign-extended */
+        snprintf(g_err, sizeof g_err, "Driver could not install timbre bank %u, patch %u\n",
+                 (unsigned)((int32_t)(int16_t)(uint16_t)bt >> 8), (unsigned)bt & 0xFFu);
+        return 0;
+    }
     lock_off();
-    return 1;
+    return 1;                                                 /* no memory: silent, as before */
 }
 
 void ail_start_sequence(int32_t h)

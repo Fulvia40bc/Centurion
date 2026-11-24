@@ -105,14 +105,15 @@ function Resolve-Dlls {
 }
 
 function Test-OplLinked {
-  # True when port/src/opl.c is in the game's file list ($game = @(...)) of build_port.ps1, i.e. Nuked-OPL3 is
-  # statically linked into advciv.exe and its licence must ship.
+  # True when port/src/opl.c or fm_synth.c (the stereo-FM music, which links Nuked's opl3.o) is in the game's file
+  # list ($game = @(...)) of build_port.ps1, i.e. Nuked-OPL3 is statically linked into advciv.exe and its licence
+  # must ship.
   param([string]$BuildPortPath)
   if (-not (Test-Path $BuildPortPath -PathType Leaf)) { return $false }
   $text = [System.IO.File]::ReadAllText($BuildPortPath)
   $m = [regex]::Match($text, '\$game\s*=\s*@\((.*?)\)', 'Singleline')
   if (-not $m.Success) { return $false }
-  return ($m.Groups[1].Value -match "'opl\.c'")
+  return ($m.Groups[1].Value -match "'(opl|fm_synth)\.c'")
 }
 
 function New-ReadmeLines {
@@ -137,11 +138,20 @@ function New-ReadmeLines {
   $l.Add('ACIV.CFG are written there.')
   $l.Add('')
   $l.Add('SWITCHES')
-  $l.Add('    advciv.exe [GAMEDIR] [--original] [--srd N]')
+  $l.Add('    advciv.exe [GAMEDIR] [--original] [--srd N] [--music fm|gm] [--fm-swap]')
   $l.Add('--original keeps the 1995 behaviour, including its bugs, wherever the')
   $l.Add('port can reproduce it; without it the bugs are fixed (see FIXES.md in')
   $l.Add('the port''s source). --srd N runs the self-running demo (the original''s')
   $l.Add('/SRDn). F11 or Alt+Enter toggles full screen.')
+  $l.Add('')
+  $l.Add('MUSIC')
+  $l.Add('The music is the stereo FM set, played by the game''s own Sound Blaster')
+  $l.Add('Pro 2 driver (SBPRO2.MDI and EHGM2FM2.OPL in the game folder) on an')
+  $l.Add('emulated OPL3 chip, as the original sounded with that card. --music gm')
+  $l.Add('plays the General MIDI set instead, through FluidSynth and the')
+  $l.Add('GeneralUser GS SoundFont in this package (or the first .sf2 file in the')
+  $l.Add('game folder); it is also used when the FM files are missing. --fm-swap')
+  $l.Add('mirrors the FM music''s left and right.')
   $l.Add('')
   $l.Add('LICENCES')
   $l.Add('Third-party parts in this package; the full licence texts are in LICENSES\.')

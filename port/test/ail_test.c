@@ -822,6 +822,7 @@ static void test_musplay(void)
     }
 
     memset(&r, 0, sizeof r);
+    memset(&b, 0, sizeof b);                       /* the fields not set here (timbres) are NULL */
     b.midi = rec_midi;
     b.render = rec_render;
     b.reset = rec_reset;

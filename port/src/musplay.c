@@ -154,8 +154,12 @@ void mus_free(musplay *p)
 
 int mus_install(musplay *p, xmi_song *song)
 {
-    if (p == NULL || song == NULL)
+    if (song == NULL)
         return 0;
+    if (p == NULL) {                              /* no player (no memory at ail_init): the song is still ours */
+        xmi_free(song);
+        return 0;
+    }
     if (p->seq != NULL) {                         /* the previous song is ended first */
         xmi_seq_stop(p->seq);
         xmi_seq_free(p->seq);
@@ -167,6 +171,25 @@ int mus_install(musplay *p, xmi_song *song)
     }
     if (p->has_backend && p->backend.reset != NULL)
         p->backend.reset(p->backend.u);          /* between songs */
+    if (p->has_backend && p->backend.timbres != NULL && song->ntimb > 0) {
+        uint8_t body[2 + 2 * 64];                /* AIL_init_sequence's 0x503 (structure.md 8.3): the TIMB chunk's
+                                                    u16 LE count and pairs (xmi.c keeps up to 64; the songs have
+                                                    at most 31). Port guard: no TIMB or a count of 0 installs
+                                                    nothing (the driver would walk 65,536 entries, 0x2DCB) */
+        int i;
+
+        body[0] = (uint8_t)(song->ntimb & 0xFF);
+        body[1] = (uint8_t)(song->ntimb >> 8);
+        for (i = 0; i < song->ntimb && i < 64; i++) {
+            body[2 + 2 * i] = song->timb[i][0];
+            body[3 + 2 * i] = song->timb[i][1];
+        }
+        if (!p->backend.timbres(p->backend.u, body, 2 + 2 * (size_t)i)) {
+            xmi_free(song);                      /* "Driver could not install timbre bank ..": the caller fails */
+            p->status = MUS_DONE;
+            return 0;
+        }
+    }
     p->song = *song;
     p->has_song = 1;
     p->seq = xmi_seq_new(&p->song, seq_out, NULL, p);
@@ -200,7 +223,10 @@ void mus_start(musplay *p)
 {
     if (p == NULL || !p->has_song || p->seq == NULL)
         return;
-    mus_send_setup(p);                            /* the channel set-up first, then the song's events */
+    if (p->backend.reset != NULL)                 /* the channel set-up first, then the song's events: only for a */
+        mus_send_setup(p);                        /* backend reset between songs (GM). An FM driver keeps its state
+                                                     as the original's does, which sends the set-up once, at the
+                                                     driver's install (0x9AD90..0x9AE96: mus_new) */
     xmi_seq_rewind(p->seq);
     xmi_seq_resume(p->seq);
     xmi_seq_advance(p->seq, 0);                   /* flush the events at tick 0 */

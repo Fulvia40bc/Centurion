@@ -29,14 +29,24 @@ foreach ($arch in 'aarch64', 'x86_64') {
   & $cc @warn "-I$fs\include" (Join-Path $test 'gm_render.c') (Join-Path $src 'gm_synth.c') @fmt `
         "$fs\lib\libfluidsynth-3.dll.a" -o (Join-Path $o 'gm_render.exe')
   if ($LASTEXITCODE) { throw "gm_render ${arch}: build failed" }
-  # ail_test / ail_render (HANDOFF Task 22): the AIL facade on the mixer, the sequencer and the GM synth
-  $snd = @('ail.c', 'musplay.c', 'mixer.c', 'wav.c', 'gm_synth.c') | ForEach-Object { Join-Path $src $_ }
+  # the vendored Nuked-OPL3 is built unchanged; clang needs -Wno-static-in-inline for its 'inline OPL3_Generate4Ch'
+  # (gcc does not warn). The strict flags apply to everything else.
+  $nuked = Join-Path $src '..\third_party\nuked-opl3'
+  & $cc @warn "-I$nuked" -c (Join-Path $nuked 'opl3.c') -Wno-static-in-inline -o (Join-Path $o 'opl3.o')
+  if ($LASTEXITCODE) { throw "opl3.c ${arch}: build failed" }
+  # ail_test / ail_render (HANDOFF Task 22): the AIL facade on the mixer, the sequencer and the GM and FM synths
+  $snd = @('ail.c', 'musplay.c', 'mixer.c', 'wav.c', 'gm_synth.c', 'fm_synth.c', 'fmdrv.c') | ForEach-Object { Join-Path $src $_ }
+  $snd += Join-Path $o 'opl3.o'
   & $cc @warn "-I$fs\include" (Join-Path $test 'ail_test.c') @snd @fmt "$fs\lib\libfluidsynth-3.dll.a" `
         -o (Join-Path $o 'ail_test.exe')
   if ($LASTEXITCODE) { throw "ail_test ${arch}: build failed" }
   & $cc @warn "-I$fs\include" (Join-Path $test 'ail_render.c') @snd @fmt "$fs\lib\libfluidsynth-3.dll.a" `
         -o (Join-Path $o 'ail_render.exe')
   if ($LASTEXITCODE) { throw "ail_render ${arch}: build failed" }
+  # fm_game_cmp: the stereo-FM music through the game's facade, register for register against the host model
+  & $cc @warn "-I$fs\include" (Join-Path $test 'fm_game_cmp.c') (Join-Path $test 'xmi_host.c') @snd @fmt `
+        "$fs\lib\libfluidsynth-3.dll.a" -o (Join-Path $o 'fm_game_cmp.exe')
+  if ($LASTEXITCODE) { throw "fm_game_cmp ${arch}: build failed" }
   # xmiseq_cmp_test (HANDOFF Task 22c): xmiseq.c against the host's XMIDI interpreter (xmi_host.c), no files needed
   & $cc @warn (Join-Path $test 'xmiseq_cmp_test.c') (Join-Path $test 'xmi_host.c') (Join-Path $src 'xmi.c') `
         (Join-Path $src 'xmiseq.c') -o (Join-Path $o 'xmiseq_cmp_test.exe')
@@ -53,18 +63,16 @@ foreach ($arch in 'aarch64', 'x86_64') {
         (Join-Path $src 'fgfont.c') (Join-Path $src 'palette.c') (Join-Path $src 'png_write.c') (Join-Path $src 'flc.c') `
         -o (Join-Path $o 'showflic_test.exe')
   if ($LASTEXITCODE) { throw "showflic_test ${arch}: build failed" }
-  # dro_play (HANDOFF Task 11): the vendored Nuked-OPL3 is built unchanged; clang needs -Wno-static-in-inline for
-  # its 'inline OPL3_Generate4Ch' (gcc does not warn). The strict flags apply to everything else.
-  $nuked = Join-Path $src '..\third_party\nuked-opl3'
-  & $cc @warn "-I$nuked" -c (Join-Path $nuked 'opl3.c') -Wno-static-in-inline -o (Join-Path $o 'opl3.o')
-  if ($LASTEXITCODE) { throw "opl3.c ${arch}: build failed" }
+  # dro_play (HANDOFF Task 11), on the Nuked core built above
   & $cc @warn "-I$nuked" (Join-Path $test 'dro_play.c') (Join-Path $src 'dro.c') (Join-Path $src 'opl.c') `
         (Join-Path $o 'opl3.o') -o (Join-Path $o 'dro_play.exe')
   if ($LASTEXITCODE) { throw "dro_play ${arch}: build failed" }
   # the port itself, with its sound (snd.c / snd_ail.c on Mistral's ail.c, mixer, sequencer and GM synth)
   $game = @('main.c', 'fg.c', 'ui_text.c', 'ui_dialog.c', 'ui_screen.c', 'title.c', 'state.c', 'le_image.c', 'fgfont.c',
             'gif.c', 'catalog.c', 'palette.c', 'png_write.c', 'plat_sdl3.c', 'ui_widgets.c', 'setup.c', 'variants.c', 'load.c', 'gfxload.c', 'newgame.c', 'choose.c', 'ui_kit2.c', 'ast.c', 'ui_kit3.c', 'dispatch.c', 'nations.c', 'save.c', 'saveload.c', 'map.c', 'mapdata.c', 'panel.c', 'shippanel.c', 'start.c', 'aistart.c', 'info.c', 'menu1.c', 'menu2.c', 'move.c', 'stack.c', 'savewrite.c', 'rules.c', 'kit.c', 'wqsort.c', 'mstack.c', 'route.c', 'junk.c', 'loop.c', 'tax.c', 'pop.c', 'census.c', 'ship.c', 'movephase.c', 'conflict.c', 'city.c', 'formulas.c', 'cards.c', 'cal1.c', 'mono.c', 'adv.c', 'helpers2.c', 'trade.c', 'cal2.c', 'cal3.c', 'cal4.c', 'cal5.c', 'end.c', 'anim.c', 'aiq.c', 'aicity.c', 'aisea.c', 'aimove.c', 'aiplan.c', 'aiship.c', 'aitrade.c', 'aiadv.c', 'aicards.c', 'aical1.c', 'aical2.c',
-            'snd.c', 'snd_ail.c', 'ail.c', 'musplay.c', 'mixer.c', 'wav.c', 'gm_synth.c', 'xmi.c', 'xmiseq.c') | ForEach-Object { Join-Path $src $_ }
+            'snd.c', 'snd_ail.c', 'ail.c', 'musplay.c', 'mixer.c', 'wav.c', 'gm_synth.c', 'fm_synth.c', 'fmdrv.c', 'xmi.c',
+            'xmiseq.c') | ForEach-Object { Join-Path $src $_ }
+  $game += Join-Path $o 'opl3.o'
   & $cc @warn "-I$sdl\include" "-I$fs\include" @game "$sdl\lib\libSDL3.dll.a" "$fs\lib\libfluidsynth-3.dll.a" @gui `
         -o (Join-Path $o 'advciv.exe')
   if ($LASTEXITCODE) { throw "advciv ${arch}: build failed" }
