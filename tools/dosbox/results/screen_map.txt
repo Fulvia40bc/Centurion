@@ -1,0 +1,5 @@
+Screen dump 'map' taken 2026-11-06 05:57 (map screen, nothing overlaid)
+Source: A000:0000, 0xFA00 bytes (320x200)
+Video mode: 13h (linear 320x200, 1 byte per pixel = palette index).
+Mode confirmed by the dump itself: it renders as a coherent 320x200 linear image (see preview).
+Preview PNG is grayscale (pixel value = palette index), not real colours.

@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
+<defs>
+ <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+  <feDropShadow dx="0" dy="3" stdDeviation="3.2" flood-color="#000" flood-opacity="0.5"/>
+ </filter>
+ <linearGradient id="shieldRed" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#d42a1e"/><stop offset="0.55" stop-color="#b0140f"/><stop offset="1" stop-color="#7a0a08"/>
+ </linearGradient>
+ <linearGradient id="shieldShade" x1="68" y1="0" x2="188" y2="0" gradientUnits="userSpaceOnUse">
+  <stop offset="0" stop-color="#000" stop-opacity="0.55"/><stop offset="0.22" stop-color="#000" stop-opacity="0.08"/>
+  <stop offset="0.42" stop-color="#fff" stop-opacity="0.10"/><stop offset="0.6" stop-color="#000" stop-opacity="0"/>
+  <stop offset="1" stop-color="#000" stop-opacity="0.6"/>
+ </linearGradient>
+ <linearGradient id="gloss" x1="68" y1="0" x2="188" y2="0" gradientUnits="userSpaceOnUse">
+  <stop offset="0.30" stop-color="#fff" stop-opacity="0"/><stop offset="0.37" stop-color="#fff" stop-opacity="0.16"/>
+  <stop offset="0.43" stop-color="#fff" stop-opacity="0"/>
+ </linearGradient>
+ <linearGradient id="gold" x1="0" y1="0" x2="0.4" y2="1">
+  <stop offset="0" stop-color="#fff1a8"/><stop offset="0.45" stop-color="#e7b53c"/><stop offset="1" stop-color="#9a6614"/>
+ </linearGradient>
+ <linearGradient id="goldV" x1="68" y1="0" x2="188" y2="0" gradientUnits="userSpaceOnUse">
+  <stop offset="0" stop-color="#8a5a10"/><stop offset="0.38" stop-color="#ffe9a0"/><stop offset="0.6" stop-color="#e0a93a"/><stop offset="1" stop-color="#7a4c0c"/>
+ </linearGradient>
+ <linearGradient id="bronze" x1="0" y1="0" x2="1" y2="1">
+  <stop offset="0" stop-color="#f3d27a"/><stop offset="0.5" stop-color="#b9822a"/><stop offset="1" stop-color="#6a420e"/>
+ </linearGradient>
+ <radialGradient id="umbo" cx="0.38" cy="0.35" r="0.75">
+  <stop offset="0" stop-color="#fff4c4"/><stop offset="0.35" stop-color="#e8b84a"/><stop offset="0.8" stop-color="#9a6412"/><stop offset="1" stop-color="#5e3a08"/>
+ </radialGradient>
+ <linearGradient id="blade" x1="0" y1="-1" x2="0" y2="1" gradientUnits="objectBoundingBox">
+  <stop offset="0" stop-color="#f4f6f8"/><stop offset="0.5" stop-color="#b8c0c8"/><stop offset="1" stop-color="#6b737c"/>
+ </linearGradient>
+ <linearGradient id="grip" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#9a6a3a"/><stop offset="1" stop-color="#4a2a10"/>
+ </linearGradient>
+ <linearGradient id="leafA" x1="0" y1="0" x2="1" y2="1">
+  <stop offset="0" stop-color="#b8cc58"/><stop offset="0.5" stop-color="#6e9a2e"/><stop offset="1" stop-color="#3e6218"/>
+ </linearGradient>
+ <linearGradient id="leafB" x1="0" y1="0" x2="1" y2="1">
+  <stop offset="0" stop-color="#9ab446"/><stop offset="0.5" stop-color="#557f22"/><stop offset="1" stop-color="#2f4c12"/>
+ </linearGradient>
+ <linearGradient id="ribbon" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#d8382a"/><stop offset="1" stop-color="#7a0e0a"/>
+ </linearGradient>
+</defs><defs>
+ <linearGradient id="shieldRedS" x1="0" y1="0" x2="0" y2="1">
+  <stop offset="0" stop-color="#e0301f"/><stop offset="1" stop-color="#9a100c"/></linearGradient>
+ <linearGradient id="shieldShadeS" x1="52" y1="0" x2="204" y2="0" gradientUnits="userSpaceOnUse">
+  <stop offset="0" stop-color="#000" stop-opacity="0.45"/><stop offset="0.25" stop-color="#000" stop-opacity="0"/>
+  <stop offset="0.75" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="0.5"/></linearGradient>
+ <linearGradient id="goldS" x1="0" y1="0" x2="1" y2="1">
+  <stop offset="0" stop-color="#ffe680"/><stop offset="1" stop-color="#d49a24"/></linearGradient>
+</defs><path d="M89.0,224.4 L82.7,221.6 L76.6,218.4 L70.8,214.8 L65.1,210.8 L59.8,206.5 L54.7,201.8 L50.0,196.8 L45.6,191.5 L41.6,185.9 L37.9,180.0 L34.7,173.9 L31.8,167.6 L29.4,161.2 L27.5,154.6 L25.9,147.8 L24.8,141.0 L24.2,134.2 L24.0,127.3 L24.3,120.4 L25.0,113.5 L26.2,106.7 L27.8,100.0 L29.9,93.5 L32.4,87.0 L35.3,80.8 L38.7,74.7 L42.4,68.9 L46.5,63.4 L51.0,58.1 L55.8,53.2" fill="none" stroke="#2c4a14" stroke-width="12" stroke-linecap="round"/>
+<path transform="translate(66.5,211.9) rotate(-109.8)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(66.5,211.9) rotate(-177.8)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(33.9,172.4) rotate(-81.2)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(33.9,172.4) rotate(-149.2)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(24.2,122.1) rotate(-52.8)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(24.2,122.1) rotate(-120.8)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(39.6,73.3) rotate(-24.2)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(39.6,73.3) rotate(-92.2)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path d="M167.0,224.4 L173.3,221.6 L179.4,218.4 L185.2,214.8 L190.9,210.8 L196.2,206.5 L201.3,201.8 L206.0,196.8 L210.4,191.5 L214.4,185.9 L218.1,180.0 L221.3,173.9 L224.2,167.6 L226.6,161.2 L228.5,154.6 L230.1,147.8 L231.2,141.0 L231.8,134.2 L232.0,127.3 L231.7,120.4 L231.0,113.5 L229.8,106.7 L228.2,100.0 L226.1,93.5 L223.6,87.0 L220.7,80.8 L217.3,74.7 L213.6,68.9 L209.5,63.4 L205.0,58.1 L200.2,53.2" fill="none" stroke="#2c4a14" stroke-width="12" stroke-linecap="round"/>
+<path transform="translate(189.5,211.9) rotate(289.8)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(189.5,211.9) rotate(357.8)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(222.1,172.4) rotate(261.2)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(222.1,172.4) rotate(329.2)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(231.8,122.1) rotate(232.8)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(231.8,122.1) rotate(300.8)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(216.4,73.3) rotate(204.2)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<path transform="translate(216.4,73.3) rotate(272.2)" d="M0,0 Q20.7,-15.0 46.0,0 Q20.7,15.0 0,0Z" fill="url(#leafA)" stroke="#1d3a12" stroke-width="4"/>
+<g transform="translate(10,10) rotate(45)"><path d="M50,-14 L296,-14 L330,0 L296,14 L50,14Z" fill="url(#blade)" stroke="#20242a" stroke-width="4"/><rect x="18" y="-11" width="34" height="22" rx="5" fill="#6a3c14" stroke="#20120a" stroke-width="4"/><rect x="46" y="-24" width="14" height="48" rx="5" fill="url(#bronze)" stroke="#3a2408" stroke-width="4"/><circle cx="12" cy="0" r="15" fill="url(#bronze)" stroke="#3a2408" stroke-width="4"/></g>
+<path d="M66,22 Q128,14 190,22 Q204,24 204,40 L204,216 Q204,232 190,234 Q128,242 66,234 Q52,232 52,216 L52,40 Q52,24 66,22Z" fill="url(#shieldRedS)"/>
+<path d="M66,22 Q128,14 190,22 Q204,24 204,40 L204,216 Q204,232 190,234 Q128,242 66,234 Q52,232 52,216 L52,40 Q52,24 66,22Z" fill="url(#shieldShadeS)"/>
+<path d="M66,22 Q128,14 190,22 Q204,24 204,40 L204,216 Q204,232 190,234 Q128,242 66,234 Q52,232 52,216 L52,40 Q52,24 66,22Z" fill="none" stroke="#3a1a04" stroke-width="22"/>
+<path d="M66,22 Q128,14 190,22 Q204,24 204,40 L204,216 Q204,232 190,234 Q128,242 66,234 Q52,232 52,216 L52,40 Q52,24 66,22Z" fill="none" stroke="url(#goldS)" stroke-width="13"/>
+<path d="M128,44 L128,92 M128,166 L128,212" stroke="#ffd24a" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-width="9"/>
+<path d="M128,124 Q160,116 186,74 M128,124 Q96,116 70,74" stroke="#ffd24a" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-width="13"/>
+<path d="M138,150 L158,176 L148,180 L170,208 M118,150 L98,176 L108,180 L86,208" stroke="#ffd24a" stroke-linecap="round" stroke-linejoin="round" fill="none" stroke-width="9"/>
+<circle cx="128" cy="128" r="33" fill="url(#umbo)" stroke="#5a3408" stroke-width="5"/></svg>
