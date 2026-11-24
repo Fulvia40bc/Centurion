@@ -132,6 +132,17 @@ out. Mutations D1-D11 re-run: all caught (D9 by S6 and ail_test's resume checks 
 check the Reply names).)
 
 (Mistral's TASK 22e is done; Claude's real-build check: strict clang both arches, the 12 real songs with stop/resume/end/rewind scripts vs xmi_host.c, mutations E1-E5. See the TASK 22e reply in Done.)
+(TASK 22e: VERIFIED 23 Nov by Claude, with one test added (fe2ebd2). Strict clang both arches; xmiseq_cmp_test,
+ail_test, xmi_test pass on both; xmiseq_test on all 12 real songs (400 s): every note-on paired, 0 real EVNT 0x8n.
+The 12 real songs vs xmi_host.c: identical streams in the 22d scenarios plus two op scripts (32 and 24 pause/resume/
+rewind operations: double stops, resume while playing, rewinds), every operation's emission compared, on both
+arches. Finding: the 12 songs loop forever through their own CC116/117 loop and never reach FF 2F, even with loop
+count 1, so the end-of-song gates cannot be reached in the game. Independent mutations: F1 (no stop gate), F2 (gate
+without eot), F4 (CC10/CC11 swapped), F5 (CC93 dropped), F6 (rewind keeps prog), F8 (CC114 after the program) caught
+by Mistral's cases; F3 (resume without the eot gate: a pause and resume after the natural end replays the stored
+state, the original at status 2 does nothing) was caught by nothing, so Claude added S9c (natural end, stop, resume:
+both send nothing), which catches it; F7 (bend gated on d1 instead of d2) cannot be observed, 0x99440 stores both
+bytes together. The demo_regress reference games replay equal on the rebuilt port. The sequencer is done.)
 
 ## Open
 
