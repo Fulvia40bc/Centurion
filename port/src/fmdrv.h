@@ -2,7 +2,8 @@
 #define FMDRV_H
 
 /* SBPRO2.MDI (Miles AIL 3, "Creative Labs Sound Blaster Pro (new version)"), the OPL3 FM music driver, translated
-   literally: the runtime of the driver from the reset to the register writes. fmdrv.c's file comment lists the
+   literally: the runtime of the driver from the reset to the register writes; with ADLIB.MDI ("Ad Lib Music
+   Synthesizer Card"), the OPL2 driver of the f-song set, as a second mode. fmdrv.c's file comment lists the
    routines and their offsets. The caller owns time: write() is called for every OPL register write in the
    original's order, and the caller spaces them. */
 
@@ -13,14 +14,16 @@ typedef void (*fmdrv_write_fn)(void *user, int reg, int val);   /* reg 0x000..0x
 
 typedef struct fmdrv fmdrv;
 
-/* drv: the SBPRO2.MDI file image from the game folder (its tables are read from it; copied, the caller may free
-   it). The driver's state init (drv 0x2FE1) and chip reset (0x2C47: the 492 writes); NULL when drv is not
-   SBPRO2.MDI as shipped or on no memory */
+/* drv: the SBPRO2.MDI or ADLIB.MDI file image from the game folder (its tables are read from it; copied, the caller
+   may free it); ADLIB.MDI selects the ADLIB mode (OPL2, 9 voices, 16 slots, mono: every write has reg 0x000..0x0FF).
+   The driver's state init (drv 0x2FE1) and chip reset (0x2C47: the 492 writes; ADLIB 0x2964: 245); NULL when drv
+   is neither driver as shipped or on no memory */
 int    fmdrv_is_sbpro2(const uint8_t *drv, size_t len);
+int    fmdrv_is_adlib(const uint8_t *drv, size_t len);
 fmdrv *fmdrv_new(fmdrv_write_fn write, void *user, const uint8_t *drv, size_t len);
 void   fmdrv_free(fmdrv *d);
 
-/* the GTL file image (EHGM2FM2.OPL); 1 ok, 0 bad */
+/* the GTL file image (EHGM2FM2.OPL; EHGM2FM2.AD for ADLIB.MDI, byte-identical); 1 ok, 0 bad */
 int    fmdrv_set_bank(fmdrv *d, const uint8_t *gtl, size_t len);
 
 /* function 0x503 with an XMIDI TIMB chunk body (u16 count, then patch,bank pairs): loads each from the bank into

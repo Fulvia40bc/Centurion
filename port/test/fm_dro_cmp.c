@@ -1,15 +1,19 @@
-/* fm_dro_cmp: plays one XMIDI song through the port's SBPRO2.MDI translation (fmdrv.h) the way the original's AIL
-   host drives the MDI, records every OPL register write with the 120 Hz tick it happened in, and compares that
-   write sequence with a DOSBox-X DRO capture of the original.
+/* fm_dro_cmp: plays one XMIDI song through the port's translation of SBPRO2.MDI or ADLIB.MDI (fmdrv.h) the way the
+   original's AIL host drives the MDI, records every OPL register write with the 120 Hz tick it happened in, and
+   compares that write sequence with a DOSBox-X DRO capture of the original.
 
-   usage: fm_dro_cmp [-raw] [-vol N] [-dump N] GAMEDIR SONG.XMI DRO [SECONDS]
-     GAMEDIR   holds ACIV.CT5 (the song), EHGM2FM2.OPL (the GTL bank) and ACIV.CFG (the music volume; 9 if absent)
-     SONG.XMI  a catalog name in ACIV.CT5, e.g. SMAP__1C.XMI
-     DRO       a DOSBox-X DRO v2.0 capture of that song played by SBPRO2.MDI
+   usage: fm_dro_cmp [-drv NAME] [-raw] [-vol N] [-dump N] GAMEDIR SONG.XMI DRO [SECONDS]
+     GAMEDIR   holds ACIV.CT5 (the song), the driver, its GTL bank (EHGM2FM2.OPL for SBPRO2.MDI, EHGM2FM2.AD for
+               ADLIB.MDI: the driver's suffix, structure.md 8.1) and ACIV.CFG (the music volume; 9 if absent)
+     SONG.XMI  a catalog name in ACIV.CT5, e.g. SMAP__1C.XMI (s set, SBPRO2) or FMAP__1C.XMI (f set, ADLIB)
+     DRO       a DOSBox-X DRO v2.0 capture of that song played by that driver
      SECONDS   how long the port plays (default: one pass of the song + the DRO's length + 5 s)
+     -drv NAME SBPRO2.MDI (default) or ADLIB.MDI
      -raw      compare the port's writes unfiltered (default: pass them through DOSBox-X's capture rules first)
      -vol N    the music volume 0..9 instead of ACIV.CFG's
      -dump N   the length of the DRO's t = 0 state dump (default: found, see dro_dump_len)
+   Checked: SMAP__1C.XMI against C:\work\advciv_listen\fm_gmap.dro (9,149 of 9,149) and, with -drv ADLIB.MDI,
+   FMAP__1C.XMI against fm_fmap_adlib.dro (5,905 of 5,905, 23 Nov).
    Exit 0 when every DRO write after the dump matches the port's sequence in order from the alignment, else 1
    (2 on a usage or file error).
 
@@ -18,7 +22,7 @@
        0x300 DRV_INIT, 0x301 GET_INFO: no register writes, nothing to model;
        0x304 VERIFY_IO: the timer probe of 7.2 writes regs 4/2 at IO+8; not part of fmdrv.h, and DOSBox-X never
              logs timer registers, so it is left out;
-       0x305 INIT_DEV: fmdrv_new (chip reset 0x2C47, the 492 writes, and the state init 0x2FE1);
+       0x305 INIT_DEV: fmdrv_new (chip reset 0x2C47, the 492 writes; ADLIB 0x2964, 245; and the state init 0x2FE1);
        0x501 INIT_INS_MGR: the GTL file (fmdrv_set_bank);
        the channel set-up (step 9, 0x9AD90..0x9AE96): 15 messages per channel queued through 0x98F30, one 0x502
              per channel (CX = 15);
@@ -624,12 +628,13 @@ static uint32_t dro_dump_len(const dro_file *df)
 
 static void usage(void)
 {
-    fprintf(stderr, "usage: fm_dro_cmp [-raw] [-vol N] [-dump N] GAMEDIR SONG.XMI DRO [SECONDS]\n");
+    fprintf(stderr, "usage: fm_dro_cmp [-raw] [-vol N] [-dump N] [-drv NAME] GAMEDIR SONG.XMI DRO [SECONDS]\n");
 }
 
 int main(int argc, char **argv)
 {
     const char *pos[4];
+    const char *drv_name = "SBPRO2.MDI", *gtl_name = "EHGM2FM2.OPL";
     int npos = 0, raw = 0, vol_cfg = -1, a, rc = 1;
     long dump_opt = -1;
     double seconds = 0.0;
@@ -672,6 +677,8 @@ int main(int argc, char **argv)
             vol_cfg = atoi(argv[++a]);
         } else if (strcmp(argv[a], "-dump") == 0 && a + 1 < argc) {
             dump_opt = atol(argv[++a]);
+        } else if (strcmp(argv[a], "-drv") == 0 && a + 1 < argc) {
+            drv_name = argv[++a];
         } else if (npos < 4) {
             pos[npos++] = argv[a];
         } else {
@@ -688,10 +695,17 @@ int main(int argc, char **argv)
 
     /* ---- the data ---- */
     ct5 = load_in_dir(pos[0], "ACIV.CT5", &ct5_len);
-    bank = load_in_dir(pos[0], "EHGM2FM2.OPL", &bank_len);
-    mdi = load_in_dir(pos[0], "SBPRO2.MDI", &mdi_len);   /* the driver's tables (fmdrv_new) */
+    mdi = load_in_dir(pos[0], drv_name, &mdi_len);    /* the driver's tables (fmdrv_new) */
+    if (mdi != NULL && fmdrv_is_adlib(mdi, mdi_len))
+        gtl_name = "EHGM2FM2.AD";                     /* structure.md 8.1: DRV_INIT's suffix, ".AD" for the OPL2 drivers */
+    bank = load_in_dir(pos[0], gtl_name, &bank_len);
     if (ct5 == NULL || bank == NULL || mdi == NULL) {
-        fprintf(stderr, "fm_dro_cmp: cannot read ACIV.CT5, EHGM2FM2.OPL or SBPRO2.MDI in %s\n", pos[0]);
+        fprintf(stderr, "fm_dro_cmp: cannot read ACIV.CT5, %s or %s in %s\n", gtl_name, drv_name, pos[0]);
+        rc = 2;
+        goto done;
+    }
+    if (!fmdrv_is_adlib(mdi, mdi_len) && !fmdrv_is_sbpro2(mdi, mdi_len)) {
+        fprintf(stderr, "fm_dro_cmp: %s is neither SBPRO2.MDI nor ADLIB.MDI as shipped\n", drv_name);
         rc = 2;
         goto done;
     }
@@ -742,12 +756,12 @@ int main(int argc, char **argv)
     h.tick = -1;
     h.drv = fmdrv_new(on_write, &h, mdi, mdi_len);    /* 0x305 INIT_DEV: chip reset 0x2C47 + state 0x2FE1 */
     if (h.drv == NULL) {
-        fprintf(stderr, "fm_dro_cmp: SBPRO2.MDI is not the shipped driver, or no memory\n");
+        fprintf(stderr, "fm_dro_cmp: no memory for the driver\n");
         rc = 2;
         goto done;
     }
     if (!fmdrv_set_bank(h.drv, bank, bank_len)) {      /* 0x501 INIT_INS_MGR: the GTL file */
-        fprintf(stderr, "fm_dro_cmp: EHGM2FM2.OPL rejected by fmdrv_set_bank\n");
+        fprintf(stderr, "fm_dro_cmp: %s rejected by fmdrv_set_bank\n", gtl_name);
         rc = 2;
         goto done;
     }
@@ -879,8 +893,9 @@ int main(int argc, char **argv)
     while (n_install < h.nw && h.w[n_install].tick < 0)
         n_install++;
 
-    printf("PORT %s at music volume %d (sequence volume %d): %.1f s = %lu ticks, %lu 0x502 calls, %lu messages\n",
-           pos[1], music, seqvol, seconds, (unsigned long)total_ticks, h.xmits, h.msgs);
+    printf("PORT %s through %s (%s) at music volume %d (sequence volume %d): %.1f s = %lu ticks, %lu 0x502 calls, "
+           "%lu messages\n", pos[1], drv_name, gtl_name, music, seqvol, seconds, (unsigned long)total_ticks, h.xmits,
+           h.msgs);
     printf("     %lu register writes (%lu at install), %lu after DOSBox-X's capture rules%s; song pass %lu ticks, "
            "%lu FF 2F rewinds, %lu NEXT jumps, %lu sysex\n", (unsigned long)h.nw,
            (unsigned long)n_install,

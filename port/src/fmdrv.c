@@ -87,7 +87,75 @@
    the 0x200 bytes the host copies to MIDI_data ("TIMB", u32 BE size, the body; the bytes after the chunk, which the
    host takes from the next XMI chunk, are zero here); fmdrv_set_bank refuses (returns 0, no file open) an image
    whose index has no bank-0xFF terminator inside it, on which 0x3FA2's read loop would spin for ever on the stale
-   record. */
+   record.
+
+   ADLIB (the f-song set's driver, ADLIB.MDI, 14,986 bytes; C:\work\advciv_cmp\sound\fm\adlib.asm, variants.md).
+   MODE (D). fmdrv_new given ADLIB.MDI (fmdrv_is_adlib: the size, the signature and the name at 0xBA) sets
+   d->adlib, and the code then follows adlib.asm wherever it differs; everything else is the same code at shifted
+   offsets. Found by aligning the two listings instruction by instruction (absolute operands and branch targets
+   normalised; scratch C:\work\advciv_cmp\sound\fm\adlib\align.py): 1,891 of ADLIB's 1,910 instructions from 0x27D3
+   equal SBPRO2's (2,220 from 0x2A83); against SBLASTER 1,907 of 1,910 (variants.md says 1,908 / 1,911). Every
+   absolute operand of the equal pairs maps one to one, with one shift per area (D), which is how m[] keeps
+   SBPRO2's layout: ADLIB 0x000..0x56F at the same offsets (header, register block 0x126, DDT 0x260, DST 0x270,
+   MIDI_data 0x370, scratch 0x3A); 0x570..0x7CF at +8 (P_MIDI 0x590, PP_MIDI 0x594, the GTL handle 0x598 = 0xFFFF,
+   the read buffer 0x59A, the descriptor 0x79A); the tables 0x7D0..0xCBF at +0x2B, byte for byte SBPRO2's
+   0x7FB..0xCEA (D-file: 0 differences; T_FREQ 0x7D2, T_OCT 0x952, T_HALF 0x9B2, the reset table 0xA11 + r, T_VEL
+   0xBFC, T_OP1 0xC0C, T_OP2 0xC1E, T_OPREG 0xC30, T_OPBANK 0xC54, T_CHREG 0xC78, T_CHBANK 0xC8A, T_4OPOK 0xC9C);
+   the state from 0xCC0 (ports 0xCC0/0xCC2, the cache 0xCC4.., slots 0x139A.., channels 0x165A.., drum map
+   0x171A, voices 0x17AA, priorities 0x17B3, heap 0x17D3) at its SBPRO2 place; the 16-slot arrays fit the 20-slot
+   ones. fmdrv_new copies those three file ranges into m[]; ADLIB's 0xCC0..0x27D2 is zero (D-file) like SBPRO2's
+   data area. m[0x570..0x577] (SBPRO2's "BLASTER\0"), m[0x7D8..0x7FA], the 4-op tables m[0xCEB..0xD2E] and the code
+   area from 0x2A83 stay zero: no ADLIB code reads them (G for the count-0 walk below). V_OWNER[9..17] is never
+   initialised in this mode (0, not 0xFF) and never read.
+   SITES, SBPRO2 / ADLIB (each also marked in the code):
+     - set ports 0x2A8C..0x2A97 the mixer words [0xD2F]/[0xD31]: absent (0x27D3..0x27E7).
+     - write primitive 0x2ADB..0x2AE2 add dl,bh twice (bank 1 at P+2): absent, ADLIB 0x281B never reads BH, so
+       every write is reg 0x00..0xFF; 0x2AF4 mov ah,8 / 0x282E mov ah,0x2A (status-read delay: no state).
+     - reset 0x2C4C..0x2C5C (0x105 = 1, 0x104 = 0, shadow [0x140C] = 0) and 0x2C70..0x2C81 (bank-1 loop): absent;
+       ADLIB 0x2964 writes regs 1..0xF5 from [0xA11 + r] = m[0xA3C + r] only: 245 writes.
+     - shutdown 0x2C93..0x2C98 (0x105 = 0): absent (ADLIB 0x2985 is empty); verify-IO 0x2B14..0x2B3E (mixer
+       words, ports + 8): absent; not translated in either mode.
+     - slots 0x14 -> 0x10: 0x2F09/0x2BF8 (evict), 0x303E/0x2D2D (state init), 0x3708/0x3254 and 0x374E/0x329A
+       (steal), 0x39DC/0x341C (note-off), 0x3A97/0x34D7 (note-on), 0x3B4A/0x3583 (sustain-off), 0x3C75/0x36AC
+       (channel update), 0x3CB8/0x36EF (CC123); 0x37BA lies in the 4-op steal branch, absent. NSLOT().
+     - voices 0x12 -> 9: 0x304C/0x2D3B (owner init), 0x309D/0x2D82 and 0x30A3/0x2D88 (round robin). NVOICE().
+     - assign 0x308B..0x3093 (mov si,[bp+4]; the type-3 test): absent at 0x2D7A; ADLIB uses the caller's si, and
+       its one caller, note-on 0x354B (push si; call 0x2D74), holds the slot there: same value (D). 0x30E1..0x3125
+       (4-op assign): absent.
+     - update 0x31D7..0x3272 (the 0x104 shadow, the partner's 0x80/0xB0 writes): absent (0x2E76); 0x3279..0x3310
+       (pair 2) absent: ADLIB 0x2E7A je 0x2ECD loads pair 1; with is4 set it would fall into the flag tests 0x2E7C
+       with no pair loaded and [bp-0x12] unset, unreachable (SL_TYPE 3 is written only by 0x381D, absent): the
+       locals are 0 here (G).
+     - C0 0x3589..0x35A4 (or al,0x30; the pan test): absent; ADLIB 0x30E1..0x30F0 writes FB<<1 | CNT alone. The pan
+       is still stored by CC10 (0x3C50 / ADLIB 0x3687) and never read.
+     - steal 0x379E..0x37D0 (the 4-op victim's partner): absent (0x32E7 goes to the release); 0x3791 jae + jmp /
+       0x32DD jb: the same test, branch reach only. The 4-op-capable scan 0x3774 / 0x32C0 (T_4OPOK into [bp-8])
+       stays, its result unused.
+     - 0x381D..0x38F0 (4-op load): absent; note-on 0x3B02 (call 0x381D): absent, ADLIB 0x3532 je 0x3542 jumps
+       to 0x3546 (voice 0xFF, assign) with nothing loaded, so a 0x19-byte timbre would sound with the slot's stale
+       fields (D; EHGM2FM2.AD has none).
+     - CC10 0x3C2C mov al,8: absent, ADLIB 0x3665 keeps al = 0x40 from 0x3653 (CC7): CC10 rewrites the 0x40 TLs.
+     - DRV_INIT 0x3D91 [0x268] = 0x12 / 0x37C8 = 9 and 0x3DB5 [0x12] = 0x570 / 0x37EC..0x37F2 [0x12] = [0x14] = 0;
+       PARSE_ENV 0x3DE4..0x3E37 (BLASTER) / 0x3821 returns -1: not translated (no runtime state).
+     - HDR_IO = 0x388 (G: MDI.INI IO_ADDR 388h, ADLIB's default; it reaches no write).
+   Shared code that stays as SBPRO2's and is harmless here: release 0x3127 / 0x2DC6 and the steal's reassign
+   0x37F7 / 0x330B keep their type-3 tests of V_OWNER + 3; 0x31A1 etc. read words across slot arrays and mask them.
+   OUT-OF-RANGE READS whose neighbours differ because the state stays at SBPRO2's offsets (none can occur with the
+   game's songs: their data bytes are < 0x80 and every TIMB count is >= 1, G / structure.md 8.6):
+     - the drum map with a key >= 128 (0x3A46 read, 0x3A5D write-back / ADLIB 0x3486, 0x349D): index k = key - 128
+       past the 128 bytes is CH_VOICES[k] for k < 16 and V_OWNER[k - 16] for k < 25 in both; from k = 25 the port
+       reaches V_OWNER[9..17] (0 here), then PRI from k = 34 and the heap from k = 74, where ADLIB reaches its PRI
+       (0x17B3) from k = 25 and its heap (0x17D3) from k = 57 (D).
+     - vel >> 3 past the velocity table (vel >= 128, 0x3ACE / ADLIB 0x350E): index 16..31 is T_OP1 in both
+       (m[0xC37..0xC46] = ADLIB 0xC0C..0xC1B), the same bytes: no difference (D).
+     - the TIMB count 0 walk (0x2DCB / ADLIB 0x2ABA dec di from 0): 65536 words round the segment; past MIDI_data
+       m[] holds SBPRO2's layout with ADLIB's tables and zero where SBPRO2's own bytes would be, ADLIB's segment
+       its own layout and its code from 0x27D3, so the first uncached word can differ (G: never computed).
+   PROOF (D-file): C:\work\advciv_listen\fm_fmap_adlib.dro (the original, ADLIB.MDI at 388h, FMAP__1C.XMI at the
+   new-game screens, DOSBox-X nuked) against fm_dro_cmp -drv ADLIB.MDI: every one of the 5,905 writes after the
+   110-write dump matches in order. That capture reaches at most 8 slots, no steal and no mid-song CC10, so the 16
+   slots, the steal and the CC10 flag rest on adlib.asm alone; the 9-voice round robin, the mono C0 and the
+   bank-free writes are in it. */
 
 #include "fmdrv.h"
 
@@ -221,11 +289,16 @@
 struct fmdrv {
     fmdrv_write_fn write;
     void *user;
+    int adlib;           /* 1: ADLIB.MDI's code (the ADLIB section of the file comment), 0: SBPRO2.MDI's */
     uint8_t *gtl;        /* the file behind DOS handle [0x5A0] (fmdrv_set_bank) */
     uint32_t gtl_len;
     uint32_t gtl_pos;    /* its DOS file pointer */
     uint8_t m[0x10000];  /* the driver's segment, CS = DS = ES */
 };
+
+/* the two count constants of the ADLIB section: SBPRO2 cmp 0x14 / 0x12, ADLIB cmp 0x10 / 0x09 */
+#define NSLOT(d)  ((d)->adlib ? 0x10u : 0x14u)  /* note slots */
+#define NVOICE(d) ((d)->adlib ? 0x09u : 0x12u)  /* OPL channels */
 
 #define B(o)      (d->m[(uint16_t)(o)])
 #define SETB(o,v) (d->m[(uint16_t)(o)] = (uint8_t)(v))
@@ -294,16 +367,25 @@ static void dos_read(fmdrv *d, unsigned dx, unsigned cx)   /* AX = 3F00h, DS:DX 
 
 static void f2A83_set_ports(fmdrv *d, unsigned io)
 {
-    SETW(PORT_MIXA, io + 4u);                                           /* drv 0x2A8D add ax,4; mov [0xD2F] */
-    SETW(PORT_MIXD, io + 5u);                                           /* drv 0x2A93 inc ax; mov [0xD31] */
-    SETW(PORT_ADDR, io);                                                /* drv 0x2A98 */
-    SETW(PORT_DATA, io + 1u);                                           /* drv 0x2A9B inc ax; mov [0xD33] */
+    if (!d->adlib) {                                                    /* ADLIB 0x27D3: no mixer words */
+        SETW(PORT_MIXA, io + 4u);                                       /* drv 0x2A8D add ax,4; mov [0xD2F] */
+        SETW(PORT_MIXD, io + 5u);                                       /* drv 0x2A93 inc ax; mov [0xD31] */
+    }
+    SETW(PORT_ADDR, io);                                                /* drv 0x2A98 (ADLIB 0x27DC [0xCC2]) */
+    SETW(PORT_DATA, io + 1u);                                           /* drv 0x2A9B inc ax; mov [0xD33] (ADLIB 0x27E0 [0xCC0]) */
 }
 
 static void f2AD7_out(fmdrv *d, unsigned bx, unsigned cl)   /* BH = bank, BL = register, CL = value */
 {
-    unsigned dx = (W(PORT_ADDR) + 2u * ((bx >> 8) & 0xFFu)) & 0xFFFFu;  /* drv 0x2AD7 dx = [0xD35]; 0x2ADB add dl,bh (x2) */
-    unsigned bank = (dx - W(PORT_ADDR)) / 2u;
+    unsigned dx, bank;
+
+    if (d->adlib) {                                                     /* ADLIB 0x281B: dx = [0xCC2], BH not read */
+        /* ADLIB 0x2821 out dx,bl; 0x2822 six status reads; 0x282C out dx+1,cl; 0x282E 0x2A status reads */
+        d->write(d->user, (int)(bx & 0xFFu), (int)(cl & 0xFFu));
+        return;
+    }
+    dx = (W(PORT_ADDR) + 2u * ((bx >> 8) & 0xFFu)) & 0xFFFFu;           /* drv 0x2AD7 dx = [0xD35]; 0x2ADB add dl,bh (x2) */
+    bank = (dx - W(PORT_ADDR)) / 2u;
     /* drv 0x2AE7 out dx,bl; 0x2AE8 six status reads; 0x2AF2 out dx+1,cl; 0x2AF4 eight status reads */
     d->write(d->user, (int)(bank << 8 | (bx & 0xFFu)), (int)(cl & 0xFFu));
 }
@@ -328,6 +410,11 @@ static void f2C47_reset(fmdrv *d)
 {
     unsigned bx;
 
+    if (d->adlib) {                                                     /* ADLIB 0x2964: no 0x105/0x104, no shadow */
+        for (bx = 0x001u; bx <= 0x0F5u; bx++)                           /* ADLIB 0x2969..0x2978 jbe */
+            f2AD7_out(d, bx, B(0xA3Cu + bx));                           /* ADLIB 0x296C [bx + 0xA11] = m[0xA3C + bx] */
+        return;                                                         /* ADLIB 0x2981: no bank 1 */
+    }
     f2AD7_out(d, 0x105u, 0x01u);                                        /* drv 0x2C4C */
     f2AD7_out(d, 0x104u, 0x00u);                                        /* drv 0x2C54 */
     SETB(SHADOW104, 0);                                                 /* drv 0x2C5C */
@@ -425,7 +512,7 @@ static void f2DE3_evict(fmdrv *d)
             SETW(TC_OFFSET + di, ax - bp4);                             /* drv 0x2EC1 */
     }
     bp6 = (bp6 + W(HEAP_PTR)) & 0xFFFFu;                                /* drv 0x2ED2 */
-    for (si = 0, di = 0; si < 0x14u; si++, di += 2u) {                  /* drv 0x2ED8..0x2F0C */
+    for (si = 0, di = 0; si < NSLOT(d); si++, di += 2u) {               /* drv 0x2ED8..0x2F0C cmp 0x2F09 (ADLIB 0x2BF8) */
         if (B(SL_STATE + si) == 0)                                      /* drv 0x2EDE */
             continue;
         ax = W(SL_TIMB + di);                                           /* drv 0x2EE5 */
@@ -506,9 +593,9 @@ static void f2FE1_state_init(fmdrv *d)
         SETB(CH_PROG + di, 0xFFu);                                      /* drv 0x3025 */
         SETB(CH_BANK + di, 0);                                          /* drv 0x302A */
     }
-    for (di = 0; di < 0x14u; di++)                                      /* drv 0x3035..0x3041 */
+    for (di = 0; di < NSLOT(d); di++)                                   /* drv 0x3035..0x3041 cmp 0x303E (ADLIB 0x2D2D) */
         SETB(SL_STATE + di, 0);
-    for (di = 0; di < 0x12u; di++)                                      /* drv 0x3043..0x304F */
+    for (di = 0; di < NVOICE(d); di++)                                  /* drv 0x3043..0x304F cmp 0x304C (ADLIB 0x2D3B) */
         SETB(V_OWNER + di, 0xFFu);
     for (di = 0; di < 0x80u; di++)                                      /* drv 0x3051..0x305B rep stosb */
         SETB(DRUM_TIDX + di, 0xFFu);
@@ -528,7 +615,9 @@ static void f3085_assign(fmdrv *d, unsigned si)
 {
     unsigned dx, bx, di;
 
-    if (B(SL_TYPE + si) == 3) {                                         /* drv 0x308E */
+    /* ADLIB 0x2D74 has no 0x308B mov si,[bp+4] and no 0x308E type-3 test: it uses the caller's si, and its one
+       caller (note-on, ADLIB 0x354B push si; call) passes that si, so si is the slot either way (D) */
+    if (!d->adlib && B(SL_TYPE + si) == 3) {                            /* drv 0x308E */
         dx = 0xFFFFu;                                                   /* drv 0x30E1 */
         di = W(RR4);                                                    /* drv 0x30E4 */
         for (;;) {
@@ -559,12 +648,12 @@ static void f3085_assign(fmdrv *d, unsigned si)
         bx = W(RR2);                                                    /* drv 0x3098 */
         for (;;) {
             dx = (dx + 1u) & 0xFFFFu;                                   /* drv 0x309C */
-            if (dx == 0x12u) {                                          /* drv 0x309D */
-                f36F6_steal(d);                                         /* drv 0x30D9 */
+            if (dx == NVOICE(d)) {                                      /* drv 0x309D (ADLIB 0x2D82 cmp dx,9) */
+                f36F6_steal(d);                                         /* drv 0x30D9 (ADLIB 0x2DBE) */
                 return;
             }
             bx = (bx + 1u) & 0xFFFFu;                                   /* drv 0x30A2 */
-            if (bx == 0x12u)                                            /* drv 0x30A3 */
+            if (bx == NVOICE(d))                                        /* drv 0x30A3 (ADLIB 0x2D88 cmp bx,9) */
                 bx = 0;
             SETW(RR2, bx);                                              /* drv 0x30AB written on every probe */
             if (B(V_OWNER + bx) == 0xFFu)                               /* drv 0x30AF */
@@ -694,7 +783,15 @@ static void f3184_update(fmdrv *d, unsigned si)
         cl = ax >> 8;                                                   /* drv 0x31BE */
         vol = cl != 0 ? (cl + 1u) & 0xFFu : 0;                          /* drv 0x31C0..0x31C4 [bp-8] */
     }
-    is4_bp10 = B(SL_TYPE + si) == 3 ? 1u : 0u;                          /* drv 0x31C7..0x31D4 [bp-0x10] */
+    is4_bp10 = B(SL_TYPE + si) == 3 ? 1u : 0u;                          /* drv 0x31C7..0x31D4 [bp-0x10] (ADLIB 0x2E66) */
+    memset(&o, 0, sizeof o);                                            /* G: ADLIB's unloaded locals, see below */
+    if (d->adlib) {                                                     /* ADLIB 0x2E76: no 0x104 shadow block */
+        /* ADLIB 0x2E7A je pair 1 (0x2ECD); with is4 it falls into the flag tests 0x2E7C with no pair loaded and
+           [bp-0x12] unset: unreachable, SL_TYPE 3 is written only by 0x381D, which ADLIB lacks (D) */
+        if (is4_bp10 == 0)
+            f3184_pair1(d, si, &o);                                     /* ADLIB 0x2ECD..0x2F58 */
+        goto flags;
+    }
     di = W(SL_VOICE + si) & 0xFFu;                                      /* drv 0x31D7 */
     cl = B(SHADOW104);                                                  /* drv 0x31DF */
     dl = B(T_4OPBIT + di);                                              /* drv 0x31E3 */
@@ -720,6 +817,7 @@ static void f3184_update(fmdrv *d, unsigned si)
     } else {
         f3184_pair1(d, si, &o);                                         /* drv 0x3364..0x33EF */
     }
+flags:
     for (;;) {
         if ((B(SL_DIRTY + si) & 0x80u) != 0) {                          /* drv 0x3313 -> 0x3409: reg 20 */
             di = W(SL_CHAN + si) & 0xFu;                                /* drv 0x3409 */
@@ -753,14 +851,17 @@ static void f3184_update(fmdrv *d, unsigned si)
         }
         if ((B(SL_DIRTY + si) & 0x08u) != 0) {                          /* drv 0x333B -> 0x3578: reg C0 */
             ax = ((o.bp30 & 0xFFFFu) >> 4) & 0x0E00u;                   /* drv 0x3578 shr ax,4; 0x357F and ah,0x0E */
-            cl = (o.bp32 & 0x01u) | (ax >> 8) | 0x30u;                  /* drv 0x3582..0x3589 */
-            di = W(SL_CHAN + si) & 0xFu;                                /* drv 0x358B */
-            bl = B(CH_PAN + di);                                        /* drv 0x3592 */
-            if (bl <= 0x1Bu)                                            /* drv 0x3596 jbe */
-                cl &= 0xEFu;                                            /* drv 0x35A4 */
-            else if (bl >= 0x64u)                                       /* drv 0x359B jb */
-                cl &= 0xDFu;                                            /* drv 0x35A0 */
-            f2ABE_ch(d, o.bp2, 0xC0u, cl);                              /* drv 0x35A6..0x35B4 */
+            cl = (o.bp32 & 0x01u) | (ax >> 8);                          /* drv 0x3582..0x3587 (ADLIB 0x30EB..0x30F0) */
+            if (!d->adlib) {                                            /* ADLIB 0x30F2: no 0x30, the pan not read */
+                cl |= 0x30u;                                            /* drv 0x3589 */
+                di = W(SL_CHAN + si) & 0xFu;                            /* drv 0x358B */
+                bl = B(CH_PAN + di);                                    /* drv 0x3592 */
+                if (bl <= 0x1Bu)                                        /* drv 0x3596 jbe */
+                    cl &= 0xEFu;                                        /* drv 0x35A4 */
+                else if (bl >= 0x64u)                                   /* drv 0x359B jb */
+                    cl &= 0xDFu;                                        /* drv 0x35A0 */
+            }
+            f2ABE_ch(d, o.bp2, 0xC0u, cl);                              /* drv 0x35A6..0x35B4 (ADLIB 0x30F2..0x3103) */
             SETB(SL_DIRTY + si, B(SL_DIRTY + si) & 0xF7u);              /* drv 0x35BA */
         }
         if ((B(SL_DIRTY + si) & 0x01u) != 0) {                          /* drv 0x3345 -> 0x35C2: A0/B0 */
@@ -842,7 +943,7 @@ static void f36F6_steal(fmdrv *d)
 {
     unsigned n_bp2 = 0, vm_bp4 = 0, w_bp6 = 0, vm4_bp8 = 0, si, di, ax, bx, cx, dx;
 
-    for (si = 0; si < 0x14u; si++) {                                    /* drv 0x3704..0x373F */
+    for (si = 0; si < NSLOT(d); si++) {                                 /* drv 0x3704..0x373F cmp 0x3708 (ADLIB 0x3254) */
         if (B(SL_STATE + si) == 0)                                      /* drv 0x370D */
             continue;
         n_bp2 = (n_bp2 + 1u) & 0xFFFFu;                                 /* drv 0x3714 */
@@ -858,7 +959,7 @@ static void f36F6_steal(fmdrv *d)
         ax = 0;                                                         /* drv 0x3741 best waiting */
         dx = 0xFFFFu;                                                   /* drv 0x3744 least voiced */
         cx = 0xFFFFu;                                                   /* drv 0x3747 least 4-op-capable voiced */
-        for (si = 0; si < 0x14u; si++) {                                /* drv 0x374A..0x3751 */
+        for (si = 0; si < NSLOT(d); si++) {                             /* drv 0x374A..0x3751 cmp 0x374E (ADLIB 0x329A) */
             if (B(SL_STATE + si) == 0)                                  /* drv 0x3753 */
                 continue;
             di = W(PRI + 2u * si);                                      /* drv 0x375C */
@@ -885,11 +986,11 @@ static void f36F6_steal(fmdrv *d)
             return;
         si = vm_bp4;                                                    /* drv 0x379B */
         bx = w_bp6;                                                     /* drv 0x379E */
-        if (B(SL_TYPE + bx) == 3) {                                     /* drv 0x37A1 a 4-op note waits */
+        if (!d->adlib && B(SL_TYPE + bx) == 3) {                        /* drv 0x37A1 a 4-op note waits (ADLIB 0x32E7: none) */
             si = vm4_bp8;                                               /* drv 0x37A8 */
             if (B(SL_TYPE + si) != 3) {                                 /* drv 0x37AB */
                 unsigned al = B(T_PARTNER + si);                        /* drv 0x37B2 [si+0xCD9]: si is a slot */
-                for (di = 0; di < 0x14u; di++)                          /* drv 0x37B6..0x37BD */
+                for (di = 0; di < 0x14u; di++)                          /* drv 0x37B6..0x37BD (SBPRO2 only) */
                     if (B(SL_STATE + di) != 0 && B(SL_VOICE + di) == al) {  /* drv 0x37BF, 0x37C6 */
                         f3127_release(d, di);                           /* drv 0x37CC */
                         break;
@@ -986,7 +1087,7 @@ static void f39CC_note_off(fmdrv *d, unsigned ch, unsigned key)
 {
     unsigned si, al, bl;
 
-    for (si = 0; si < 0x14u; si++) {                                    /* drv 0x39D2..0x39DF */
+    for (si = 0; si < NSLOT(d); si++) {                                 /* drv 0x39D2..0x39DF cmp 0x39DC (ADLIB 0x341C) */
         al = key & 0xFFu;                                               /* drv 0x39D5 (reloaded after each hit) */
         bl = ch & 0xFFu;                                                /* drv 0x39D8 */
         if (B(SL_STATE + si) != 1)                                      /* drv 0x39E1 */
@@ -1030,10 +1131,10 @@ static void f3A2F_note_on(fmdrv *d, unsigned ch, unsigned key, unsigned vel)
         SETW(LRU_CLOCK + 2u, W(LRU_CLOCK + 2u) + 1u);                   /* drv 0x3A78 adc */
     SETW(TC_STAMPLO + bx, W(LRU_CLOCK));                                /* drv 0x3A7D, 0x3A84 */
     SETW(TC_STAMPHI + bx, W(LRU_CLOCK + 2u));                           /* drv 0x3A80, 0x3A88 */
-    for (si = 0; si < 0x14u; si++)                                      /* drv 0x3A8C..0x3A9A */
+    for (si = 0; si < NSLOT(d); si++)                                   /* drv 0x3A8C..0x3A9A cmp 0x3A97 (ADLIB 0x34D7) */
         if (B(SL_STATE + si) == 0)                                      /* drv 0x3A8F */
             break;
-    if (si == 0x14u)                                                    /* drv 0x3A9C all 20 in use: dropped */
+    if (si == NSLOT(d))                                                 /* drv 0x3A9C all 20 (ADLIB 16) in use: dropped */
         return;
     SETB(SL_CHAN + si, ch);                                             /* drv 0x3A9E */
     dl = key & 0xFFu;                                                   /* drv 0x3AA5 */
@@ -1054,8 +1155,10 @@ static void f3A2F_note_on(fmdrv *d, unsigned ch, unsigned key, unsigned vel)
     SETB(SL_STATE + si, 1u);                                            /* drv 0x3AE3 */
     SETB(SL_HELD + si, 0);                                              /* drv 0x3AE8 */
     ax = W(di);                                                         /* drv 0x3AED size word */
-    if (ax == 0x19u)                                                    /* drv 0x3AEF */
-        f381D_load4(d, si);                                             /* drv 0x3B03 */
+    if (ax == 0x19u) {                                                  /* drv 0x3AEF (ADLIB 0x352F) */
+        if (!d->adlib)                                                  /* ADLIB 0x3532 je 0x3542 -> 0x3546: no load, */
+            f381D_load4(d, si);                                         /* drv 0x3B03 the slot keeps its stale fields */
+    }
     else if (ax == 0x0Eu)                                               /* drv 0x3AF4 */
         f38F1_load2(d, si);                                             /* drv 0x3AFA */
     else
@@ -1068,7 +1171,7 @@ static void f3B1E_sustain_off(fmdrv *d, unsigned arg_ch, unsigned di)  /* di: th
 {
     unsigned si;
 
-    for (si = 0; si < 0x14u; si++) {                                    /* drv 0x3B24..0x3B4D */
+    for (si = 0; si < NSLOT(d); si++) {                                 /* drv 0x3B24..0x3B4D cmp 0x3B4A (ADLIB 0x3583) */
         if (B(SL_STATE + si) == 0)                                      /* drv 0x3B27 */
             continue;
         if (B(SL_CHAN + si) != (arg_ch & 0xFFu))                        /* drv 0x3B2E */
@@ -1085,7 +1188,7 @@ static void f3C53_channel_update(fmdrv *d, unsigned di, unsigned al)
 {
     unsigned bx = di, si;
 
-    for (si = 0; si < 0x14u; si++) {                                    /* drv 0x3C55..0x3C78 */
+    for (si = 0; si < NSLOT(d); si++) {                                 /* drv 0x3C55..0x3C78 cmp 0x3C75 (ADLIB 0x36AC) */
         if (B(SL_STATE + si) == 0)                                      /* drv 0x3C58 */
             continue;
         if (B(SL_CHAN + si) != (bx & 0xFFu))                            /* drv 0x3C5F */
@@ -1128,7 +1231,8 @@ static void f3B54_message(fmdrv *d, unsigned status, unsigned d1, unsigned d2)
             f3C53_channel_update(d, di, 0x40u);
         } else if (si == 0x0Au) {                                       /* drv 0x3C31 CC10 */
             SETB(CH_PAN + di, cx);                                      /* drv 0x3C50 */
-            f3C53_channel_update(d, di, 0x08u);
+            f3C53_channel_update(d, di, d->adlib ? 0x40u : 0x08u);      /* drv 0x3C2C mov al,8 (ADLIB 0x3665: absent,
+                                                                           al = 0x40 from 0x3653 stays) */
         } else if (si == 0x40u) {                                       /* drv 0x3C36 CC64 */
             SETB(CH_SUS + di, cx);                                      /* drv 0x3C7D */
             if (s8(cx) < 0x40)                                          /* drv 0x3C81 jl */
@@ -1142,7 +1246,7 @@ static void f3B54_message(fmdrv *d, unsigned status, unsigned d1, unsigned d2)
             SETB(CH_BENDM + di, 0x40u);                                 /* drv 0x3CDB */
             f3C53_channel_update(d, di, 0xC1u);                         /* drv 0x3CE0 */
         } else if (si == 0x7Bu) {                                       /* drv 0x3C43 CC123 */
-            for (si = 0; si < 0x14u; si++)                              /* drv 0x3C9A..0x3CBB */
+            for (si = 0; si < NSLOT(d); si++)                           /* drv 0x3C9A..0x3CBB cmp 0x3CB8 (ADLIB 0x36EF) */
                 if (B(SL_STATE + si) == 1 && B(SL_CHAN + si) == (di & 0xFFu))   /* drv 0x3C9D, 0x3CA6 */
                     f39CC_note_off(d, di, W(SL_NOTE + si));             /* drv 0x3CAC the pitch note */
         } else if (si == 0x06u) {                                       /* drv 0x3C48 CC6 */
@@ -1267,21 +1371,40 @@ int fmdrv_is_sbpro2(const uint8_t *drv, size_t len)
            && memcmp(drv + 0xBA, name, sizeof name) == 0;
 }
 
+/* ADLIB.MDI as shipped (14,986 bytes, the same signature, its device name at 0xBA) */
+int fmdrv_is_adlib(const uint8_t *drv, size_t len)
+{
+    static const char name[] = "Ad Lib Music Synthesizer Card or 100% compatible";
+
+    return drv != NULL && len == 14986u && memcmp(drv, "AIL3MDI\x1a", 8) == 0
+           && memcmp(drv + 0xBA, name, sizeof name) == 0;
+}
+
 fmdrv *fmdrv_new(fmdrv_write_fn write, void *user, const uint8_t *drv, size_t len)
 {
     fmdrv *d;
+    int adlib = fmdrv_is_adlib(drv, len);
 
-    if (!fmdrv_is_sbpro2(drv, len))
+    if (!adlib && !fmdrv_is_sbpro2(drv, len))
         return NULL;
     d = calloc(1, sizeof *d);
     if (d == NULL)
         return NULL;
     d->write = write;
     d->user = user;
-    memcpy(d->m, drv, len);                                             /* the driver as DOS loads it: its tables
+    d->adlib = adlib;
+    if (!adlib) {
+        memcpy(d->m, drv, len);                                         /* the driver as DOS loads it: its tables
                                                                            0x7FD..0xD2E, header and strings; the
                                                                            rest of the 64 KB segment is zero */
-    SETW(HDR_IO, 0x220u);                                               /* host 0x9A7E4: MDI.INI IO_ADDR 220 */
+        SETW(HDR_IO, 0x220u);                                           /* host 0x9A7E4: MDI.INI IO_ADDR 220 */
+    } else {                                                            /* ADLIB.MDI's bytes at SBPRO2's offsets */
+        memcpy(d->m, drv, 0x570u);                                      /* header, DDT 0x260, DST 0x270, MIDI_data 0x370 */
+        memcpy(d->m + 0x578u, drv + 0x570u, 0x7D0u - 0x570u);           /* +8: 0x590/0x594 pointers, GTL handle 0x598,
+                                                                           read buffer 0x59A, descriptor 0x79A */
+        memcpy(d->m + 0x7FBu, drv + 0x7D0u, 0xCC0u - 0x7D0u);           /* +0x2B: the tables, = SBPRO2 0x7FB..0xCEA */
+        SETW(HDR_IO, 0x388u);                                           /* MDI.INI IO_ADDR 388h (the capture's) */
+    }
     f2A83_set_ports(d, W(HDR_IO));                                      /* drv 0x3E67..0x3E7F function 0x305 */
     f2C47_reset(d);                                                     /* drv 0x3E85 */
     f2FE1_state_init(d);                                                /* drv 0x3E88 */
