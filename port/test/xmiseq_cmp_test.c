@@ -428,6 +428,22 @@ int main(void)
         run_case("S9b rewind after the natural end", e.b, e.n, 1, 127, 16, &sc);
         free(e.b);
     }
+    /* S9c: the natural end, then the music toggle (stop, resume): both send nothing. AIL_stop_sequence and
+       AIL_resume_sequence are gated on status 4 and 8 (0x9B632, 0x9B6F0); the done sequence is status 2, so
+       the stored program and controllers are not replayed. (The game's 12 songs loop forever on CC116/117
+       and never reach their end, so this is pinned here only.) */
+    {
+        bb e = { 0, 0, 0 };
+        script sc = { 8, 10, -1, -1, -1 };
+
+        ev_cc(&e, 0, 0, 7, 100);
+        ev_cc(&e, 0, 0, 10, 40);
+        ev_cc(&e, 0, 0, 64, 127);
+        ev_note(&e, 0, 0, 60, 90, 2);
+        ev_eot(&e, 3);
+        run_case("S9c stop and resume after the natural end", e.b, e.n, 1, 127, 16, &sc);
+        free(e.b);
+    }
     /* S10: pin the WHOLE 0x99C20 replay set and order: every replayed controller on TWO channels (CC114,
        CC107 < 64 so nothing is muted, CC111 consumed, CC112, CC1, CC7, CC10, CC11, CC64, CC91, CC93, CC6,
        program, bend), all in one interval; stop@4, resume@8 replays all of both channels in order;
