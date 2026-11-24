@@ -143,6 +143,14 @@ by Mistral's cases; F3 (resume without the eot gate: a pause and resume after th
 state, the original at status 2 does nothing) was caught by nothing, so Claude added S9c (natural end, stop, resume:
 both send nothing), which catches it; F7 (bend gated on d1 instead of d2) cannot be observed, 0x99440 stores both
 bytes together. The demo_regress reference games replay equal on the rebuilt port. The sequencer is done.)
+(23 Nov night, Claude: the stereo-FM music is in the game (OVERVIEW §5, M8). For Mistral's modules this means:
+- `mus_backend` has a fifth field, `timbres` (NULL for GM). Zero a backend before filling it: ail_test.c now does
+  `memset(&b, 0, sizeof b)`.
+- `mus_start` re-sends the channel set-up only when the backend has `reset` (GM). FM keeps its state, as the
+  original's driver does.
+- `mus_install` frees the song on every failure, also with a NULL player.
+- Every program that links ail.c also needs fm_synth.c, fmdrv.c and opl3.o (build_port.ps1 builds opl3.o first).
+- New test: `port/test/fm_game_cmp.c`.)
 
 ## Open
 
