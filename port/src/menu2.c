@@ -326,6 +326,106 @@ static void volume_box(int y, uint32_t v)
     f3A148(0x155, y, 0xB, (int)v);
 }
 
+/* ---- port: the music line (Erik's ruling of 18 Nov, OVERVIEW §7.2) ------------------------------------------------
+   Unless --original, the box gets one more row under Music: "Music set", with the game's own arrows around a sunken
+   box naming the set the music engine plays (Stereo FM, FM, General MIDI). A click switches the engine at once
+   (snd_switch_music, which saves the choice in the port's advciv.ini, not in aciv.cfg) and the song carries on from
+   its start in the new set (port_music_reload). Animations and CONTINUE move down a row, the box grows by 0x14.
+   The two arrows are buttons of the same dialog, so f78BA4 hit-tests and flashes them as it does the volume arrows:
+   while the box is open, DLG_PREFS gets them as records 8 and 9 (copies of the volume arrows 1 and 2, ids 0x1F0 and
+   0x1F1, which f3FB94 maps to -100, so the box tells them apart by the click's position) in the 843 zero bytes after
+   its 8 records (0xC22D6..0xC2620: no code or data refers to them, D: a scan of the disassembly and the data
+   object), and its records 6 and 7 move down; every byte goes back when the box closes, so the data object stays the
+   original's. */
+#define PREFS_SAVE   (2u + 10u * BTN_SIZE)          /* the count, 8 records, and the 2 records written after them */
+#define LINE_Y       0x82                           /* the music line's row (Animations' row in the original) */
+#define LINE_MX      0x12C                          /* the left arrow's sprite; its button starts 6 to the left */
+#define LINE_BX      (LINE_MX + 7)                  /* the sunken box (as the volume box sits 7 after its arrow) */
+#define LINE_BW      0x50
+#define LINE_PX      (LINE_BX + LINE_BW + 2)        /* the right arrow (its button starts at its sprite) */
+#define LINE_ID_PREV 0x1F0
+#define LINE_ID_NEXT 0x1F1
+
+static uint8_t s_prefs_saved[PREFS_SAVE];
+
+static const char *line_name(char set)
+{
+    return set == 'f' ? "FM" : set == 'g' ? "General MIDI" : "Stereo FM";
+}
+
+static void line_box(void)
+{
+    char set = snd_music_set();
+
+    f3C9D0(LINE_BX, LINE_Y - 1, LINE_BW, 0xC, 5);
+    fg_setcolor(5);
+    f3A0B0(LINE_BX + 1, LINE_Y, LINE_BW, line_name(set != 0 ? set : snd_music_choice()));
+}
+
+static void line_open(void)
+{
+    uint32_t r6 = DLG_PREFS + DLG_REC(6), r7 = DLG_PREFS + DLG_REC(7);
+    uint32_t r8 = DLG_PREFS + DLG_REC(8), r9 = DLG_PREFS + DLG_REC(9);
+
+    memcpy(s_prefs_saved, DP(DLG_PREFS), PREFS_SAVE);
+    setD16(DLG_PREFS + DLG_COUNT, 10);
+    setD16(r6 + BTN_Y, (uint16_t)(D16(r6 + BTN_Y) + 0x14u));      /* Animations 131 -> 151 */
+    setD16(r7 + BTN_Y, (uint16_t)(D16(r7 + BTN_Y) + 0x14u));      /* CONTINUE 150 -> 170 */
+    memcpy(DP(r8), DP(DLG_PREFS + DLG_REC(1)), BTN_SIZE);           /* the effects volume's left arrow */
+    setD16(r8 + BTN_X, (uint16_t)(LINE_MX - 6));
+    setD16(r8 + BTN_Y, LINE_Y);
+    setD16(r8 + BTN_ID, LINE_ID_PREV);
+    setD8(r8 + BTN_NOFLASH, 1);                    /* no flash: f3C5D4 would wait for the release (f775F0) and leave
+                                                      the release's position in 0xE1628/0xE162C; line_hit needs the
+                                                      press's (the volume arrows' flash draws nothing anyway) */
+    memcpy(DP(r9), DP(DLG_PREFS + DLG_REC(2)), BTN_SIZE);           /* its right arrow */
+    setD16(r9 + BTN_X, (uint16_t)LINE_PX);
+    setD16(r9 + BTN_Y, LINE_Y);
+    setD16(r9 + BTN_ID, LINE_ID_NEXT);
+    setD8(r9 + BTN_NOFLASH, 1);
+}
+
+static void line_close(void)
+{
+    memcpy(DP(DLG_PREFS), s_prefs_saved, PREFS_SAVE);
+}
+
+/* which arrow of the music line the last click hit (the button rectangles of records 8 and 9), or 0 */
+static int line_hit(void)
+{
+    int32_t x = S32(0xE1628u), y = S32(0xE162Cu);     /* the click f78BA4 read (fg_mousepos into 0xE1628/0xE162C) */
+
+    if (y < LINE_Y || y >= LINE_Y + 11)
+        return 0;
+    if (x >= LINE_MX - 6 && x < LINE_MX + 5)
+        return -1;
+    if (x >= LINE_PX && x < LINE_PX + 11)
+        return 1;
+    return 0;
+}
+
+/* the next set in the line's order Stereo FM, FM, General MIDI (dir 1) or the one before (-1), switched to; the song
+   that was playing or paused carries on in the new set */
+static void line_step(int dir)
+{
+    static const char order[3] = { 's', 'f', 'g' };
+    char cur = snd_music_set() != 0 ? snd_music_set() : snd_music_choice();   /* the set the line shows */
+    int i, k = 0;
+    int32_t status = 0;
+
+    for (i = 0; i < 3; i++)
+        if (order[i] == cur)
+            k = i;
+    k = (k + (dir > 0 ? 1 : 2)) % 3;
+    if (D8(0xF625Du) != 0)
+        status = snd_sequence_status(D32(0xF6284u));
+    if (snd_switch_music(order[k]) != cur)           /* a new engine: the song carries on in it */
+        port_music_reload(status);
+    f78884();
+    line_box();
+    f788AC();
+}
+
 void f43E88(void)
 {
     int32_t changed;                                  /* [ebp-0x20] */
@@ -335,16 +435,26 @@ void f43E88(void)
     uint8_t f;
     uint16_t w;
     uint32_t v;
+    int line = !g_original;                           /* port: the music line */
+    int ay = line ? 0x96 : 0x82;                      /* port: Animations' row */
 
     changed = 0;                                      /* 0x43E9F */
+    if (line)
+        line_open();
     fg_vbopen(S32(BACKBUF));                          /* 0x43EA9 */
-    f3C9D0(0xD2, 0x50, 0xDC, 0x64, 3);                /* 0x43EC7: filled, raised */
+    f3C9D0(0xD2, 0x50, 0xDC, line ? 0x78 : 0x64, 3);  /* 0x43EC7: filled, raised */
     fg_setcolor(5);                                   /* 0x43ECE */
     f3A044(0xEB, 0x5A, DSTR(0xB4547u));               /* 0x43EE5 "Sound effects" */
     f3A044(0x16D, 0x5A, DSTR(0xB4555u));              /* 0x43EF9 "Volume" */
     f3A044(0xEB, 0x6E, DSTR(0xB455Cu));               /* 0x43F0D "Music" */
     f3A044(0x16D, 0x6E, DSTR(0xB4562u));              /* 0x43F21 "Volume" */
-    f3A044(0xEB, 0x82, DSTR(0xB4569u));               /* 0x43F35 "Animations" */
+    f3A044(0xEB, ay, DSTR(0xB4569u));                 /* 0x43F35 "Animations" */
+    if (line) {
+        f3A044(0xEB, LINE_Y, "Music set");
+        f3AF8C(SPR_MINUS, LINE_MX, LINE_Y);
+        f3AF8C(SPR_PLUS, LINE_PX, LINE_Y);
+        line_box();
+    }
     f3AF8C((D8(CFG_FLAGS) & 0x01) ? SPR_ON : SPR_OFF, 0xDC, 0x5B);   /* 0x43F3A; 0x43F63 */
     volume_box(0x5A, eff_volume());                   /* 0x43F7E, 0x43F85, 0x43FAE */
     f3AF8C(SPR_MINUS, 0x14D, 0x5A);                   /* 0x43FC2 */
@@ -353,18 +463,25 @@ void f43E88(void)
     volume_box(0x6E, mus_volume());                   /* 0x4401F, 0x44026, 0x4404C */
     f3AF8C(SPR_MINUS, 0x14D, 0x6E);                   /* 0x44060 */
     f3AF8C(SPR_PLUS, 0x161, 0x6E);                    /* 0x44074 */
-    f3AF8C((D8(CFG_FLAGS) & 0x04) ? SPR_ON : SPR_OFF, 0xDC, 0x83);   /* 0x44079; 0x440A2 */
+    f3AF8C((D8(CFG_FLAGS) & 0x04) ? SPR_ON : SPR_OFF, 0xDC, ay + 1);   /* 0x44079; 0x440A2 */
     fg_vbclose();                                     /* 0x440A7 */
     saved_dlg = D32(UI_CUR_DIALOG);                   /* 0x440AC */
     f3B05C(DLG_PREFS);                                /* 0x440B9: its buttons into the back buffer */
     setD32(UI_CUR_DIALOG, saved_dlg);                 /* 0x440C1 */
     f78884();                                         /* 0x440C6 */
-    fg_vbpaste(0xD2, 0x1AD, 0x50, 0xB3, 0xD2, 0xB3);  /* 0x440E6 */
+    if (line)
+        fg_vbpaste(0xD2, 0x1AD, 0x50, 0xB3 + 0x14, 0xD2, 0xB3 + 0x14);
+    else
+        fg_vbpaste(0xD2, 0x1AD, 0x50, 0xB3, 0xD2, 0xB3);   /* 0x440E6 */
 
 unhide:
     f788AC();                                         /* 0x440EE */
 wait:
     r = f78BA4(DLG_PREFS, 0);                         /* 0x440FA */
+    if (r == -100 && line && line_hit() != 0) {       /* port: an arrow of the music line */
+        line_step(line_hit());
+        goto wait;
+    }
     if (r == -100)                                    /* 0x44105 */
         goto wait;
     if (r == -1)                                      /* 0x4410D CONTINUE */
@@ -488,16 +605,18 @@ wait:
         f = D8(CFG_FLAGS);                            /* 0x446E4 */
         if (f & 0x04) {                               /* 0x446E9 */
             setD8(CFG_FLAGS, (uint8_t)(f & 0xFBu));   /* 0x446F4 and ah, -5; 0x446FC */
-            f3AF8C(SPR_OFF, 0xDC, 0x83);              /* 0x44723 */
+            f3AF8C(SPR_OFF, 0xDC, ay + 1);            /* 0x44723 */
         } else {
             setD8(CFG_FLAGS, (uint8_t)(f | 0x04u));   /* 0x44710 or dl, 4; 0x44718 */
-            f3AF8C(SPR_ON, 0xDC, 0x83);               /* 0x44723 */
+            f3AF8C(SPR_ON, 0xDC, ay + 1);             /* 0x44723 */
         }
         goto unhide;                                  /* 0x44728 */
     }
     goto wait;                                        /* 0x446C4 / 0x446D2: any other code */
 
 done:
+    if (line)
+        line_close();                                 /* port: DLG_PREFS as the original's again */
     if (D8(0xF625Cu) != 0) {                          /* 0x4472D */
         ail_end_sample(D32(0xF627Cu));                /* 0x44741: the test sample's slot 1 */
         if (strlen(DSTR(0xF6158u)) != 0) {            /* 0x44753 repne scasb on slot 1's name; 0x4475A */

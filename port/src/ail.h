@@ -12,10 +12,16 @@ enum { AIL_MAX_SAMPLES = 16, AIL_MAX_SEQUENCES = 8 };
 enum { AIL_FREE = 1, AIL_DONE = 2, AIL_PLAYING = 4, AIL_PAUSED = 8 };
 
 void     ail_init(void (*lock)(int on), const char *sf2_path);   /* lock = plat_audio_lock; tests pass NULL */
-/* the same with the stereo-FM music (fm_synth.h: SBPRO2.MDI and EHGM2FM2.OPL images) in place of GM; 0 (nothing
-   initialised) when the driver is not the shipped one or the bank is malformed: the caller then runs ail_init */
+/* the same with FM music (fm_synth.h: SBPRO2.MDI or ADLIB.MDI with its bank) in place of GM; 0 (nothing
+   initialised) when the driver is not one of the two as shipped or the bank is malformed: the caller then runs
+   ail_init */
 int      ail_init_fm(void (*lock)(int on), const uint8_t *mdi, size_t mdi_len, const uint8_t *gtl, size_t gtl_len,
                      int swap);
+/* the music engine replaced while the game runs (the port's music line on the Preferences screen): General MIDI
+   (NULL: silent), or FM (0 = unusable files, nothing changed). The samples are kept; a sequence that was playing or
+   paused is done, its song gone with the old engine: init it again */
+void     ail_music_gm(const char *sf2_path);
+int      ail_music_fm(const uint8_t *mdi, size_t mdi_len, const uint8_t *gtl, size_t gtl_len, int swap);
 void     ail_shutdown(void);                                     /* the caller stopped the audio first */
 void     ail_render(int16_t *out, int frames);                    /* what the platform's audio fill calls */
 void     ail_set_live(int on);                                   /* 1 while a running device calls ail_render */
@@ -35,6 +41,8 @@ int      ail_active_sample_count(void);                          /* handles with
 int32_t  ail_allocate_sequence(void);                            /* first free of 8, status DONE */
 int      ail_init_sequence(int32_t h, const uint8_t *img, size_t len, int n);  /* 1 ok, 0 + error text */
 void     ail_start_sequence(int32_t h);                          /* rewind and play; status PLAYING */
+void     ail_start_sequence_paused(int32_t h);                   /* port: start + stop with nothing sent; status
+                                                                    PAUSED (the music line's reload, music off) */
 void     ail_stop_sequence(int32_t h);                           /* only when playing: status PAUSED */
 void     ail_resume_sequence(int32_t h);                         /* only when paused: status PLAYING */
 void     ail_end_sequence(int32_t h);                            /* stop the notes; status DONE */

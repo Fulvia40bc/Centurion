@@ -246,6 +246,7 @@ void f12B5C(void);                     /* D: memset(0xE31B8, 0, 0x2B65), then by
 void f12BB8(void);                     /* D: the 160 three-byte records at 0xE2C18: +2 &= ~1, &= ~2, +0 = 0, +2 &= 3 */
 void f45D30(void);                     /* D: [0xF4898] = tokens by player count, initialise nation records 1..13 (layout above) */
 void f12C38(void);                     /* D: the play-by-email start (only caller main 0x1187F, PBEM branch: dropped in the port): put each player's first token on its start territory (area, nation fields above) */
+void port_music_reload(int32_t status);  /* port: after snd_switch_music, init the current song again from the new engine's set, playing (status 4) or stopped (8) as before (newgame.c) */
 void f7B854(const char *name, int seq);  /* D: play music: if [0xF625D] and name == [0xF61D8] and seq == [0xF6258]: restart the sequence unless playing (status 4); else end it, load name from ACIV.CT5 (or the file when cat_size gives -2) unless already loaded, AIL_init_sequence(seq) ("%s-%s\n" and quit on failure), volume, start, loop forever. Callers pass data strings (0xCAB1C, the music table's names) and ignore eax. The port plays its own sound: only the data writes above are translated (G: port design) */
 
 /* ---- Port entry points ----------------------------------------------------------------------------------------- */

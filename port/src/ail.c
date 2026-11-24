@@ -82,49 +82,89 @@ static void init_common(void (*lock)(int on))
     g_mus = NULL;
 }
 
+/* gm or fm (or neither: silent, the same state machine) becomes the music engine in place of the current one. Under
+   the lock the mixer lets go of the old player, and every sequence handle that was playing or paused is done (its
+   song went with the old player: the caller inits it again, as f7B854 would). The old player and synth are freed
+   outside the lock (the audio thread no longer reaches them), the new player is made (mus_new: the channel set-up,
+   AIL's install step 9) before the mixer can call it, then attached under the lock. */
+static void music_install(gm_synth *gm, fm_synth *fm)
+{
+    musplay *old = g_mus, *np;
+    gm_synth *ogm = g_gm;
+    fm_synth *ofm = g_fm;
+    mus_backend b;
+    int i;
+
+    lock_on();
+    if (g_mix != NULL)
+        mix_set_music(g_mix, NULL, NULL, 0);
+    g_mus = NULL;
+    g_gm = gm;
+    g_fm = fm;
+    for (i = 1; i <= AIL_MAX_SEQUENCES; i++)
+        if (g_seq[i].used && (g_seq[i].status == AIL_PLAYING || g_seq[i].status == AIL_PAUSED))
+            g_seq[i].status = AIL_DONE;
+    lock_off();
+    mus_free(old);
+    gm_synth_free(ogm);
+    fm_synth_free(ofm);
+    if (g_mix == NULL) {                        /* no memory at init: silent */
+        gm_synth_free(g_gm);
+        fm_synth_free(g_fm);
+        g_gm = NULL;
+        g_fm = NULL;
+        return;
+    }
+    memset(&b, 0, sizeof b);
+    if (gm != NULL) {
+        b.midi = gm_midi_cb;
+        b.render = gm_render_cb;
+        b.reset = gm_reset_cb;
+        b.u = gm;
+    } else if (fm != NULL) {                    /* no reset: the driver keeps its state between songs */
+        b.midi = fm_midi_cb;
+        b.render = fm_render_cb;
+        b.timbres = fm_timbres_cb;
+        b.u = fm;
+    }
+    np = mus_new(gm != NULL || fm != NULL ? &b : NULL, AIL_RATE);
+    lock_on();
+    g_mus = np;
+    if (np != NULL)
+        mix_set_music(g_mix, mus_render, np, 127);
+    lock_off();
+}
+
 void ail_init(void (*lock)(int on), const char *sf2_path)
 {
     init_common(lock);
-    if (g_mix != NULL) {
-        if (sf2_path != NULL)
-            g_gm = gm_synth_new(sf2_path, AIL_RATE);
-        if (g_gm != NULL) {
-            mus_backend b;
-
-            memset(&b, 0, sizeof b);
-            b.midi = gm_midi_cb;
-            b.render = gm_render_cb;
-            b.reset = gm_reset_cb;
-            b.u = g_gm;
-            g_mus = mus_new(&b, AIL_RATE);
-        } else {
-            g_mus = mus_new(NULL, AIL_RATE);    /* no SoundFont / no FluidSynth: silent, same state machine */
-        }
-        if (g_mus != NULL)
-            mix_set_music(g_mix, mus_render, g_mus, 127);
-    }
+    music_install(sf2_path != NULL ? gm_synth_new(sf2_path, AIL_RATE) : NULL, NULL);
 }
 
 int ail_init_fm(void (*lock)(int on), const uint8_t *mdi, size_t mdi_len, const uint8_t *gtl, size_t gtl_len,
                 int swap)
 {
     fm_synth *f = fm_synth_new(mdi, mdi_len, gtl, gtl_len, AIL_RATE, swap);
-    mus_backend b;
 
     if (f == NULL)
         return 0;
     init_common(lock);
-    g_fm = f;
-    if (g_mix == NULL)
-        return 1;                               /* no memory: silent, as ail_init */
-    memset(&b, 0, sizeof b);
-    b.midi = fm_midi_cb;
-    b.render = fm_render_cb;
-    b.timbres = fm_timbres_cb;
-    b.u = g_fm;
-    g_mus = mus_new(&b, AIL_RATE);              /* the channel set-up: AIL's install step 9 */
-    if (g_mus != NULL)
-        mix_set_music(g_mix, mus_render, g_mus, 127);
+    music_install(NULL, f);
+    return 1;
+}
+
+void ail_music_gm(const char *sf2_path)
+{
+    music_install(sf2_path != NULL ? gm_synth_new(sf2_path, AIL_RATE) : NULL, NULL);
+}
+
+int ail_music_fm(const uint8_t *mdi, size_t mdi_len, const uint8_t *gtl, size_t gtl_len, int swap)
+{
+    fm_synth *f = fm_synth_new(mdi, mdi_len, gtl, gtl_len, AIL_RATE, swap);   /* outside the lock */
+
+    if (f == NULL)
+        return 0;
+    music_install(NULL, f);
     return 1;
 }
 
@@ -481,6 +521,18 @@ void ail_start_sequence(int32_t h)
     lock_on();
     mus_start(g_mus);                                         /* rewind and play; loop count and volume kept */
     q->status = AIL_PLAYING;
+    lock_off();
+}
+
+void ail_start_sequence_paused(int32_t h)
+{
+    ail_seq *q = seq_of(h);
+
+    if (q == NULL || !q->used)
+        return;
+    lock_on();
+    mus_start_paused(g_mus);                                  /* rewound, nothing sent; resume plays it */
+    q->status = AIL_PAUSED;
     lock_off();
 }
 

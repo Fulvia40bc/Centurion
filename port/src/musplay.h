@@ -37,6 +37,9 @@ int      mus_install(musplay *p, xmi_song *song);           /* takes ownership o
 int      mus_load(musplay *p, const uint8_t *xmi, size_t len, int n);      /* probe + install; 1 ok, 0 fail */
 
 void     mus_start(musplay *p);      /* channel set-up, rewind, play: status MUS_PLAYING */
+void     mus_start_paused(musplay *p);   /* as mus_start then mus_pause, but nothing of the song is sent (the original's
+                                        start + stop sends none: its first interval comes at the next timer tick):
+                                        status MUS_PAUSED, and mus_resume plays it from the start */
 void     mus_pause(musplay *p);      /* only when playing: status MUS_PAUSED */
 void     mus_resume(musplay *p);     /* only when paused: status MUS_PLAYING */
 void     mus_end(musplay *p);        /* stop the notes: status MUS_DONE */

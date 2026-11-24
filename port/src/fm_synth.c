@@ -1,4 +1,5 @@
-/* Stereo FM music: fmdrv.c (SBPRO2.MDI) on a Nuked OPL3, as DOSBox-X plays it (fm_synth.h). Port, Claude 23 Nov. */
+/* FM music: fmdrv.c (SBPRO2.MDI, or ADLIB.MDI) on a Nuked OPL3, as DOSBox-X plays it (fm_synth.h). Port, Claude
+   23 Nov. */
 #include "fm_synth.h"
 
 #include <stdlib.h>
@@ -86,7 +87,8 @@ fm_synth *fm_synth_new(const uint8_t *mdi, size_t mdi_len, const uint8_t *gtl, s
 {
     fm_synth *f;
 
-    if (mdi == NULL || gtl == NULL || rate <= 0 || !fmdrv_is_sbpro2(mdi, mdi_len) || !gtl_ok(gtl, gtl_len))
+    if (mdi == NULL || gtl == NULL || rate <= 0 || (!fmdrv_is_sbpro2(mdi, mdi_len) && !fmdrv_is_adlib(mdi, mdi_len))
+        || !gtl_ok(gtl, gtl_len))
         return NULL;
     f = calloc(1, sizeof *f);
     if (f == NULL)

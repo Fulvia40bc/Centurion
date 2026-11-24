@@ -315,6 +315,19 @@ const char *plat_exe_dir(void)
     return p != NULL ? p : "";
 }
 
+void *plat_fopen(const char *path, const char *mode)
+{
+#ifdef _WIN32
+    wchar_t wp[1024], wm[8];   /* the C library's fopen takes the ANSI code page; SDL's paths are UTF-8 */
+
+    if (MultiByteToWideChar(CP_UTF8, 0, path, -1, wp, 1024) == 0 || MultiByteToWideChar(CP_UTF8, 0, mode, -1, wm, 8) == 0)
+        return NULL;
+    return _wfopen(wp, wm);
+#else
+    return fopen(path, mode);
+#endif
+}
+
 int plat_first_match(const char *dir, const char *pattern, char *out, int size)
 {
     int count = 0, i, best = -1;

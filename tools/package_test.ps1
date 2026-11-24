@@ -157,7 +157,7 @@ try {
   Check ($readme.Contains('Version: TEST1') -and $readme.Contains('--original') -and $readme.Contains('F11') -and $readme.Contains('Alt+Enter')) 'A: README has version, --original, F11/Alt+Enter'
   Check ($readme.Contains('Unzip the AdvCiv folder') -and $readme.Contains('start AdvCiv\advciv.exe')) 'A: README keeps the unzip instruction and says to start AdvCiv\advciv.exe'
   Check ($readme.Contains('NOT included')) 'A: README says the game files are not included'
-  Check ($readme.Contains('--music fm|gm') -and $readme.Contains('--fm-swap') -and $readme.Contains('SBPRO2.MDI')) 'A: README names the music switches and the FM files'
+  Check ($readme.Contains('--music stereo-fm|fm|gm') -and $readme.Contains('--fm-swap') -and $readme.Contains('SBPRO2.MDI') -and $readme.Contains('ADLIB.MDI') -and $readme.Contains('advciv.ini')) 'A: README names the music switches, the FM files and the settings file'
   # the printed file list has sizes and SHA-256
   Check (($r.out.Contains('advciv-TEST1-windows-arm64.zip')) -and ($r.out -match '(?m)^\s*AdvCiv/advciv\.exe\s+\d+\s+[0-9a-f]{64}\s*$')) "A: printed list with size and SHA-256: $($r.out.Substring(0, [Math]::Min(200, $r.out.Length)))"
 

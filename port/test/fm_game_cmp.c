@@ -1,4 +1,6 @@
-/* fm_game_cmp GAMEDIR: the stereo-FM music as the game plays it, against the original's own host model.
+/* fm_game_cmp GAMEDIR: the FM music as the game plays it, against the original's own host model, for both FM sets:
+   the stereo FM set (S*) through SBPRO2.MDI and the FM set (F*) through ADLIB.MDI (whose own capture, FMAP__1C,
+   fm_dro_cmp matches 5,905 of 5,905).
    Side B is the port's game path: ail.c's facade (ail_init_fm, ail_init_sequence, ail_set_sequence_volume,
    ail_start_sequence, ail_set_sequence_loop_count, ail_stop/resume/end_sequence) on musplay.c, xmiseq.c and fm_synth.c
    (fmdrv.c on Nuked), driven by ail_render one 120 Hz tick of output at a time, with every OPL register write caught
@@ -10,8 +12,8 @@
    120 Hz tick (printed per segment as the range of A-B tick differences: 0..0). The port starts a song at once
    (mus_start's advance(0)) where the host's first interval comes at the next timer tick, up to 8.3 ms later; side
    A runs that interval at the start too, so the music toggle meets both at the same point of the song.
-   The script: the four s songs in turn (SMAP__1C, SCIVIL2, STRADE2C, SCALAM5J), each played for a while, with the
-   music toggle (stop, a second stop, resume) in each, at the game's volumes 9 and 7 (127 and 98). Exit 0 when all
+   The script, per driver: its four songs in turn (MAP__1C, CIVIL2, TRADE2C, CALAM5J), each played for a while, with
+   the music toggle (stop, a second stop, resume) in each, at the game's volumes 9 and 7 (127 and 98). Exit 0 when all
    writes agree, else 1 (2 on a file error). */
 #include <stdio.h>
 #include <stdlib.h>
@@ -146,36 +148,51 @@ static void compare(const char *what, const wlog *a, size_t a0, const wlog *b, s
 
 int main(int argc, char **argv)
 {
-    static const char *songs[4] = { "SMAP__1C.XMI", "SCIVIL2.XMI", "STRADE2C.XMI", "SCALAM5J.XMI" };
-    size_t ct5n = 0, mdin = 0, gtln = 0;
-    uint8_t *ct5, *mdi, *gtl;
+    static const char *tails[4] = { "MAP__1C.XMI", "CIVIL2.XMI", "TRADE2C.XMI", "CALAM5J.XMI" };
+    static const char *drvs[2] = { "SBPRO2.MDI", "ADLIB.MDI" }, *banks[2] = { "EHGM2FM2.OPL", "EHGM2FM2.AD" };
+    static const char letters[2] = { 'S', 'F' };  /* the stereo FM set through SBPRO2, the FM set through ADLIB */
+    size_t ct5n = 0, mdins[2] = { 0, 0 }, gtlns[2] = { 0, 0 }, mdin, gtln;
+    uint8_t *ct5, *mdis[2], *gtls[2], *mdi, *gtl;
     catalog cat;
     wlog la, lb;
     side_a a;
     int32_t T = 0;            /* host ticks processed so far */
     int32_t seqh;
-    int s, vol;
+    int s, vol, cfg, d;
 
     if (argc < 2) {
         fprintf(stderr, "usage: fm_game_cmp GAMEDIR\n");
         return 2;
     }
     ct5 = load(argv[1], "ACIV.CT5", &ct5n);
-    mdi = load(argv[1], "SBPRO2.MDI", &mdin);
-    gtl = load(argv[1], "EHGM2FM2.OPL", &gtln);
-    if (ct5 == NULL || mdi == NULL || gtl == NULL || cat_open(&cat, ct5, ct5n) != 0) {
-        fprintf(stderr, "fm_game_cmp: cannot read ACIV.CT5, SBPRO2.MDI or EHGM2FM2.OPL in %s\n", argv[1]);
+    for (d = 0; d < 2; d++) {
+        mdis[d] = load(argv[1], drvs[d], &mdins[d]);
+        gtls[d] = load(argv[1], banks[d], &gtlns[d]);
+        if (mdis[d] == NULL || gtls[d] == NULL) {
+            fprintf(stderr, "fm_game_cmp: cannot read %s or %s in %s\n", drvs[d], banks[d], argv[1]);
+            return 2;
+        }
+    }
+    if (ct5 == NULL || cat_open(&cat, ct5, ct5n) != 0) {
+        fprintf(stderr, "fm_game_cmp: cannot read ACIV.CT5 in %s\n", argv[1]);
         return 2;
     }
     memset(&la, 0, sizeof la);
     memset(&lb, 0, sizeof lb);
     memset(&a, 0, sizeof a);
 
-    for (vol = 9; vol >= 7; vol -= 2) {
-        int seqvol = vol * 127 / 9;                  /* f7B854 0x7B9FB..0x7BA27 */
+    for (cfg = 0; cfg < 4; cfg++) {                  /* each driver at music volumes 9 and 7 */
+        int seqvol;
         size_t a0 = la.n, b0 = lb.n;
 
-        printf("music volume %d (%d):\n", vol, seqvol);
+        d = cfg / 2;
+        vol = cfg % 2 ? 7 : 9;
+        seqvol = vol * 127 / 9;                      /* f7B854 0x7B9FB..0x7BA27 */
+        mdi = mdis[d];
+        mdin = mdins[d];
+        gtl = gtls[d];
+        gtln = gtlns[d];
+        printf("%s, music volume %d (%d):\n", drvs[d], vol, seqvol);
         /* the install: A as fm_dro_cmp's main, B as snd_ail.c's start_fm */
         la.stamp = lb.stamp = T = -1;
         a.drv = fmdrv_new(on_write_a, &la, mdi, mdin);
@@ -207,16 +224,20 @@ int main(int argc, char **argv)
         T = 0;
 
         for (s = 0; s < 4; s++) {
-            const cat_entry *e = cat_find(&cat, songs[s]);
-            const uint8_t *x = e != NULL ? cat_data(&cat, e) : NULL, *evnt, *timb;
+            char song[16];
+            const cat_entry *e;
+            const uint8_t *x, *evnt, *timb;
             uint32_t elen, tlen;
             int32_t k, play = 120 * (s == 0 ? 95 : 41);
             char what[64];
 
+            snprintf(song, sizeof song, "%c%s", letters[d], tails[s]);
+            e = cat_find(&cat, song);
+            x = e != NULL ? cat_data(&cat, e) : NULL;
             a0 = la.n;
             b0 = lb.n;
             if (x == NULL || !chunk(x, e->length, "EVNT", &evnt, &elen) || !chunk(x, e->length, "TIMB", &timb, &tlen)) {
-                fprintf(stderr, "fm_game_cmp: %s not usable\n", songs[s]);
+                fprintf(stderr, "fm_game_cmp: %s not usable\n", song);
                 return 2;
             }
             la.stamp = lb.stamp = T;
@@ -228,7 +249,7 @@ int main(int argc, char **argv)
                 xmi_host_free(a.h);
             }
             if (!fmdrv_install_timbres(a.drv, timb, tlen)) {
-                fprintf(stderr, "fm_game_cmp: %s: the host model's 0x503 failed\n", songs[s]);
+                fprintf(stderr, "fm_game_cmp: %s: the host model's 0x503 failed\n", song);
                 return 2;
             }
             a.h = xmi_host_new(evnt, elen);
@@ -241,7 +262,7 @@ int main(int argc, char **argv)
             a_drain(&a);                             /* once (mus_start's advance(0)), so both sides stay in step */
             ail_end_sequence(seqh);
             if (!ail_init_sequence(seqh, x, e->length, 0)) {
-                printf("  FAIL %s: ail_init_sequence: %s", songs[s], ail_last_error());
+                printf("  FAIL %s: ail_init_sequence: %s", song, ail_last_error());
                 fails++;
                 break;
             }
@@ -272,7 +293,7 @@ int main(int argc, char **argv)
                     ail_resume_sequence(seqh);
                 }
             }
-            snprintf(what, sizeof what, "%s (%d s, toggle)", songs[s], (int)(play / 120));
+            snprintf(what, sizeof what, "%s (%d s, toggle)", song, (int)(play / 120));
             compare(what, &la, a0, &lb, b0);
         }
         la.stamp = lb.stamp = T;
@@ -293,7 +314,9 @@ int main(int argc, char **argv)
     free(la.v);
     free(lb.v);
     free(ct5);
-    free(mdi);
-    free(gtl);
+    for (d = 0; d < 2; d++) {
+        free(mdis[d]);
+        free(gtls[d]);
+    }
     return fails ? 1 : 0;
 }

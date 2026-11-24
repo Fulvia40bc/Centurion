@@ -6,6 +6,9 @@ static const snd_ops *g_ops;
 
 void snd_attach(const snd_ops *ops) { g_ops = ops; }
 char snd_music_set(void) { return g_ops != NULL ? g_ops->music_set : 0; }
+char snd_music_choice(void) { return g_ops != NULL ? g_ops->music_choice() : 's'; }
+char snd_switch_music(char set) { return g_ops != NULL ? g_ops->music_switch(set) : set; }
+void snd_start_sequence_paused(uint32_t h) { if (g_ops != NULL) g_ops->start_sequence_paused((int32_t)h); }
 
 void snd_startup(void)  { if (g_ops != NULL) g_ops->startup(); }
 void snd_shutdown(void) { if (g_ops != NULL) g_ops->shutdown(); }

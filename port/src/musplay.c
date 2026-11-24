@@ -233,6 +233,17 @@ void mus_start(musplay *p)
     p->status = MUS_PLAYING;
 }
 
+void mus_start_paused(musplay *p)
+{
+    if (p == NULL || !p->has_song || p->seq == NULL)
+        return;
+    if (p->backend.reset != NULL)
+        mus_send_setup(p);
+    xmi_seq_rewind(p->seq);                       /* rewound and paused: nothing of the song is sent until
+                                                     mus_resume, whose first tick takes the tick-0 events */
+    p->status = MUS_PAUSED;
+}
+
 void mus_pause(musplay *p)
 {
     if (p == NULL || p->status != MUS_PLAYING)

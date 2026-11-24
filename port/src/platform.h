@@ -39,7 +39,8 @@ void plat_mouse(int *x, int *y, int *buttons);  /* where the mouse is now, and t
 int  plat_pointer(int on);                      /* show / hide the system pointer; returns the previous state */
 
 int  plat_chdir(const char *dir);              /* the original runs in the game folder and opens files relative to it */
-const char *plat_exe_dir(void);                 /* the program's folder, ending in a separator ("" if unknown) */
+const char *plat_exe_dir(void);                 /* the program's folder, ending in a separator ("" if unknown); UTF-8 */
+void *plat_fopen(const char *path, const char *mode);   /* fopen for a UTF-8 path (plat_exe_dir's); a FILE *, or NULL */
 int  plat_first_match(const char *dir, const char *pattern, char *out, int size);   /* dir/<first match in name
                                                    order, case-insensitive pattern> into out: 0, or -1 for none */
 

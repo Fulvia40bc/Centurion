@@ -380,6 +380,34 @@ void f7B854(const char *name, int seq)
     /* 0x7BA54: the debug log "Music File Loaded" (0x78B0C, a no-op) */
 }
 
+/* port (the music line of the Preferences screen, menu2.c; OVERVIEW §7.2): the engine was switched
+   (snd_switch_music), and the song went with the old one. Init the same song and sequence again (0xF61D8, 0xF6258)
+   from the new engine's set, as f7B854's tail does, and bring it back to where it was: playing (status 4), or
+   stopped by the music toggle (8): started stopped, with nothing sent (snd_start_sequence_paused), so the toggle's
+   resume plays it from its start. Nothing else (a failed init stays silent here: the game does not quit over a port
+   setting). No data is written. */
+void port_music_reload(int32_t status)
+{
+    size_t len = 0;
+    const uint8_t *img;
+
+    if (D8(0xF625Du) == 0 || DSTR(0xF61D8u)[0] == 0 || (status != 4 && status != 8))
+        return;
+    img = snd_music_image(DSTR(0xF61D8u), &len);
+    if (img == NULL) {
+        img = heap_F626C_get(D32(0xF626Cu));
+        len = img != NULL ? s_heap_F626C_len : 0;
+    }
+    if (snd_init_sequence(D32(0xF6284u), img, len, S8(0xF6258u)) <= 0)
+        return;
+    snd_set_sequence_volume(D32(0xF6284u), (int)(D16(0xF097Eu) & 0x7F) * 127 / 9, 0);
+    if (status == 8)
+        snd_start_sequence_paused(D32(0xF6284u));
+    else
+        snd_start_sequence(D32(0xF6284u));
+    snd_set_sequence_loop_count(D32(0xF6284u), 0);
+}
+
 /* ---- main's helpers on the way into the game ------------------------------------------------------------------ */
 
 /* 0x12DA4 (main 0x113FE): clear byte [0xF40FE], word [0xF5478], dword [0xEDF58], 20 bytes at 0xF6E76, 100 at 0xF6E12

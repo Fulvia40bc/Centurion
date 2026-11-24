@@ -1,8 +1,10 @@
 #ifndef FM_SYNTH_H
 #define FM_SYNTH_H
 
-/* Stereo FM music (OVERVIEW §7.2, the `s*` songs, the default set): the game's own SBPRO2.MDI, translated in fmdrv.c,
-   writing a Nuked OPL3 as DOSBox-X runs it (docs: C:\work\advciv_cmp\sound\fm\dosbox_opl.md):
+/* FM music (OVERVIEW §7.2): the stereo FM set (`s*` songs, the default) through the game's own SBPRO2.MDI, or the
+   FM set (`f*` songs) through its ADLIB.MDI (an OPL2 driver: the chip stays in OPL2 mode, where Nuked plays every
+   channel on both sides), translated in fmdrv.c, writing a Nuked OPL3 as DOSBox-X runs it (docs:
+   C:\work\advciv_cmp\sound\fm\dosbox_opl.md):
    - the chip runs at its native 49,716 Hz; every register write after the chip reset goes through Nuked's own write
      buffer (OPL3_WriteRegBuffered, as DOSBox-X's NukedOPL handler does), so two writes land at least 2 chip samples
      apart and a key-off right before a key-on still retriggers the note;
@@ -18,9 +20,9 @@
 
 typedef struct fm_synth fm_synth;
 
-/* mdi: SBPRO2.MDI, gtl: EHGM2FM2.OPL, both file images from the game folder (copied; the caller may free them).
-   The driver's install (0x305: the 492-write chip reset, then 0x501: the bank). NULL when the driver is not the
-   shipped SBPRO2.MDI, the bank is malformed (an index entry or timbre outside the file, a timbre size other than 14
+/* mdi: SBPRO2.MDI or ADLIB.MDI, gtl: EHGM2FM2.OPL or .AD (byte-identical), file images from the game folder (copied;
+   the caller may free them). The driver's install (0x305: the chip reset, 492 writes or ADLIB's 245, then 0x501: the
+   bank). NULL when the driver is not one of the two as shipped, the bank is malformed (an index entry or timbre outside the file, a timbre size other than 14
    or 25), or on no memory. A well-formed bank without one of a song's timbres fails that song's 0x503, as in the
    original. */
 fm_synth *fm_synth_new(const uint8_t *mdi, size_t mdi_len, const uint8_t *gtl, size_t gtl_len, int rate, int swap);

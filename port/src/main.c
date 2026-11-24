@@ -7,7 +7,8 @@
    (the 6-bit DAC widened as the VGA shows it) and exits, for frame comparisons with DOSBox-X captures. With --dump-ds
    it saves the frame at the dump instead. --click X Y (repeatable) scripts the clicks; --seed HEX sets the clock seed
    a new game starts from; --dump-ds OUT.bin writes the data object at the stop.
-   --music fm|gm picks the music engine (fm, stereo FM, is the default; snd_ail.c); --fm-swap mirrors the FM sides. */
+   --music stereo-fm|fm|gm picks the music set for this run (stereo FM, FM or General MIDI; otherwise advciv.ini's,
+   stereo FM by default: snd_ail.c); --fm-swap mirrors the FM sides. */
 #include <stdio.h>
 #include <stdlib.h>
 #include <setjmp.h>
@@ -28,7 +29,7 @@
 #include "stack.h"
 #include "loop.h"
 
-static char s_music = 's';                             /* --music fm|gm */
+static char s_music;                                   /* --music stereo-fm|fm|gm ('s', 'f', 'g'; 0: the settings file's) */
 static int s_fm_swap;                                  /* --fm-swap */
 static const char *s_frame_path;
 static int s_pointer_x = -1, s_pointer_y = -1;
@@ -281,8 +282,10 @@ int main(int argc, char **argv)
         if (strcmp(argv[i], "--original") == 0)
             g_original = 1;
         else if (strcmp(argv[i], "--music") == 0 && i + 1 < argc
-                 && (strcmp(argv[i + 1], "fm") == 0 || strcmp(argv[i + 1], "gm") == 0)) {
-            s_music = argv[++i][0] == 'g' ? 'g' : 's';   /* the music engine: fm = stereo FM (default), gm = General MIDI */
+                 && (strcmp(argv[i + 1], "stereo-fm") == 0 || strcmp(argv[i + 1], "fm") == 0
+                     || strcmp(argv[i + 1], "gm") == 0)) {
+            i++;                              /* the music set for this run: stereo FM, FM or General MIDI */
+            s_music = strcmp(argv[i], "stereo-fm") == 0 ? 's' : argv[i][0];
         }
         else if (strcmp(argv[i], "--fm-swap") == 0)
             s_fm_swap = 1;                    /* stereo FM with the sides mirrored against DOSBox-X's */
@@ -348,7 +351,7 @@ int main(int argc, char **argv)
         else if (argv[i][0] != '-' && gamedir == NULL)
             gamedir = argv[i];
         else {
-            fprintf(stderr, "usage: advciv GAMEDIR [--original] [--music fm|gm] [--fm-swap] [--headless-frame OUT.png"
+            fprintf(stderr, "usage: advciv GAMEDIR [--original] [--music stereo-fm|fm|gm] [--fm-swap] [--headless-frame OUT.png"
                             " [--pointer X Y] [--click X Y]...]\n");
             return 2;
         }
@@ -382,7 +385,8 @@ int main(int argc, char **argv)
     g_dump_every_hook = dump_every;
     /* the port's sound (snd.c on ail.c): attached before the boot, whose AIL_startup starts it; headless runs open no
        device and load no synth */
-    snd_ail_set_music(s_music, s_fm_swap);
+    snd_ail_load_settings();                          /* advciv.ini next to advciv.exe, then this run's switches */
+    snd_ail_set_music(s_music, s_fm_swap ? 1 : -1);
     snd_ail_attach(s_frame_path != NULL || s_dump_path != NULL || s_dump_every != NULL);
     rc = title_boot(gamedir);
     if (rc != 0) {

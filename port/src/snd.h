@@ -33,6 +33,9 @@ typedef struct snd_ops {
     const char *(*last_error)(void);
     const uint8_t *(*music_image)(const char *name, size_t *len);   /* the song the engine plays for name, or NULL */
     char    music_set;                                 /* the set the music engine plays ('g': GM), 0 = as named */
+    char    (*music_choice)(void);                     /* the set the player chose: 's', 'f' or 'g' */
+    char    (*music_switch)(char set);                 /* choose and start that engine; the set now playing */
+    void    (*start_sequence_paused)(int32_t h);       /* port: start + stop with nothing sent (status 8) */
 } snd_ops;
 
 void        snd_attach(const snd_ops *ops);            /* NULL detaches */
@@ -58,6 +61,15 @@ int32_t     snd_sequence_status(uint32_t h);
 void        snd_set_sequence_volume(uint32_t h, int v, int ms);
 void        snd_set_sequence_loop_count(uint32_t h, int n);
 const char *snd_last_error(void);                      /* AIL's error text (the original's 0x11AF7C) */
+/* the port's music line on the Preferences screen (OVERVIEW §7.2): the set the player chose ('s' stereo FM, 'f' FM,
+   'g' General MIDI; 's' with no backend), and the switch to another, which saves the choice and returns the set the
+   engine now plays (it may fall back to 'g'). When that differs from snd_music_set() before the call, the song that
+   was playing went with the old engine: the caller inits it again as f7B854 does; when it is the same, nothing was
+   changed. Without a backend the switch only returns the set asked for. */
+char        snd_music_choice(void);
+char        snd_switch_music(char set);
+void        snd_start_sequence_paused(uint32_t h);    /* port: as AIL_start_sequence then AIL_stop_sequence, with
+                                                         nothing sent (the original's start + stop sends none) */
 const uint8_t *snd_music_image(const char *name, size_t *len);   /* the engine's own image of a song (the g file for
                                                    GM), NULL: play the game's block (no backend, headless) */
 

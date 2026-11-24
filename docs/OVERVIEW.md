@@ -709,12 +709,11 @@ Only PBEM (dropped) and f15FE0's loose-file fallback still stop the port.
 - The port's own demo with seed 0x12345678 plays 40 rounds, deterministic run to run, and ends on Final Civilization
   Standings (Assyria 3,762) at EXIT, where the original waits too (f14294's f78BA4, D 0x14630).
 
-**M8, the stereo-FM music in the game (2026-11-23 night).** The default music set (§7.2) now plays as the original
+**M8, the stereo-FM music in the game (2026-11-23 night).** The default music set (§7.2) plays as the original
 did on Erik's setup: the `s*` songs through the game's own SBPRO2.MDI (translated in `fmdrv.c`, c4a5e41) on a Nuked
 OPL3.
-- **The path:** `snd_ail.c` picks the engine (`--music fm|gm`, default fm; General MIDI when SBPRO2.MDI or
-  EHGM2FM2.OPL is missing or not the shipped file) → `ail_init_fm` → `musplay.c` → `xmiseq.c` (the host's exact
-  message stream, TASK 22c-22e) → `fm_synth.c` → `fmdrv.c` → Nuked.
+- **The path:** `snd_ail.c` picks the engine (see "All three sets" below) → `ail_init_fm` → `musplay.c` →
+  `xmiseq.c` (the host's exact message stream, TASK 22c-22e) → `fm_synth.c` → `fmdrv.c` → Nuked.
   - Like the original's AIL, the FM driver gets the channel set-up once, at its install, and keeps its state between
     songs. Each new song installs its TIMB timbres (0x503) at AIL_init_sequence. A missing timbre fails with the
     original's text, "Driver could not install timbre bank %u, patch %u".
@@ -756,7 +755,55 @@ OPL3.
 - **Not the same as Erik's ear:** `tools/dosbox/advciv.conf` sets no `oplemu`, so DOSBox-X played the music on its
   default DBOPL core, not Nuked. The 1.5 is the same for both. The port keeps Nuked, the more exact emulator
   (Task 11).
-- Left in §7.2's ruling: the `f*` set (ADLIB.MDI, mono OPL2) and the Preferences line with its settings file.
+
+**M8, all three sets and the music line (2026-11-23 night).** §7.2's ruling is complete.
+- **The FM set (`f*`)** plays through the game's own ADLIB.MDI, a second mode of `fmdrv.c` (e67da6a). The mode keeps
+  m[] at SBPRO2's offsets and copies ADLIB.MDI's tables into it. Every differing site is translated from adlib.asm:
+  - 16 slots and 9 voices;
+  - the OPL2 reset (245 writes, no 0x105);
+  - no stereo bits;
+  - the CC10 dirty flag 0x40;
+  - no 4-op path.
+
+  Nuked stays in OPL2 mode and plays every channel on both sides. The gain and DC filter are the same as for stereo
+  FM (one DOSBox-X OPL channel).
+  - **Check (V):** a new DOSBox-X capture of the original with MDI.INI's DRIVER set to ADLIB.MDI (FMAP__1C at the
+    setup screens; the run folder was restored after). Every write after the dump matches: 5,905 of 5,905.
+    Crossing driver and capture fails at the first write. `fm_game_cmp` now plays both sets (F songs through
+    ADLIB.MDI: about 36,500 writes per volume) and every write is equal, in the same tick. Audio against DOSBox-X's
+    AdLib recording: level 1.03, mono, spectra 0.88. Two reviewers checked the mode against adlib.asm and found one
+    doc slip in fm_dro_cmp.c, fixed.
+- **The choice:**
+  - the settings file `advciv.ini` next to advciv.exe (`music=stereo-fm|fm|gm`, `fm-swap=0|1`); the game folder
+    keeps only the original's files;
+  - then the run's `--music stereo-fm|fm|gm` and `--fm-swap`, which are not saved;
+  - then the **music line** on the AUDIO/VISUALS screen.
+
+  An FM set whose files are missing or unusable plays General MIDI instead.
+- **The music line** (`menu2.c`, not under `--original`): "Music set" with ◄ [Stereo FM | FM | General MIDI] ►,
+  under Music, drawn with the game's own arrows, sunken box and font. Animations and CONTINUE move down a row, and
+  the box grows by 20 px.
+  - A click switches the engine at once (`ail_music_fm` / `ail_music_gm`: the samples and handles are kept). The
+    current song starts again in the new set (`port_music_reload`), playing, or paused when the music is off: a new
+    `start paused` sends nothing, as the original's start + stop sends nothing.
+  - The two arrows are dialog buttons. While the box is open they are records 8 and 9 of DLG_PREFS, in the 843 bytes
+    after its 8 records that nothing refers to. Every byte goes back when the box closes.
+  - **Check (V):**
+    - with `--original` the box is 0 px against DOSBox-X;
+    - the line's box is equal on ARM64 and x64;
+    - three clicks of ► go round and back;
+    - the data object after the box closes equals an `--original` run's, except the last click's y;
+    - headless runs write no settings;
+    - a switching test plays stereo FM → FM → General MIDI (switched while the music is off: silent until the
+      toggle's resume) → a broken driver (refused; the song plays on) → stereo FM, with a sample handle surviving
+      every switch, on both arches.
+  - A three-lens review found four things, all fixed:
+    - the arrows were told apart by the release position (the flash routine waits for the release): they are
+      no-flash now;
+    - a one-run `--fm-swap` was saved into the file by a later click;
+    - after a fallback to General MIDI the arrows stepped from the hidden choice: they now step from the set the
+      line shows, and a click that changes nothing reloads nothing;
+    - advciv.ini sits on a UTF-8 path: it is opened through `plat_fopen` (`_wfopen`).
 
 Pace: one module at a time, each with its own commit; ultracode workflows for the large translation phases
 (M4, M6, M7), split by code region with an adversarial check of each translated routine.
@@ -868,7 +915,7 @@ Centurion `docs/HANDOFF.md` protocol, with a `docs/HANDOFF.md` here).
 1. **GitHub**: one repo for the port, which Mistral can share (e.g. `Fulvia40bc/AdvCiv`, private)? Nothing is
    pushed yet. If Mistral joins, the lanes above apply.
 2. **Music**: RULED 2026-11-18. All three sets, chosen in the port by a setting (the original chose by sound
-   driver, see §2).
+   driver, see §2). DONE 23 Nov night: all three sets, the music line, advciv.ini and `--music` (§5, M8).
    - Choices: FM (`f*`, OPL2), stereo FM (`s*`, OPL3 as SB Pro 2), General MIDI (`g*`, Windows' built-in synth).
    - Default: stereo FM, the set Erik's setup played. In the game since 23 Nov (§5, M8).
    - RULED 2026-11-23: stereo FM keeps the sides as heard in DOSBox-X (SBPRO2 sends MIDI-left to the OPL3's second
