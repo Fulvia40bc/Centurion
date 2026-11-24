@@ -14,8 +14,13 @@ $cc   = Join-Path $Toolchain 'llvm-mingw-20261104-ucrt-aarch64\bin\x86_64-w64-mi
 $sdl  = Join-Path $Toolchain 'SDL2-2.32.10\x86_64-w64-mingw32'
 New-Item -ItemType Directory -Force $Play | Out-Null
 $src = Get-ChildItem (Join-Path $repo 'port\src\*.c') | ForEach-Object FullName
+# the icon (port\centurion.ico, packed from tools\icon\*.svg by tools\make_icon.py)
+$windres = Join-Path $Toolchain 'llvm-mingw-20261104-ucrt-aarch64\bin\x86_64-w64-mingw32-windres.exe'
+$res = Join-Path $env:TEMP 'centurion_res.o'
+& $windres -I (Join-Path $repo 'port') (Join-Path $repo 'port\centurion.rc') -O coff -o $res
+if ($LASTEXITCODE) { throw "windres failed ($LASTEXITCODE)" }
 # a GUI program (no console window on a double-click) that still starts at main(); from a terminal it attaches to it
-& $cc -O2 -Wall -Wextra -std=c11 "-I$sdl\include" @src "-L$sdl\lib" -lSDL2 '-Wl,--subsystem,windows' '-Wl,-e,mainCRTStartup' -o (Join-Path $Play 'centurion.exe')
+& $cc -O2 -Wall -Wextra -std=c11 "-I$sdl\include" @src $res "-L$sdl\lib" -lSDL2 '-Wl,--subsystem,windows' '-Wl,-e,mainCRTStartup' -o (Join-Path $Play 'centurion.exe')
 if ($LASTEXITCODE) { throw "compile failed ($LASTEXITCODE)" }
 Copy-Item (Join-Path $sdl 'bin\SDL2.dll'), (Join-Path $repo 'port\cmap.bin') $Play -Force
 # game data: copies only, the original folder is never modified
