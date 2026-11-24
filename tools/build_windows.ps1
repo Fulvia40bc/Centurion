@@ -24,5 +24,9 @@ if ($LASTEXITCODE) { throw "windres failed ($LASTEXITCODE)" }
 if ($LASTEXITCODE) { throw "compile failed ($LASTEXITCODE)" }
 Copy-Item (Join-Path $sdl 'bin\SDL2.dll'), (Join-Path $repo 'port\cmap.bin') $Play -Force
 # game data: copies only, the original folder is never modified
-Copy-Item (Join-Path $GameDir '*.DAT'), (Join-Path $GameDir '*.DIR'), (Join-Path $GameDir 'OVL0.OVL') $Play -Force
+if (Test-Path (Join-Path $GameDir 'OVL0.OVL')) {
+  Copy-Item (Join-Path $GameDir '*.DAT'), (Join-Path $GameDir '*.DIR'), (Join-Path $GameDir 'OVL0.OVL') $Play -Force
+} elseif (Test-Path (Join-Path $Play 'OVL0.OVL')) {
+  Write-Warning "no game files in $GameDir (pass -GameDir); keeping the ones already in $Play"
+} else { throw "no game files in ${GameDir}: pass -GameDir <folder with OVL0.OVL>" }
 Write-Host "Built $Play\centurion.exe"

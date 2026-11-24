@@ -1,3 +1,4 @@
 // The program icon (Explorer, the taskbar and the title bar: SDL2 takes the exe's first icon).
-// centurion.ico is built from tools/icon/*.svg by tools/make_icon.py.
+// centurion.ico is the shield, tools/icon/scutum.svg (scutum_small.svg for 16-32 px), packed by tools/make_icon.py.
+// Erik picked it on 24 Nov 2026 because it reads at a glance on the desktop; helmet*.svg is the earlier helmet.
 1 ICON "centurion.ico"
