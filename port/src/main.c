@@ -1,8 +1,10 @@
-/* advciv GAMEDIR [--original] [--headless-frame OUT.png]
-   The port's program. So far: the start-up the title menu needs (title_boot), the title menu (0x4F184); for a new
-   game the setup screens (title_newgame: 0x4DD50, 0x4EAE0), the loading step and the nation choice, to main 0x11854;
-   for RESTORE A SAVED GAME the restore (title_restore, save.c), to main 0x115B0. There it stops: the game loop is not
-   ported yet.
+/* advciv [GAMEDIR] [--original] [--headless-frame OUT.png]
+   The port's program: the start-up the title menu needs (title_boot), the title menu (0x4F184); for a new game the
+   setup screens (title_newgame: 0x4DD50, 0x4EAE0), the loading step and the nation choice, to main 0x11854; for
+   RESTORE A SAVED GAME the restore (title_restore, save.c), to main 0x115B0; then the game loop (--play).
+   A run that opens a window plays the game (--play is implied). A test run (--headless-frame, --dump-ds, --dump-every,
+   --through-start, --dump-early) stops at main 0x11854 (a new game) or 0x1188C (a restored one), the data-compare
+   points, unless it is given --play.
    --headless-frame opens no window: it runs until the game first waits for input, saves the screen as an indexed PNG
    (the 6-bit DAC widened as the VGA shows it) and exits, for frame comparisons with DOSBox-X captures. With --dump-ds
    it saves the frame at the dump instead. --click X Y (repeatable) scripts the clicks; --seed HEX sets the clock seed
@@ -79,8 +81,8 @@ static int stop_at(uint32_t addr, const char *how)
         fprintf(stderr, "advciv: cannot write %s\n", s_dump_path);
     if (s_dump_path != NULL && s_frame_path != NULL)   /* the screen at the dump, as the DOSBox-X scripts capture it */
         (void)save_frame();
-    fprintf(stderr, "advciv: stopped at main 0x%X %s, seed %08X; the game itself is not ported yet\n", (unsigned)addr,
-            how, (unsigned)D32(0xCAC5Cu));
+    fprintf(stderr, "advciv: stopped at main 0x%X %s, seed %08X (a test run's stop; --play goes on into the game)\n",
+            (unsigned)addr, how, (unsigned)D32(0xCAC5Cu));
     plat_shutdown();
     return 0;
 }
@@ -351,11 +353,14 @@ int main(int argc, char **argv)
         else if (argv[i][0] != '-' && gamedir == NULL)
             gamedir = argv[i];
         else {
-            fprintf(stderr, "usage: advciv GAMEDIR [--original] [--music stereo-fm|fm|gm] [--fm-swap] [--headless-frame OUT.png"
+            fprintf(stderr, "usage: advciv [GAMEDIR] [--original] [--srd N] [--music stereo-fm|fm|gm] [--fm-swap]"
+                            " [--headless-frame OUT.png"
                             " [--pointer X Y] [--click X Y]...]\n");
             return 2;
         }
     }
+    if (s_frame_path == NULL && s_dump_path == NULL && s_dump_every == NULL && !s_through_start && !s_dump_early)
+        s_play = 1;          /* port: a run with a window plays the game; only test runs stop at the compare points */
     if (gamedir == NULL) {   /* port: the player's zip puts advciv.exe in GAMEDIR\AdvCiv\ (tools/package.ps1's README), */
         FILE *probe = fopen("ACIV.CT1", "rb");          /* and a double-click starts it there: then use the parent */
         gamedir = ".";
@@ -479,7 +484,7 @@ int main(int argc, char **argv)
             game_loop_new();                          /* 0x1188C..: the game loop 0x54824 (never returns) */
         return stop_at(s_dump_early ? 0x1184Fu : s_through_start ? 0x1188Cu : 0x11854u, "in a new game");
     }
-    fprintf(stderr, "advciv: the title menu returned %d (the game itself is not ported yet)\n", rc);
+    fprintf(stderr, "advciv: the title menu returned %d (a play-by-email code; the port leaves PBEM out)\n", rc);
     plat_shutdown();
     return 0;
 }
